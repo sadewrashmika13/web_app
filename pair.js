@@ -2050,7 +2050,7 @@ case 'tt': {
                         `🚫 *WATERMARK :* No\n` +
                         `__________________________\n\n` +
                         `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
-                        `> *𝗔esthatic 𝗤ueen 𝗕y 𝗖hamod 𝜗𝜚⋆*`;
+                        `>𝗕y 🦋 ₊˚ ⊹ 𝐒 𝐀 𝐃 𝐄 𝐖 - 𝐌 𝐈 𝐍 𝐈 ⊹ ˚₊ 𝜗𝜚' 𝜗𝜚⋆`;
 
         // 16MB වලට වඩා වැඩි නම් Document එකක් විදිහට යවනවා (Quality එක අඩුවෙන එක නවත්තන්න)
         if (videoBuffer.length > 40 * 1024 * 1024) {
