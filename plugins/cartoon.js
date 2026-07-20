@@ -5,6 +5,19 @@ const path = require('path');
 if (!global.slcSession) global.slcSession = {};
 
 // ════════════════════════════════════════════════════════
+// MULTI-SESSION SAFE KEY HELPERS
+// Bot JID + chat JID + msgId — per-bot, per-user isolation
+// ════════════════════════════════════════════════════════
+function getBotJid(socket) {
+    const raw = socket?.user?.id || socket?.user?.jid || '';
+    return raw.split(':')[0].replace(/[^0-9]/g, '') || 'unknown_bot';
+}
+
+function makeCartoonSessionKey(socket, chatJid, stanzaId) {
+    return `${getBotJid(socket)}__${chatJid}__${stanzaId}`;
+}
+
+// ════════════════════════════════════════════════════════
 // CORE NUMBER REPLY HANDLER
 // ════════════════════════════════════════════════════════
 async function handleNumberReply({ socket, msg, sender, numStr }) {
@@ -19,7 +32,7 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
     if (!contextInfo?.stanzaId) return false;
 
     const stanzaId = contextInfo.stanzaId;
-    const sessionKey = `${sender}__${stanzaId}`;
+    const sessionKey = makeCartoonSessionKey(socket, sender, stanzaId);
     const session = global.slcSession[sessionKey];
 
     if (!session) return false;
@@ -92,7 +105,7 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
 
             const msgId = sentMsg?.key?.id;
             if (msgId) {
-                const epKey = `${sender}__${msgId}`;
+                const epKey = makeCartoonSessionKey(socket, sender, msgId);
                 global.slcSession[epKey] = {
                     type: 'episodes',
                     items: epItems,
@@ -165,14 +178,17 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
 }
 
 // ════════════════════════════════════════════════════════
-// GLOBAL HANDLER — main file eke call karanava (one line)
-// Usage: if (global.cartoonNumHandler) await global.cartoonNumHandler(msg);
+// GLOBAL HANDLER — main file eke ADD THIS ONE LINE:
+//
+//   if (global.cartoonNumHandler) {
+//       const handled = await global.cartoonNumHandler(msg, socket);
+//       if (handled) return;
+//   }
+//
+// Add this BEFORE the fromMe / prefix check block.
 // ════════════════════════════════════════════════════════
-global.cartoonNumHandler = async (msg, socketRef) => {
-    if (!msg?.message) return;
-
-    const socket = socketRef || global._cartoonSocket;
-    if (!socket) return;
+global.cartoonNumHandler = async (msg, socket) => {
+    if (!msg?.message || !socket) return false;
 
     const sender = msg.key.remoteJid;
 
@@ -182,52 +198,16 @@ global.cartoonNumHandler = async (msg, socketRef) => {
         ''
     ).trim();
 
-    if (!/^\d{1,2}$/.test(rawText)) return;
+    if (!/^\d{1,2}$/.test(rawText)) return false;
     const num = parseInt(rawText);
-    if (num < 1 || num > 50) return;
+    if (num < 1 || num > 50) return false;
 
-    await handleNumberReply({ socket, msg, sender, numStr: rawText });
+    return await handleNumberReply({ socket, msg, sender, numStr: rawText });
 };
 
 // ════════════════════════════════════════════════════════
-// SELF-CONTAINED LISTENER (try karanava — framework support karoth work karanava)
-// ════════════════════════════════════════════════════════
-function setupCartoonListener(socket) {
-    global._cartoonSocket = socket; // global reference save karanava
-
-    if (global._cartoonListenerAdded) return;
-    global._cartoonListenerAdded = true;
-    console.log("[cartoon] ✅ Listener registered.");
-
-    socket.ev.on('messages.upsert', async ({ messages }) => {
-        for (const msg of messages) {
-            if (!msg.message) continue;
-            const sender = msg.key.remoteJid;
-            const rawText = (
-                msg.message?.conversation ||
-                msg.message?.extendedTextMessage?.text ||
-                ''
-            ).trim();
-
-            if (!/^\d{1,2}$/.test(rawText)) continue;
-            const num = parseInt(rawText);
-            if (num < 1 || num > 50) continue;
-
-            const contextInfo =
-                msg.message?.extendedTextMessage?.contextInfo ||
-                msg.message?.imageMessage?.contextInfo;
-            if (!contextInfo?.stanzaId) continue;
-
-            const sKey = `${sender}__${contextInfo.stanzaId}`;
-            if (!global.slcSession[sKey]) continue;
-
-            await handleNumberReply({ socket, msg, sender, numStr: rawText });
-        }
-    });
-}
-
-// ════════════════════════════════════════════════════════
 // MODULE EXPORT
+// setupCartoonListener REMOVED — main file handles routing
 // ════════════════════════════════════════════════════════
 module.exports = {
     name: "cartoon",
@@ -239,7 +219,7 @@ module.exports = {
         const API_KEY = "zan_FIAO7Ayh_eo1vllkep6";
         const BASE_API = "https://api.zanta-mini.store/api/slcartoons";
 
-        setupCartoonListener(socket);
+        // setupCartoonListener removed — main file calls global.cartoonNumHandler
 
         if (command === "cartoon") {
             const query = args.join(' ').trim();
@@ -277,14 +257,13 @@ module.exports = {
 
                 const msgId = sentMsg?.key?.id;
                 if (msgId) {
-                    const sKey = `${sender}__${msgId}`;
+                    const sKey = makeCartoonSessionKey(socket, sender, msgId);
                     global.slcSession[sKey] = {
                         type: 'search',
                         items: searchItems,
                         expiresAt: Date.now() + 5 * 60 * 1000
                     };
                     setTimeout(() => { delete global.slcSession[sKey]; }, 5 * 60 * 1000);
-                    console.log(`[cartoon] Session saved: key="${sender}__${msgId}"`);
                 }
 
             } catch (e) {
