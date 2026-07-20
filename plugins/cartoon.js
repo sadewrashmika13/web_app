@@ -157,7 +157,7 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
 
             await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } });
             await socket.sendMessage(sender, {
-                document: fs.readFileSync(tempFilePath),
+                document: { url: tempFilePath }, // 🔥 මෙන්න මේකයි වෙනස් වුණේ! fs.readFileSync අයි
                 mimetype: 'video/mp4',
                 fileName: finalFileName,
                 caption: `*🎬 Title:* ${selectedItem.title}\n📦 *Size:* ${sizeMB} MB\n\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`
