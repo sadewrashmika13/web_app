@@ -1351,31 +1351,14 @@ async function setupCommandHandlers(socket, number) {
                 return await socket.sendMessage(msg.key.remoteJid, { text: `✅ *Bot mode successfully updated to ${newMode.toUpperCase()} mode.*` }, { quoted: msg });
             }
 // ════ PREFIX-LESS NUMBER REPLY HANDLER ════
-// Cartoon / Episode number replies handle karanava (prefix nathuwa)
-socket.ev.on('messages.upsert', async ({ messages }) => {
-    for (const msg of messages) {
-        if (!msg.message || msg.key.fromMe) continue;
-
-        const sender = msg.key.remoteJid;
-        const bodyText = (
-            msg.message?.conversation ||
-            msg.message?.extendedTextMessage?.text ||
-            ''
-        ).trim();
-
-        // Pure number ekak da? (prefix nathuwa)
-        const isNumberReply = /^\d{1,2}$/.test(bodyText);
-        const isReply = !!(
-            msg.message?.extendedTextMessage?.contextInfo?.stanzaId ||
-            msg.message?.imageMessage?.contextInfo?.stanzaId
-        );
-
-        if (isNumberReply && isReply && global.handleCartoonReply) {
-            const reply = (text) => socket.sendMessage(sender, { text }, { quoted: msg });
-            await global.handleCartoonReply({ socket, msg, sender, reply, numStr: bodyText });
-        }
-    }
-});       
+// DELETE කරන්න: socket.ev.on('messages.upsert', ...) ← ඒ whole block eka
+// ──────────────────────────────────────────────
+// INSTEAD — main handler ඇතුළෙ, XNXX catcher කලින්:
+// ──────────────────────────────────────────────
+if (global.cartoonNumHandler) {
+    const handled = await global.cartoonNumHandler(msg, socket);
+    if (handled) return;
+}
             // 🔥🔥🔥 XNXX REPLY CATCHER 🔥🔥🔥
             if (quotedText.includes("SADEW-MD SEARCH") && /^[0-9]+$/.test(replyText)) {
                 if (global.xnxxContexts && global.xnxxContexts[sender]) {
