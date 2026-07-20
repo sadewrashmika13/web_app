@@ -3,8 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 if (!global.slcSession) global.slcSession = {};
-// Listener add karala thiyenavada kiyala track karanava (duplocate avoid)
-if (!global._cartoonListenerAdded) global._cartoonListenerAdded = false;
 
 // ════════════════════════════════════════════════════════
 // CORE NUMBER REPLY HANDLER
@@ -12,20 +10,22 @@ if (!global._cartoonListenerAdded) global._cartoonListenerAdded = false;
 async function handleNumberReply({ socket, msg, sender, numStr }) {
     const reply = (text) => socket.sendMessage(sender, { text }, { quoted: msg });
 
-    // Reply ekak da?
     const contextInfo =
         msg.message?.extendedTextMessage?.contextInfo ||
         msg.message?.imageMessage?.contextInfo ||
-        msg.message?.videoMessage?.contextInfo;
+        msg.message?.videoMessage?.contextInfo ||
+        msg.message?.documentMessage?.contextInfo;
 
     if (!contextInfo?.stanzaId) return false;
 
-    const repliedMsgId = contextInfo.stanzaId;
-    const session = global.slcSession[repliedMsgId];
-    if (!session) return false; // apege bot eke msg ekak neme
+    const stanzaId = contextInfo.stanzaId;
+    const sessionKey = `${sender}__${stanzaId}`;
+    const session = global.slcSession[sessionKey];
+
+    if (!session) return false;
 
     if (Date.now() > session.expiresAt) {
-        delete global.slcSession[repliedMsgId];
+        delete global.slcSession[sessionKey];
         await reply("❌ *මෙම පණිවිඩයේ කාලය (විනාඩි 5) අවසන් වී ඇත. නැවත .cartoon search කරන්න.*");
         return true;
     }
@@ -50,7 +50,6 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
             if (!dlRes.data.results) throw new Error("Details naha");
 
             const details = dlRes.data.results;
-
             let capText = `*🎬 SADEW-MINI CARTOON DETAILS*\n\n`;
             capText += `📌 *Title:* ${selectedItem.title}\n`;
             capText += `🏷️ *Type:* ${details.type || 'N/A'}\n`;
@@ -91,33 +90,34 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
             const sentMsg = await socket.sendMessage(sender, msgOpts, { quoted: msg });
             await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
 
-            // Session save — sentMsg eke ID ekath, possible alternative IDs ekath
             const msgId = sentMsg?.key?.id;
             if (msgId) {
-                global.slcSession[msgId] = {
+                const epKey = `${sender}__${msgId}`;
+                global.slcSession[epKey] = {
                     type: 'episodes',
                     items: epItems,
                     expiresAt: Date.now() + 5 * 60 * 1000
                 };
-                setTimeout(() => { delete global.slcSession[msgId]; }, 5 * 60 * 1000);
+                setTimeout(() => { delete global.slcSession[epKey]; }, 5 * 60 * 1000);
             }
 
         } catch (e) {
             console.error("[cartoon] Details Error:", e.message);
-            await reply(`❌ *Details load error: ${e.message}*`);
+            await reply(`❌ *Details error: ${e.message}*`);
         }
         return true;
     }
 
     // ── EPISODE → DOWNLOAD ──
     if (session.type === 'episodes') {
+        let tempFilePath = null;
         try {
             await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
-            await reply(`⬇️ *Downloading...*\n🎬 *${selectedItem.title}*\n\n_Server eke download wadinawa..._`);
+            await reply(`⬇️ *Downloading...*\n🎬 *${selectedItem.title}*\n\n_Server eka download wadinawa..._`);
 
             const safeTitle = selectedItem.title.replace(/[^a-zA-Z0-9\s]/g, '').trim().substring(0, 40).replace(/\s+/g, '_');
             const finalFileName = `SadewMini_${safeTitle}.mp4`;
-            const tempFilePath = path.join('/tmp', `cartoon_${Date.now()}_${finalFileName}`);
+            tempFilePath = path.join('/tmp', `cartoon_${Date.now()}.mp4`);
 
             const writer = fs.createWriteStream(tempFilePath);
             const fileRes = await axios({
@@ -139,19 +139,16 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
             const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
 
             if (stats.size > 2000 * 1024 * 1024) {
-                fs.unlinkSync(tempFilePath);
                 return await reply(`❌ *File too large!* (${sizeMB} MB)`);
             }
 
             await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } });
-
             await socket.sendMessage(sender, {
                 document: fs.readFileSync(tempFilePath),
                 mimetype: 'video/mp4',
                 fileName: finalFileName,
                 caption: `*🎬 Title:* ${selectedItem.title}\n📦 *Size:* ${sizeMB} MB\n\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`
             }, { quoted: msg });
-
             await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
 
         } catch (e) {
@@ -159,7 +156,7 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
             await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
             await reply(`❌ *Download error: ${e.message}*`);
         } finally {
-            try { fs.unlinkSync(tempFilePath); } catch (_) {}
+            if (tempFilePath) try { fs.unlinkSync(tempFilePath); } catch (_) {}
         }
         return true;
     }
@@ -168,76 +165,63 @@ async function handleNumberReply({ socket, msg, sender, numStr }) {
 }
 
 // ════════════════════════════════════════════════════════
-// SOCKET LISTENER SETUP — module eke eken call karanava
-// Prefix-less number replies handle karanava
+// GLOBAL HANDLER — main file eke call karanava (one line)
+// Usage: if (global.cartoonNumHandler) await global.cartoonNumHandler(msg);
+// ════════════════════════════════════════════════════════
+global.cartoonNumHandler = async (msg, socketRef) => {
+    if (!msg?.message) return;
+
+    const socket = socketRef || global._cartoonSocket;
+    if (!socket) return;
+
+    const sender = msg.key.remoteJid;
+
+    const rawText = (
+        msg.message?.conversation ||
+        msg.message?.extendedTextMessage?.text ||
+        ''
+    ).trim();
+
+    if (!/^\d{1,2}$/.test(rawText)) return;
+    const num = parseInt(rawText);
+    if (num < 1 || num > 50) return;
+
+    await handleNumberReply({ socket, msg, sender, numStr: rawText });
+};
+
+// ════════════════════════════════════════════════════════
+// SELF-CONTAINED LISTENER (try karanava — framework support karoth work karanava)
 // ════════════════════════════════════════════════════════
 function setupCartoonListener(socket) {
+    global._cartoonSocket = socket; // global reference save karanava
+
     if (global._cartoonListenerAdded) return;
     global._cartoonListenerAdded = true;
+    console.log("[cartoon] ✅ Listener registered.");
 
-    console.log("[cartoon] ✅ Prefix-less number reply listener active.");
-
-    socket.ev.on('messages.upsert', async ({ messages, type }) => {
-        // DEBUG: type eka check karanava
-        // if (type !== 'notify') return; // <-- temporarily remove this filter
-
+    socket.ev.on('messages.upsert', async ({ messages }) => {
         for (const msg of messages) {
             if (!msg.message) continue;
-            if (msg.key.fromMe) continue;
-
             const sender = msg.key.remoteJid;
-
-            // ALL possible places where text can be
             const rawText = (
                 msg.message?.conversation ||
                 msg.message?.extendedTextMessage?.text ||
-                msg.message?.imageMessage?.caption ||
-                msg.message?.buttonsResponseMessage?.selectedDisplayText ||
-                msg.message?.listResponseMessage?.title ||
                 ''
             ).trim();
 
-            // DEBUG: every incoming message log karanava
-            console.log(`[cartoon-debug] MSG type="${type}" from="${sender}" text="${rawText}"`);
-
-            // Pure number ekak da (1-50)?
             if (!/^\d{1,2}$/.test(rawText)) continue;
             const num = parseInt(rawText);
             if (num < 1 || num > 50) continue;
 
-            console.log(`[cartoon-debug] ✅ Number detected: ${rawText}`);
-
-            // Reply contextInfo check — ALL possible message types
             const contextInfo =
                 msg.message?.extendedTextMessage?.contextInfo ||
-                msg.message?.imageMessage?.contextInfo ||
-                msg.message?.videoMessage?.contextInfo ||
-                msg.message?.documentMessage?.contextInfo ||
-                msg.message?.stickerMessage?.contextInfo;
+                msg.message?.imageMessage?.contextInfo;
+            if (!contextInfo?.stanzaId) continue;
 
-            if (!contextInfo?.stanzaId) {
-                console.log(`[cartoon-debug] ❌ No contextInfo/stanzaId — user did not reply to a message`);
-                continue;
-            }
+            const sKey = `${sender}__${contextInfo.stanzaId}`;
+            if (!global.slcSession[sKey]) continue;
 
-            const stanzaId = contextInfo.stanzaId;
-            console.log(`[cartoon-debug] 🔍 stanzaId="${stanzaId}"`);
-            console.log(`[cartoon-debug] 📦 Sessions in memory: ${JSON.stringify(Object.keys(global.slcSession))}`);
-
-            // Session thiyanavada?
-            if (!global.slcSession[stanzaId]) {
-                console.log(`[cartoon-debug] ❌ No session found for stanzaId="${stanzaId}"`);
-                continue;
-            }
-
-            console.log(`[cartoon-debug] ✅ Session found! type="${global.slcSession[stanzaId].type}" items=${global.slcSession[stanzaId].items.length}`);
-
-            // Handle karanava!
-            try {
-                await handleNumberReply({ socket, msg, sender, numStr: rawText });
-            } catch (e) {
-                console.error("[cartoon] listener error:", e.message);
-            }
+            await handleNumberReply({ socket, msg, sender, numStr: rawText });
         }
     });
 }
@@ -255,7 +239,6 @@ module.exports = {
         const API_KEY = "zan_FIAO7Ayh_eo1vllkep6";
         const BASE_API = "https://api.zanta-mini.store/api/slcartoons";
 
-        // First time handler call eke listener setup karanava
         setupCartoonListener(socket);
 
         if (command === "cartoon") {
@@ -292,15 +275,16 @@ module.exports = {
                 const sentMsg = await socket.sendMessage(sender, msgOpts, { quoted: msg });
                 await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
 
-                // Session save
                 const msgId = sentMsg?.key?.id;
                 if (msgId) {
-                    global.slcSession[msgId] = {
+                    const sKey = `${sender}__${msgId}`;
+                    global.slcSession[sKey] = {
                         type: 'search',
                         items: searchItems,
                         expiresAt: Date.now() + 5 * 60 * 1000
                     };
-                    setTimeout(() => { delete global.slcSession[msgId]; }, 5 * 60 * 1000);
+                    setTimeout(() => { delete global.slcSession[sKey]; }, 5 * 60 * 1000);
+                    console.log(`[cartoon] Session saved: key="${sender}__${msgId}"`);
                 }
 
             } catch (e) {
