@@ -1262,6 +1262,10 @@ async function setupCommandHandlers(socket, number) {
             (msg.key.participant || msg.key.remoteJid);
 
         const senderNumber = nowsender.split('@')[0];
+		// 🚫 BANNED USERS BLOCKER 🚫 (මෙන්න මේ කෑල්ල තමයි අලුතින් මැදට දැම්මේ)
+        if (sessionConfig.BANNED_USERS && sessionConfig.BANNED_USERS.includes(nowsender)) {
+            return; // බෑන් කරපු අයගේ කිසිම මැසේජ් එකකට බොට් රිප්ලයි කරන්නේ නෑ
+        }
         const developers = `${config.OWNER_NUMBER}`;
         const botNumber = socket.user.id.split(':')[0];
 
