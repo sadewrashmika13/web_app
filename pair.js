@@ -1123,7 +1123,7 @@ function buildCategoryButtonMessage(catNum) {
             `${bodyLines}\n` +
             `*┗━━━━━━━━━━━━━━━━━*\n\n` +
             `> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`,
-        footer: '👑 SADEW-MINI 👑',
+        footer: '🦋 ₊˚ ⊹ 𝐒 𝐀 𝐃 𝐄 𝐖 - 𝐌 𝐈 𝐍 𝐈 ⊹ ˚₊ 𝜗𝜚',
         buttons: cat.items.slice(0, 3).map(i => ({
             buttonId: i.cmd,
             buttonText: { displayText: i.cmd },
@@ -1303,7 +1303,7 @@ async function setupCommandHandlers(socket, number) {
                     if (targetUrl) {
                         const buttonMessage = {
                             text: `*🎥 Video Selected!*\n\n🔗 ${targetUrl}\n\n> *පහතින් ඔබට අවශ්‍ය Video Quality එක තෝරන්න:*`,
-                            footer: '👑 SADEW-X-MINI 👑',
+                            footer: '🦋 ₊˚ ⊹ 𝐒 𝐀 𝐃 𝐄 𝐖 - 𝐌 𝐈 𝐍 𝐈 ⊹ ˚₊ 𝜗𝜚',
                             buttons: [
                                 { buttonId: `.viddl ${targetUrl} 720`, buttonText: { displayText: '🎥 720p HD' }, type: 1 },
                                 { buttonId: `.viddl ${targetUrl} 480`, buttonText: { displayText: '🎞️ 480p' }, type: 1 },
