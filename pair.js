@@ -98,6 +98,7 @@ if (!global.sadewVideoSearch) global.sadewVideoSearch = {};
 if (!global.sadewMenuTracker) global.sadewMenuTracker = {};
 
 const activeSockets = new Map();
+global.activeSockets = activeSockets;
 const socketCreationTime = new Map();
 const socketHandlersMap = new Map();
 const SESSION_BASE_PATH = './session';
@@ -126,7 +127,7 @@ const Session = mongoose.model('SessionNew', SessionSchema);
 
 async function connectMongoDB() {
     try {
-        const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://sadewrashmika069_db_user:sadew13767@cluster0.yqmgml7.mongodb.net/?appName=Cluster0';
+const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://sadewrashmika069_db_user:sadew13767@cluster0.yqmgml7.mongodb.net/?appName=Cluster0';
         await mongoose.connect(mongoUri, {
             bufferCommands: false,
             serverSelectionTimeoutMS: 5000 
@@ -1111,11 +1112,12 @@ function findPluginForCommand(commandNoPrefix) {
     );
 }
 
-function buildCategoryButtonMessage(catNum) {
+function buildCategoryButtonMessage(catNum, prefix) {
     const cat = getMergedCategory(catNum);
     if (!cat) return null;
 
-    const bodyLines = cat.items.map(i => `*┃* ${i.cmd} ➜ ${i.desc}`).join('\n');
+    // තිත අයින් කරලා දැනට තියෙන prefix එක ඔටෝම දානවා
+    const bodyLines = cat.items.map(i => `*┃* ${i.cmd.replace(/^\./, prefix)} ➜ ${i.desc}`).join('\n');
 
     return {
         text:
@@ -1125,8 +1127,8 @@ function buildCategoryButtonMessage(catNum) {
             `> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`,
         footer: '🦋 ₊˚ ⊹ 𝐒 𝐀 𝐃 𝐄 𝐖 - 𝐌 𝐈 𝐍 𝐈 ⊹ ˚₊ 𝜗𝜚',
         buttons: cat.items.slice(0, 3).map(i => ({
-            buttonId: i.cmd,
-            buttonText: { displayText: i.cmd },
+            buttonId: i.cmd.replace(/^\./, prefix), // 👈 Button ID එකටත් අදාළ Prefix එක දෙනවා
+            buttonText: { displayText: i.cmd.replace(/^\./, prefix) },
             type: 1
         })),
         headerType: 1
@@ -1135,9 +1137,9 @@ function buildCategoryButtonMessage(catNum) {
 
 // Main menu category-overview buttons — one button per category (8 total),
 // sent as quick reply buttons alongside the number-reply system.
-function buildMainMenuCategoryButtons() {
+function buildMainMenuCategoryButtons(prefix) {
     return Object.entries(SADEW_CATEGORIES).map(([num, cat]) => ({
-        buttonId: `.catmenu${num}`,
+        buttonId: `${prefix}catmenu${num}`, // 👈 Hardcode කරපු තිත (.) වෙනුවට prefix එක දැම්මා
         buttonText: { displayText: `${cat.emoji} ${cat.name}` },
         type: 1
     }));
@@ -1147,20 +1149,35 @@ async function setupCommandHandlers(socket, number) {
     const sanitizedNumber = number.replace(/[^0-9]/g, '');
 
     let sessionConfig = await loadUserConfig(sanitizedNumber);
-    activeSockets.set(sanitizedNumber, { socket, config: sessionConfig });
-// 🔴 GLOBAL BUTTON OVERRIDE (DB SYNCED - මුළු බොට්ටම) 🔴
+ // 🔴 GLOBAL BUTTON OVERRIDE (DB SYNCED & DYNAMIC PREFIX) 🔴
         if (!socket.isSmartOverridden) {
             socket.originalSendMessage = socket.sendMessage;
             socket.sendMessage = async (jid, content, options) => {
                 
-                // Database එකෙන් බොට්ගේ Global සෙටින්ග් එක ගන්නවා (Per-user නෙමෙයි)
+                // Database එකෙන් හෝ Active Session එකෙන් කරන්ට් Prefix එක සහ Button Mode එක ගන්නවා
                 const currentConfig = activeSockets.get(sanitizedNumber)?.config || {};
-                const botButtonMode = currentConfig.BUTTON_MODE || 'true'; // Default 'true'
+                const botButtonMode = currentConfig.BUTTON_MODE || 'true'; 
+                const userPrefix = currentConfig.PREFIX || '.'; // යූසර්ගේ Prefix එක (උදා: KIRIANA)
                 
-                // බොට්ගේ බටන් ඕෆ් කරලා නම් හැමෝටම නම්බර් යවනවා!
+                // 🛠️ MAGIC FIX: ප්ලගින් වලින් හරි වෙන කොහෙන් හරි එන බටන් IDs වල තිත (.) වෙනුවට userPrefix එක ඔටෝම දානවා!
+                if (content.buttons && Array.isArray(content.buttons)) {
+                    content.buttons = content.buttons.map(btn => {
+                        // බටන් ID එක පටන් ගන්නේ තිතෙන් (.) නම් විතරක් ඒක වෙනස් කරනවා
+                        if (btn.buttonId && btn.buttonId.startsWith('.')) {
+                            btn.buttonId = btn.buttonId.replace(/^\./, userPrefix);
+                        }
+                        // Button Text එකෙත් තිතක් මුලින් තියෙනවා නම් ඒකත් හදනවා
+                        if (btn.buttonText && btn.buttonText.displayText && btn.buttonText.displayText.startsWith('.')) {
+                            btn.buttonText.displayText = btn.buttonText.displayText.replace(/^\./, userPrefix);
+                        }
+                        return btn;
+                    });
+                }
+
+                // බොට්ගේ බටන් ඕෆ් කරලා නම් හැමෝටම නම්බර් යවනවා (Fallback System)
                 if (content.buttons && botButtonMode === 'false') {
                     
-                    const isMainMenu = content.buttons.some(btn => btn?.buttonId && btn.buttonId.startsWith('.catmenu'));
+                    const isMainMenu = content.buttons.some(btn => btn?.buttonId && btn.buttonId.includes('catmenu'));
                     
                     let finalOpts = { ...content };
                     delete finalOpts.buttons;     
@@ -1195,7 +1212,7 @@ async function setupCommandHandlers(socket, number) {
     const recentCallers = new Set();
 
     socket.ev.on('messages.upsert', async ({ messages }) => {
-        await socket.sendPresenceUpdate('unavailable');
+        
         const msg = messages[0];
         if (!msg.message) return;
 
@@ -1293,7 +1310,7 @@ async function setupCommandHandlers(socket, number) {
                 /^[1-9]$/.test(replyText)
             ) {
                 const catNum = parseInt(replyText);
-                const buttonMsg = buildCategoryButtonMessage(catNum);
+                const buttonMsg = buildCategoryButtonMessage(catNum, sessionConfig.PREFIX || '.');
                 if (buttonMsg) {
                     return await socket.sendMessage(msg.key.remoteJid, buttonMsg, { quoted: msg });
                 }
@@ -1305,6 +1322,7 @@ async function setupCommandHandlers(socket, number) {
                     const num = parseInt(replyText);
                     const targetUrl = global.sadewVideoSearch[sender][num - 1];
                     if (targetUrl) {
+                        const currentPrefix = sessionConfig.PREFIX || '.';
                         const buttonMessage = {
                             text: `*🎥 Video Selected!*\n\n🔗 ${targetUrl}\n\n> *පහතින් ඔබට අවශ්‍ය Video Quality එක තෝරන්න:*`,
                             footer: '🦋 ₊˚ ⊹ 𝐒 𝐀 𝐃 𝐄 𝐖 - 𝐌 𝐈 𝐍 𝐈 ⊹ ˚₊ 𝜗𝜚',
@@ -1425,13 +1443,28 @@ if (global.cartoonNumHandler) {
         const isBotAdmins = groupAdmins.includes(socket.user.id);
         const isAdmins = groupAdmins.includes(sender);
 
-        const reply = async (text, options = {}) => {
-            await socket.sendMessage(msg.key.remoteJid, {
-                text,
-                ...options
-            }, {
-                quoted: msg
-            });
+const reply = async (text, options = {}) => {
+            try {
+                // 1. බොට් කමාන්ඩ් එකට අදාළව "Typing..." පෙන්නනවා (සර්වර් එකට යවනවා)
+                await socket.sendPresenceUpdate('composing', msg.key.remoteJid);
+                
+                // 2. ඉතාම කුඩා (Safe) ප්‍රමාදයක් (මිලි තත්පර 150 - 300 අතර). මේකෙන් කිසිම කමාන්ඩ් එකක් හිරවෙන්නේ නෑ.
+                await delay(80 + Math.floor(Math.random() * 100)); 
+                
+                // 3. මැසේජ් එක යවනවා
+                await socket.sendMessage(msg.key.remoteJid, {
+                    text,
+                    ...options
+                }, {
+                    quoted: msg
+                });
+
+                // 4. යවපු ගමන් ආයෙත් බොට්ව Offline (unavailable) කරලා දානවා (24 පැය Online පේන එක නැති කරන්න)
+                await socket.sendPresenceUpdate('unavailable', msg.key.remoteJid);
+                
+            } catch (err) {
+                console.error("Reply sending error:", err);
+            }
         };
 
 function getUptime() {
@@ -1504,17 +1537,14 @@ const downloadQuotedMedia = async (quoted) => {
   const sendReply = text => socket.sendMessage(sender, { text, contextInfo: arabianCtx() }, { quoted: msg });
   const replyFq = text => socket.sendMessage(sender, { text, contextInfo: arabianCtx() }, { quoted: fq });
         
-                // ════════════ CATEGORY BUTTON CLICK CATCHER ════════════
-        // 8 category buttons sends buttonId .catmenu1 .. .catmenu8 - there was no
-        // switch-case for it before, so tapping the button did nothing. Fix:
+       // ════════════ CATEGORY BUTTON CLICK CATCHER ════════════
         if (command.startsWith('catmenu')) {
-            const catNum = parseInt(command.replace('catmenu', ''), 10);
-            const buttonMsg = buildCategoryButtonMessage(catNum);
+            const catNum = parseInt(command.replace('catmenu', '')); // 👈 මෙන්න මේකෙන් catNum එක ඔටෝම වෙන් කරගන්නවා
+            const buttonMsg = buildCategoryButtonMessage(catNum, sessionConfig.PREFIX || '.');
             if (buttonMsg) {
                 return await socket.sendMessage(sender, buttonMsg, { quoted: msg });
             }
         }
-
 try {       
             switch (command) {
 
@@ -1571,7 +1601,7 @@ try {
         image: { url: menuImageUrl },
         caption: menuText,
         footer: '🦋 ₊˚ ⊹ 𝐒 𝐀 𝐃 𝐄 𝐖 - 𝐌 𝐈 𝐍 𝐈 ⊹ ˚₊ 𝜗𝜚',
-        buttons: buildMainMenuCategoryButtons(),
+        buttons: buildMainMenuCategoryButtons(sessionConfig.PREFIX || '.'),
         headerType: 4,
         contextInfo: arabianCtx()
       }, { quoted: msg });
@@ -1680,7 +1710,7 @@ case 'yta': {
         try { await socket.sendMessage(sender, { react: { text: '🔎', key: msg.key } }); } catch (_) {}
 
         // WhiteShadow YT APIs & Token
-        const API_TOKEN = "4ehG6P";
+        const API_TOKEN = "VK4fry";
         const YT_SEARCH_API = "https://whiteshadow-x-api.onrender.com/api/search/yt";
         const YT_DOWNLOAD_API = "https://whiteshadow-x-api.onrender.com/api/download/ytmp3";
 
@@ -1765,11 +1795,11 @@ case 'playvid': {
 
         try { await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } }); } catch (_) {}
 
-        const API_TOKEN = "4ehG6P";
+        const API_TOKEN = "VK4fry";
         const YT_SEARCH_API = "https://whiteshadow-x-api.onrender.com/api/search/yt";
         
         const isUrl = /(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)[^\s?#]+)/i.test(query);
-
+        const currentPrefix = sessionConfig.PREFIX || '.';
         if (isUrl) {
             const url = query.match(/(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)[^\s?#]+)/i)[0];
             const buttonMessage = {
@@ -3194,6 +3224,23 @@ router.get('/active', (req, res) => {
         count: activeSockets.size,
         numbers: Array.from(activeSockets.keys())
     });
+});
+// ════════════ 📊 SERVER LIVE STATS API ENDPOINT ════════════
+router.get('/livestats', (req, res) => {
+    try {
+        const uptime = process.uptime();
+        const ramUsed = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+        const sessionsCount = typeof activeSockets !== 'undefined' ? activeSockets.size : 0;
+
+        res.json({
+            uptime: uptime,
+            ramUsed: ramUsed,
+            sessionsCount: sessionsCount
+        });
+    } catch (error) {
+        console.error("Stats API Error:", error);
+        res.status(500).json({ error: "Failed to fetch stats" });
+    }
 });
 
 process.on('exit', () => {
