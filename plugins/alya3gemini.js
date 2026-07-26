@@ -43,7 +43,7 @@ RULES:
             chatContext += `Sajana: ${query}\nAlya:`;
 
             // 🚀 WhiteShadow Gemini API එකට කෝල් එක යවනවා
-            const url = `https://whiteshadow-x-api.onrender.com/api/ai/gemini?q=${encodeURIComponent(chatContext)}&apitoken=VK4fry`;
+            const url = `https://whiteshadow-x-api.onrender.com/api/ai/gemini?q=${encodeURIComponent(chatContext)}&apitoken=4ehG6P`;
             
             const res = await axios.get(url, { timeout: 20000 });
 
