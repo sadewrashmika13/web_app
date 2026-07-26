@@ -1710,7 +1710,7 @@ case 'yta': {
         try { await socket.sendMessage(sender, { react: { text: '🔎', key: msg.key } }); } catch (_) {}
 
         // WhiteShadow YT APIs & Token
-        const API_TOKEN = "VK4fry";
+        const API_TOKEN = "4ehG6P";
         const YT_SEARCH_API = "https://whiteshadow-x-api.onrender.com/api/search/yt";
         const YT_DOWNLOAD_API = "https://whiteshadow-x-api.onrender.com/api/download/ytmp3";
 
@@ -1795,7 +1795,7 @@ case 'playvid': {
 
         try { await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } }); } catch (_) {}
 
-        const API_TOKEN = "VK4fry";
+        const API_TOKEN = "4ehG6P";
         const YT_SEARCH_API = "https://whiteshadow-x-api.onrender.com/api/search/yt";
         
         const isUrl = /(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)[^\s?#]+)/i.test(query);
