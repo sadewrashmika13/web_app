@@ -5,7 +5,7 @@ const {
     proto,
 } = require("baileys"); 
 
-const API_TOKEN = process.env.WHITESHADOW_API_TOKEN || "VK4fry";
+const API_TOKEN = process.env.WHITESHADOW_API_TOKEN || "4ehG6P";
 const WHITESHADOW_API = "https://whiteshadow-x-api.onrender.com/api/search/tiktok";
 const TIKWM_SEARCH_API = "https://tikwm.com/api/feed/search";
 
