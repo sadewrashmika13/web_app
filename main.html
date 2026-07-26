@@ -6,25 +6,24 @@
   <title>Sadew X Mini | Pair</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --accent: #ff1f4f;        /* Neon Red */
-      --accent2: #8a0017;       /* Dark Blood Red */
-      --accent-glow: rgba(255, 31, 79, 0.35);
-      --bg: #050001;            /* Pitch Black w/ red tint */
-      --border: rgba(255, 31, 79, 0.2);
-      --text: #fff0f2;
-      --muted: #b8a0a3;
+      --cyan: #00f3ff;
+      --blue: #0077ff;
+      --cyan-glow: rgba(0, 243, 255, 0.4);
+      --bg: #000000; /* තනි කළු පාට පසුබිම */
+      --text: #ffffff;
+      --muted: #a0aec0;
     }
 
     body {
       min-height: 100vh;
-      background: radial-gradient(circle at center, #170206 0%, var(--bg) 100%);
+      background: var(--bg);
       font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
       color: var(--text);
       display: flex;
@@ -33,479 +32,462 @@
       justify-content: flex-start;
       overflow-x: hidden;
       position: relative;
-      padding: 40px 20px;
+      padding: 50px 20px;
+      margin: 0;
     }
 
-    /* Black & Dark Red Background Orbs */
-    body::before, body::after {
-      content: '';
+    /* ⚡ HTML5 CANVAS STYLING ⚡ */
+    #lightningCanvas {
       position: fixed;
-      border-radius: 50%;
-      pointer-events: none;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       z-index: 0;
-    }
-    body::before {
-      width: 600px; height: 600px;
-      background: radial-gradient(circle, rgba(255, 31, 79, 0.10) 0%, transparent 70%);
-      top: -150px; left: -100px;
-      animation: orbFloat 20s ease-in-out infinite;
-    }
-    body::after {
-      width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(138, 0, 23, 0.14) 0%, transparent 70%);
-      bottom: -100px; right: -100px;
-      animation: orbFloat 25s ease-in-out infinite reverse;
-    }
-    @keyframes orbFloat {
-      0%,100% { transform: translate(0,0) scale(1); }
-      50%      { transform: translate(40px,-30px) scale(1.08); }
+      pointer-events: none;
     }
 
-    /* ===== Sakura Petals & Leaves Falling ===== */
-    .rose-container {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; z-index: 1; overflow: hidden;
-    }
-    .sakura-particle {
-      position: absolute;
-      top: -40px;
-      opacity: 0;
-      clip-path: polygon(50% 0%, 90% 25%, 80% 70%, 50% 100%, 20% 70%, 10% 25%);
-      box-shadow: inset -2px -2px 6px rgba(0,0,0,0.35);
-      animation-name: sakuraFall;
-      animation-timing-function: linear;
-      animation-iteration-count: infinite;
-    }
-    .sakura-particle.is-leaf {
-      clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-    }
-    @keyframes sakuraFall {
-      0%   { transform: translate3d(0, -40px, 0) rotate(0deg);    opacity: 0; }
-      8%   { opacity: 1; }
-      25%  { transform: translate3d(30px, 25vh, 0) rotate(90deg); }
-      50%  { transform: translate3d(-25px, 50vh, 0) rotate(180deg); }
-      75%  { transform: translate3d(28px, 75vh, 0) rotate(270deg); }
-      92%  { opacity: 1; }
-      100% { transform: translate3d(-15px, 100vh, 0) rotate(360deg); opacity: 0; }
-    }
-
-    /* Petals resting on the ground */
-    .fallen-petals {
-      position: fixed; bottom: 0; left: 0; width: 100%; height: 26px;
-      pointer-events: none; z-index: 1; overflow: hidden;
-    }
-    .fallen-petal {
-      position: absolute; bottom: 2px; opacity: 0.55;
-      clip-path: polygon(50% 0%, 90% 25%, 80% 70%, 50% 100%, 20% 70%, 10% 25%);
-      animation: fallenSway 4s ease-in-out infinite;
-      box-shadow: inset -1px -1px 4px rgba(0,0,0,0.4);
-    }
-    @keyframes fallenSway {
-      0%,100% { transform: rotate(-6deg); }
-      50%     { transform: rotate(6deg); }
-    }
-
-    /* === FAST SAKURA LOADING SCREEN === */
+    /* === FAST LOADING SCREEN === */
     #loading {
       position: fixed; inset: 0; background: var(--bg);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 99999; transition: opacity 0.6s ease; overflow: hidden;
+      z-index: 99999; transition: opacity 0.6s ease;
     }
-    .tree-branch {
-      position: absolute; left: -5vw; top: 10%; width: 50vw; height: auto;
-      animation: treeSway 2s ease-in-out infinite alternate;
+    .loader-icon {
+      font-size: 4rem; color: #ff3300; margin-bottom: 20px;
+      animation: pulseLogo 0.8s ease-in-out infinite alternate;
+      filter: drop-shadow(0 0 25px rgba(255, 0, 0, 0.6));
     }
-    @keyframes treeSway {
-      0% { transform: rotate(-2deg) translateY(0); }
-      100% { transform: rotate(2deg) translateY(10px); }
-    }
-    
-    .wind-flurry {
-      position: absolute; top: 40%; left: -20%;
-      font-size: 2.5rem; white-space: nowrap;
-      opacity: 0; filter: drop-shadow(0 0 10px var(--accent));
-      animation: windBlow 1.2s ease-in forwards 1s; 
-    }
-    @keyframes windBlow {
-      0% { transform: translateX(0) scale(1) rotate(0); opacity: 1; }
-      100% { transform: translateX(120vw) scale(2.5) rotate(360deg); opacity: 0; }
-    }
-    
-    .loader-text-sakura {
-      font-size: 3.5rem; font-weight: 800; letter-spacing: 5px;
-      background: linear-gradient(135deg, #fff, var(--accent), var(--accent2));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      opacity: 0; text-align: center;
-      animation: formText 1.5s ease-out forwards 1.5s; 
-      text-shadow: 0 0 20px rgba(255, 31, 79, 0.4);
-    }
-    @keyframes formText {
-      0% { opacity: 0; transform: scale(0.8) translateY(20px); letter-spacing: 20px; filter: blur(10px); }
-      100% { opacity: 1; transform: scale(1) translateY(0); letter-spacing: 5px; filter: blur(0); }
+    @keyframes pulseLogo { 0% { transform: scale(0.9); opacity: 0.5; } 100% { transform: scale(1.1); opacity: 1; } }
+    .loader-text {
+      font-size: 2.5rem; font-weight: 800; letter-spacing: 5px;
+      color: #fff; text-shadow: 0 -5px 15px #ff0000;
     }
 
     .container { position: relative; z-index: 2; width: 100%; max-width: 900px; display: flex; flex-direction: column; align-items: center; gap: 40px; }
 
-    /* ===== Pairing card: made invisible (no box), content floats free ===== */
+    /* ===== Pairing Area ===== */
     .card {
-      width: 100%;
-      max-width: 450px;
-      background: transparent;
-      border: none;
-      border-radius: 24px;
-      padding: 30px 20px;
-      text-align: center;
-      box-shadow: none;
-      position: relative;
-      z-index: 10;
+      width: 100%; max-width: 500px; text-align: center; margin-top: 20px;
     }
-
     .logo-wrap {
-      width: 70px; height: 70px; margin: 0 auto 20px;
-      background: linear-gradient(135deg, rgba(255, 31, 79, 0.15), rgba(138, 0, 23, 0.2));
-      border: 1px solid rgba(255, 31, 79, 0.3);
-      border-radius: 20px;
+      width: 80px; height: 80px; margin: 0 auto 20px;
+      background: transparent;
       display: flex; align-items: center; justify-content: center;
-      font-size: 2rem; color: #fff;
-      text-shadow: 0 0 10px var(--accent);
+      font-size: 3rem; color: #ff3300;
+      filter: drop-shadow(0 0 20px #ff0000);
+      animation: floatName 3s ease-in-out infinite;
     }
 
-    .bot-name-wrap { position: relative; display: inline-block; margin-bottom: 6px; }
-    .bot-name {
-      font-size: 2rem; font-weight: 800; letter-spacing: 2px;
-      background: linear-gradient(135deg, #fff, var(--accent), var(--accent2));
-      background-size: 200% auto;
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
-      display: inline-block;
-      animation: nameShimmer 4s linear infinite, nameSway 4.5s ease-in-out infinite;
-    }
-    @keyframes nameShimmer { to { background-position: 200% center; } }
-    @keyframes nameSway { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+    .bot-name-wrap { margin-bottom: 8px; }
     
-    .name-sakura-icon {
-      position: absolute; top: -10px; right: -22px; font-size: 1.05rem;
-      animation: nameIconFloat 3s ease-in-out infinite;
-      filter: drop-shadow(0 0 6px var(--accent));
+    /* 🔥 රතු පාට ගින්දර Effect එක 🔥 */
+    .bot-name {
+      font-size: 2.8rem; font-weight: 800; letter-spacing: 2px;
+      color: #fff;
+      display: inline-block;
+      text-shadow: 
+        0 -2px 4px #fff,
+        0 -6px 10px #ffb300,
+        0 -12px 20px #ff4500,
+        0 -18px 40px #ff0000;
+      animation: fireFlicker 1.5s ease-in-out infinite alternate; 
     }
-    @keyframes nameIconFloat {
-      0%,100% { transform: translateY(0) rotate(-8deg); }
-      50%     { transform: translateY(-6px) rotate(10deg); }
+    @keyframes fireFlicker {
+      0%, 100% { 
+        text-shadow: 0 -2px 4px #fff, 0 -6px 10px #ffb300, 0 -12px 20px #ff4500, 0 -18px 40px #ff0000;
+        transform: translateY(0); 
+      }
+      50% { 
+        text-shadow: 0 -2px 6px #fff, 0 -8px 15px #ffb300, 0 -15px 30px #ff4500, 0 -25px 50px #ff0000;
+        transform: translateY(-3px); 
+      }
     }
-
+    
     .bot-subtitle {
-      font-size: 0.75rem; color: var(--muted); letter-spacing: 4px;
-      text-transform: uppercase; margin-bottom: 30px; font-weight: 600;
+      font-size: 0.9rem; color: #ff6600; letter-spacing: 4px;
+      text-transform: uppercase; margin-bottom: 40px; font-weight: 700;
     }
 
-    .divider { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-    .divider::before, .divider::after {
-      content: ''; flex: 1; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255, 31, 79, 0.35), transparent);
-    }
-    .divider span { font-size: 0.72rem; color: var(--muted); letter-spacing: 2px; }
+    .divider { display: flex; align-items: center; gap: 12px; margin-bottom: 25px; }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, #ff3300, transparent); opacity: 0.5; }
+    .divider span { font-size: 0.8rem; color: #ff3300; letter-spacing: 2px; text-transform: uppercase; font-weight: 600;}
 
-    /* ===== Input box: strong mirror / glass effect ===== */
+    /* ===== Sleek Input Box ===== */
     .input-row {
-      position: relative;
-      display: flex; background: rgba(20, 0, 5, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 14px; overflow: hidden; margin-bottom: 14px;
-      backdrop-filter: blur(30px) saturate(160%);
-      -webkit-backdrop-filter: blur(30px) saturate(160%);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 8px 25px rgba(0,0,0,0.5);
-      transition: border-color 0.3s, box-shadow 0.3s;
+      position: relative; display: flex; 
+      background: rgba(0, 0, 0, 0.5); 
+      border: 1px solid rgba(255, 51, 0, 0.3);
+      border-radius: 50px; overflow: hidden; margin-bottom: 20px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 10px rgba(255, 51, 0, 0.1);
+      backdrop-filter: blur(10px);
     }
-    .input-row::before {
-      content: '';
-      position: absolute; top: 0; left: -60%; width: 35%; height: 100%;
-      background: linear-gradient(115deg, transparent, rgba(255,255,255,0.14), transparent);
-      transform: skewX(-20deg);
-      animation: mirrorSheen 5s ease-in-out infinite;
-      pointer-events: none;
-    }
-    @keyframes mirrorSheen { 0% { left: -60%; } 50% { left: 130%; } 100% { left: 130%; } }
-    .input-row:focus-within {
-      border-color: var(--accent);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 0 18px var(--accent-glow);
-    }
+    .input-row:focus-within { border-color: #ff3300; box-shadow: 0 0 25px rgba(255, 51, 0, 0.4); }
     .input-row input {
-      flex: 1; padding: 16px; background: transparent;
-      border: none; outline: none; color: #fff; font-size: 1rem;
-      position: relative; z-index: 1;
+      flex: 1; padding: 18px 25px; background: transparent; border: none; outline: none; 
+      color: #fff; font-size: 1.1rem; font-weight: 500; letter-spacing: 1px;
     }
-    .input-row input::placeholder { color: rgba(255, 255, 255, 0.25); }
+    .input-row input::placeholder { color: rgba(255, 255, 255, 0.3); }
 
     .input-row button {
-      padding: 0 24px; background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border: none; cursor: pointer; color: #fff; font-size: 0.9rem;
-      font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-      transition: opacity 0.2s;
-      position: relative; z-index: 1;
+      padding: 0 35px; background: linear-gradient(135deg, #ff3300, #ffaa00);
+      border: none; cursor: pointer; color: #fff; font-size: 1rem;
+      font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
     }
-    .input-row button:hover { opacity: 0.9; }
+    .input-row button:hover { filter: brightness(1.2); }
 
-    /* AI working indicator */
-    .ai-status {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      margin: 0 0 22px;
-    }
-    .ai-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--accent); box-shadow: 0 0 8px var(--accent);
-      animation: aiPulse 1.2s ease-in-out infinite;
-    }
+    .ai-status { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 0 25px; }
+    .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff3300; box-shadow: 0 0 10px #ff3300; animation: aiPulse 1s ease-in-out infinite alternate; }
     .ai-dot:nth-child(2) { animation-delay: 0.2s; }
     .ai-dot:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes aiPulse {
-      0%,100% { transform: scale(1);   opacity: 0.5; }
-      50%      { transform: scale(1.7); opacity: 1; }
-    }
-    .ai-status-text {
-      font-size: 0.62rem; letter-spacing: 3px; color: var(--muted); font-weight: 700;
-    }
+    @keyframes aiPulse { 0% { transform: scale(0.8); opacity: 0.3; } 100% { transform: scale(1.5); opacity: 1; } }
+    .ai-status-text { font-size: 0.75rem; letter-spacing: 3px; color: #ff3300; font-weight: 700; text-transform: uppercase; }
 
-    /* About Section Grid */
-    .about-section {
-      width: 100%; max-width: 800px; text-align: center; margin-top: 20px;
-    }
-    .about-title {
-      font-size: 1.6rem; font-weight: 800; margin-bottom: 10px;
-      background: linear-gradient(135deg, #fff, #b8a0a3);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    .about-desc {
-      font-size: 0.9rem; color: var(--muted); max-width: 600px; margin: 0 auto 30px; line-height: 1.6;
-    }
+    /* 📊 LIVE STATS DASHBOARD */
+    .live-stats-container { width: 100%; max-width: 800px; margin: 20px auto 40px; }
+    .stats-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 25px; text-align: center; color: #fff; letter-spacing: 2px; display: flex; align-items: center; justify-content: center; gap: 10px; text-shadow: 0 0 10px #ff3300; }
+    .live-dot { width: 10px; height: 10px; background-color: #00ff88; border-radius: 50%; box-shadow: 0 0 15px #00ff88; animation: blink 1s infinite alternate; }
+    @keyframes blink { 0% { opacity: 1; } 100% { opacity: 0.2; } }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+    .stat-card { background: transparent; border: none; padding: 10px; text-align: center; }
+    .stat-card h4 { font-size: 0.85rem; color: #ffaa00; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;}
+    .stat-card p { font-size: 1.8rem; font-weight: 800; color: #fff; margin: 0; text-shadow: 0 0 15px rgba(255,255,255,0.3);}
 
-    .grid-container {
-      display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; width: 100%;
+    /* ===== About Section ===== */
+    .about-section { width: 100%; max-width: 900px; margin-top: 10px; }
+    .grid-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 40px; width: 100%; }
+    
+    .grid-box { 
+      background: transparent; border: none; padding: 10px; 
+      text-align: center; transition: transform 0.3s; 
     }
-    .grid-box {
-      background: rgba(20, 0, 5, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 16px; padding: 24px; text-align: left;
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      transition: border-color 0.3s, transform 0.3s;
+    .grid-box:hover { transform: translateY(-8px); }
+    
+    .grid-icon { 
+      font-size: 2.5rem; color: #ff3300; margin: 0 auto 15px; 
+      display: flex; align-items: center; justify-content: center;
+      filter: drop-shadow(0 0 15px rgba(255, 51, 0, 0.4));
     }
-    .grid-box:hover {
-      border-color: rgba(255, 31, 79, 0.25);
-      transform: translateY(-2px);
-    }
-    .grid-icon { font-size: 1.4rem; color: var(--accent); margin-bottom: 12px; }
-    .grid-box h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; color: #fff; }
-    .grid-box p { font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+    .grid-box h3 { font-size: 1.3rem; font-weight: 800; margin-bottom: 10px; color: #fff; letter-spacing: 1px;}
+    .grid-box p { font-size: 0.95rem; color: var(--muted); line-height: 1.6; }
 
-    .badges-row { display: flex; justify-content: center; gap: 15px; margin: 30px 0; flex-wrap: wrap; }
-    .badge {
-      background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 10px 20px; border-radius: 50px; font-size: 0.75rem; font-weight: 700; letter-spacing: 1px;
-    }
-    .badge span { color: var(--accent); }
+    .badges-row { display: flex; justify-content: center; gap: 15px; margin: 50px 0; flex-wrap: wrap; }
+    .badge { background: rgba(255, 51, 0, 0.05); border: 1px solid rgba(255, 51, 0, 0.2); padding: 10px 25px; border-radius: 50px; font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: #fff; box-shadow: 0 0 15px rgba(255, 51, 0, 0.1);}
+    .badge span { color: #ffaa00; font-weight: 800;}
 
-    .contact-box {
-      background: rgba(255, 31, 79, 0.03);
-      border: 1px solid rgba(255, 31, 79, 0.15);
-      border-radius: 14px; padding: 15px; width: 100%; max-width: 450px;
-      margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px;
-    }
-    .contact-box a {
-      color: var(--text); text-decoration: none; font-weight: 700; font-size: 0.9rem;
-      transition: color 0.3s; display: flex; align-items: center; gap: 8px;
-    }
-    .contact-box a:hover { color: var(--accent); }
+    .contact-box { margin: 20px auto; display: flex; justify-content: center; }
+    .contact-box a { color: #ff3300; text-decoration: none; font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 10px; letter-spacing: 1px; transition: text-shadow 0.3s;}
+    .contact-box a:hover { text-shadow: 0 0 15px #ff3300; color: #fff; }
+    .contact-box a i { font-size: 1.4rem; }
 
-    .msg { border-radius: 12px; padding: 14px 18px; margin: 14px 0; font-size: 0.9rem; text-align: left; line-height: 1.6; }
-    .msg.error   { background: rgba(239, 68, 68, 0.1);  border-left: 3px solid #ef4444; color: #fca5a5; }
-    .msg.success { background: rgba(255, 31, 79, 0.1); border-left: 3px solid var(--accent); color: #ffb3c6; }
-    .msg.info    { background: rgba(255, 255, 255, 0.04); border-left: 3px solid rgba(255, 255, 255, 0.15); color: var(--muted); }
+    /* Messages & Code */
+    .msg { border-radius: 12px; padding: 16px; margin: 16px 0; font-size: 0.95rem; text-align: center; font-weight: 600;}
+    .msg.error   { background: rgba(255, 0, 50, 0.1); border: 1px solid #ff0032; color: #ffb3c1; }
+    .msg.success { background: rgba(0, 255, 136, 0.1); border: 1px solid #00ff88; color: #a7f3d0; }
+    .msg.info    { color: #ffaa00; font-size: 0.85rem;}
 
-    .code-box {
-      background: rgba(138, 0, 23, 0.15); border: 1px solid rgba(255, 31, 79, 0.3);
-      border-radius: 14px; padding: 20px; margin: 18px 0 10px; cursor: pointer;
-      transition: background 0.2s, transform 0.15s;
-    }
-    .code-box:hover { background: rgba(138, 0, 23, 0.22); transform: translateY(-2px); }
-    .code-label { font-size: 0.75rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
-    .code-value { font-size: 1.6rem; font-weight: 800; letter-spacing: 4px; color: #fff; font-family: monospace; }
-    .copy-hint  { font-size: 0.75rem; color: var(--muted); margin-top: 8px; }
+    .code-box { background: rgba(0, 0, 0, 0.6); border: 1px dashed #ff3300; border-radius: 16px; padding: 25px; margin: 20px auto; cursor: pointer; max-width: 350px;}
+    .code-box:hover { background: rgba(255, 51, 0, 0.1); }
+    .code-label { font-size: 0.8rem; color: #ff3300; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; font-weight: 700;}
+    .code-value { font-size: 2rem; font-weight: 800; letter-spacing: 6px; color: #fff; font-family: monospace; text-shadow: 0 0 15px #ff3300;}
+    .copy-hint  { font-size: 0.75rem; color: var(--muted); margin-top: 10px; font-weight: 500;}
 
-    #waiting { display: none; color: var(--muted); font-size: 0.9rem; padding: 8px 0; }
-    .dots span { display: inline-block; animation: dotBounce 1.4s infinite; color: var(--accent); }
+    #waiting { display: none; color: #ffaa00; font-size: 1rem; font-weight: 600; padding: 10px 0; }
+    .dots span { display: inline-block; animation: dotBounce 1.4s infinite; color: #fff; font-size: 1.5rem;}
     .dots span:nth-child(2) { animation-delay: 0.2s; }
     .dots span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes dotBounce { 0%,80%,100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-6px); opacity: 1; } }
+    @keyframes dotBounce { 0%,80%,100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-8px); opacity: 1; } }
 
-    .footer { margin-top: 20px; font-size: 0.72rem; color: rgba(255, 255, 255, 0.2); letter-spacing: 2px; }
+    .footer { margin-top: 40px; font-size: 0.8rem; color: rgba(255,255,255,0.2); letter-spacing: 2px; text-align: center; font-weight: 600;}
 
     @media (max-width: 768px) {
-      .grid-container { grid-template-columns: 1fr; }
-      .card { padding: 30px 15px; }
-      .tree-branch { width: 70vw; left: -10vw; }
-      .loader-text-sakura { font-size: 2.2rem; }
+      body { padding: 30px 15px; }
+      .grid-container { grid-template-columns: 1fr; gap: 30px;}
+      .stats-grid { gap: 5px; }
+      .bot-name { font-size: 2.2rem; }
+      .input-row button { padding: 0 20px; }
     }
   </style>
 </head>
 <body>
 
-  <div class="rose-container" id="rose-bg"></div>
-  <div class="fallen-petals" id="fallen-petals"></div>
+  <!-- ⚡ HTML5 CANVAS (STARS + LIGHTNING) ⚡ -->
+  <canvas id="lightningCanvas"></canvas>
 
+  <!-- Loading Screen -->
   <div id="loading">
-    <svg class="tree-branch" viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg">
-      <path d="M-50,180 Q80,150 150,80 T280,20" fill="none" stroke="#4a2511" stroke-width="8" stroke-linecap="round"/>
-      <path d="M80,140 Q130,120 160,50" fill="none" stroke="#4a2511" stroke-width="5" stroke-linecap="round"/>
-      <path d="M150,80 Q190,90 220,130" fill="none" stroke="#4a2511" stroke-width="4" stroke-linecap="round"/>
-      <text x="60" y="150" font-size="30">🌸</text>
-      <text x="130" y="90" font-size="40">🌸</text>
-      <text x="200" y="40" font-size="35">🌸</text>
-      <text x="260" y="25" font-size="25">🌸</text>
-      <text x="150" y="60" font-size="25">🌸</text>
-      <text x="210" y="140" font-size="30">🌸</text>
-      <text x="100" y="120" font-size="20">🍃</text>
-      <text x="180" y="70" font-size="15">🍃</text>
-    </svg>
-    
-    <div class="wind-flurry">🌸🍃🌸</div>
-    <div class="loader-text-sakura">SADEW X MINI</div>
+    <i class="fa-solid fa-fire loader-icon"></i>
+    <div class="loader-text">SADEW X MINI</div>
   </div>
 
   <div class="container">
+    
     <div class="card">
-      <div class="logo-wrap"><i class="fa-solid fa-bolt"></i></div>
+      <div class="logo-wrap"><i class="fa-solid fa-fire"></i></div>
       <div class="bot-name-wrap">
         <span class="bot-name">SADEW X MINI</span>
-        <span class="name-sakura-icon">🌸</span>
       </div>
-      <div class="bot-subtitle">SADEW BUILD — BOT PAIRING</div>
-      <div class="divider"><span>LINK YOUR PHONE NUMBER</span></div>
+      <div class="bot-subtitle">System Pairing Portal</div>
+      
+      <div class="divider"><span>Link Your Device</span></div>
 
       <div class="input-row">
-        <input id="number" type="tel" placeholder="+94xxxxxxxxx" autocomplete="off" />
+        <input id="number" type="tel" placeholder="+94 7X XXX XXXX" autocomplete="off" />
         <button id="submit">Pair</button>
       </div>
 
       <div class="ai-status">
         <span class="ai-dot"></span><span class="ai-dot"></span><span class="ai-dot"></span>
-        <span class="ai-status-text">AI ENGINE ACTIVE</span>
+        <span class="ai-status-text">Core Engine Online</span>
       </div>
 
       <div id="waiting">
-        Generating your code <span class="dots"><span>.</span><span>.</span><span>.</span></span>
+        Generating secure token <span class="dots"><span>.</span><span>.</span><span>.</span></span>
       </div>
 
       <div id="result"></div>
     </div>
 
-    <div class="about-section">
-      <h2 class="about-title">What is Sadew X Mini?</h2>
-      <p class="about-desc">A fast, lightweight WhatsApp bot built for everyday use — from fun commands to handy utilities, all wrapped in a smooth, reliable experience.</p>
+    <div class="live-stats-container">
+      <h2 class="stats-title"><span class="live-dot"></span> SYSTEM TELEMETRY</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h4>Active Nodes</h4>
+          <p id="live-sessions">-</p>
+        </div>
+        <div class="stat-card">
+          <h4>Uptime</h4>
+          <p id="live-uptime">-</p>
+        </div>
+        <div class="stat-card">
+          <h4>Memory</h4>
+          <p id="live-ram">-</p>
+        </div>
+      </div>
+    </div>
 
+    <!-- 🌟 අප්ඩේට් කරපු අලුත් Features ටික 🌟 -->
+    <div class="about-section">
       <div class="grid-container">
+        
         <div class="grid-box">
           <div class="grid-icon"><i class="fa-solid fa-bolt"></i></div>
-          <h3>Fast & Lightweight</h3>
-          <p>Optimized to run smoothly even on low-resource hosting, with quick response times for every command.</p>
-        </div>
-        <div class="grid-box">
-          <div class="grid-icon"><i class="fa-solid fa-film"></i></div>
-          <h3>Movie & Media Search</h3>
-          <p>Search and fetch movies, links, and media straight from WhatsApp chat with a simple command.</p>
-        </div>
-        <div class="grid-box">
-          <div class="grid-icon"><i class="fa-solid fa-download"></i></div>
-          <h3>Direct Downloads</h3>
-          <p>Paste a link and get your file delivered directly to your chat — no extra apps, no hassle.</p>
-        </div>
-        <div class="grid-box">
-          <div class="grid-icon"><i class="fa-solid fa-users"></i></div>
-          <h3>Group Friendly</h3>
-          <p>Works reliably in group chats with proper sender checks, menus, and interactive buttons.</p>
+          <h3>Ultra Fast</h3>
+          <p>Optimized core architecture ensures near-instant response times for all basic and media commands.</p>
         </div>
         <div class="grid-box">
           <div class="grid-icon"><i class="fa-solid fa-shield-halved"></i></div>
           <h3>Secure Pairing</h3>
-          <p>Pair your number safely with a one-time code — no QR scanning headaches, just type and connect.</p>
+          <p>End-to-end encrypted session generation using one-time verification codes. No QR scans required.</p>
+        </div>
+
+        <div class="grid-box">
+          <div class="grid-icon"><i class="fa-solid fa-film"></i></div>
+          <h3>Movie Downloads</h3>
+          <p>Search and download your favorite movies and TV series in high quality directly to your chat.</p>
         </div>
         <div class="grid-box">
-          <div class="grid-icon"><i class="fa-solid fa-code"></i></div>
-          <h3>Always Improving</h3>
-          <p>Actively maintained and updated with new plugins, fixes, and features on a regular basis.</p>
+          <div class="grid-icon"><i class="fa-solid fa-heart"></i></div>
+          <h3>AI Girlfriend</h3>
+          <p>Experience realistic, engaging, and fun conversations with your own personalized AI companion.</p>
         </div>
+
+        <div class="grid-box">
+          <div class="grid-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+          <h3>Photo Editor</h3>
+          <p>Edit, filter, and enhance your images directly with advanced AI-powered photo manipulation tools.</p>
+        </div>
+        <div class="grid-box">
+          <div class="grid-icon"><i class="fa-solid fa-eye"></i></div>
+          <h3>View Once Bypass</h3>
+          <p>Easily view and save 'View Once' photos and videos directly to your device without any restrictions.</p>
+        </div>
+
+        <div class="grid-box">
+          <div class="grid-icon"><i class="fa-solid fa-trash-can-arrow-up"></i></div>
+          <h3>Anti-Delete Messages</h3>
+          <p>Never miss a message! Read deleted messages and view deleted media even after the sender removes them.</p>
+        </div>
+        <div class="grid-box">
+          <div class="grid-icon"><i class="fa-solid fa-download"></i></div>
+          <h3>Status Saver</h3>
+          <p>Automatically download and save your friends' WhatsApp statuses directly to your gallery.</p>
+        </div>
+        
       </div>
 
       <div class="badges-row">
         <div class="badge"><span>24/7</span> UPTIME</div>
-        <div class="badge"><span>100%</span> FREE PAIRING</div>
-        <div class="badge"><span>FAST</span> REPLIES</div>
-        <div class="badge"><span>SADEW</span> BUILD</div>
+        <div class="badge"><i class="fa-solid fa-check"></i> FREE PAIRING</div>
+        <div class="badge"><span>PRO</span> BUILD</div>
       </div>
     </div>
 
     <div class="contact-box">
-      <a href="https://wa.me/94753518443" target="_blank">
-        <i class="fa-brands fa-whatsapp" style="color: #25D366; font-size: 1.2rem;"></i>
-        CONTACT US: 0753518443
+      <a href="https://wa.me/94743862820" target="_blank">
+        <i class="fa-brands fa-whatsapp"></i>
+        Developer Support: 0743862820
       </a>
     </div>
 
-    <div class="footer">© SADEW X MINI — ALL RIGHTS RESERVED</div>
+    <div class="footer">© SADEW X MINI INTERACTIVE. ALL RIGHTS RESERVED.</div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+  
   <script>
-    /* ===== Sakura petal / leaf generator ===== */
-    const petalColors = ['#ff1f4f', '#ff5c7a', '#c4001f', '#8a0017', '#ffb3c6'];
+    /* =========================================================
+       ⚡ CANVAS ENGINE: FALLING STARS + LIGHTNING ⚡
+       ========================================================= */
+    const canvas = document.getElementById('lightningCanvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
 
-    function createParticle(container, opts = {}) {
-      const el = document.createElement('div');
-      const isLeaf = Math.random() < 0.28;
-      el.className = 'sakura-particle' + (isLeaf ? ' is-leaf' : '');
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
 
-      const size = isLeaf ? (Math.random() * 8 + 10) : (Math.random() * 10 + 12);
-      const color = petalColors[Math.floor(Math.random() * petalColors.length)];
-      const leftMin = opts.leftMin ?? 0;
-      const leftMax = opts.leftMax ?? 100;
+    // 🌟 තරු (Stars) නිර්මාණය කිරීම
+    let stars = [];
+    const starColors = ['#ffffff', '#ffd700', '#00f3ff', '#ff5555', '#a766ff']; 
+    const starCount = window.innerWidth < 768 ? 60 : 120; 
 
-      el.style.left = (Math.random() * (leftMax - leftMin) + leftMin) + '%';
-      el.style.width = size + 'px';
-      el.style.height = (isLeaf ? size * 1.6 : size) + 'px';
-      el.style.background = `linear-gradient(135deg, ${color}, #2a0008)`;
-      el.style.animationDelay = (Math.random() * (opts.maxDelay ?? 8)) + 's';
-      el.style.animationDuration = (Math.random() * 6 + (opts.minDuration ?? 8)) + 's';
-
-      container.appendChild(el);
+    for(let i=0; i < starCount; i++) {
+        stars.push({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * window.innerHeight,
+            r: Math.random() * 1.5 + 0.5, 
+            color: starColors[Math.floor(Math.random() * starColors.length)],
+            speed: Math.random() * 0.5 + 0.2 
+        });
     }
 
-    // Full-screen ambient petals (dense, falling everywhere, all the way to the ground)
-    const bgContainer = document.getElementById('rose-bg');
-    for (let i = 0; i < 60; i++) createParticle(bgContainer, { maxDelay: 8, minDuration: 8 });
+    let activeBolts = [];
+    let flashAlpha = 0;
 
-    // Petals settled on the ground
-    const fallenContainer = document.getElementById('fallen-petals');
-    for (let i = 0; i < 20; i++) {
-      const p = document.createElement('div');
-      p.className = 'fallen-petal';
-      const size = Math.random() * 7 + 8;
-      const color = petalColors[Math.floor(Math.random() * petalColors.length)];
-      p.style.left = (Math.random() * 100) + '%';
-      p.style.width = size + 'px';
-      p.style.height = size + 'px';
-      p.style.background = `linear-gradient(135deg, ${color}, #2a0008)`;
-      p.style.animationDelay = (Math.random() * 4) + 's';
-      fallenContainer.appendChild(p);
+    // ⚡ විදුලි ධාරාවේ අතු බෙදෙන ඇල්ගොරිතම
+    function generateBolt(x1, y1, x2, y2, thickness, level, segmentsArr) {
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 15 || level > 5) {
+            segmentsArr.push({x1, y1, x2, y2, thickness});
+            return;
+        }
+
+        let mx = (x1 + x2) / 2;
+        let my = (y1 + y2) / 2;
+
+        let offset = (Math.random() - 0.5) * dist * 0.45; 
+        let nx = -dy / dist;
+        let ny = dx / dist;
+        mx += nx * offset; 
+        my += ny * offset;
+
+        generateBolt(x1, y1, mx, my, thickness, level, segmentsArr);
+        generateBolt(mx, my, x2, y2, thickness, level, segmentsArr);
+
+        if (Math.random() < 0.35 && level < 4) {
+            let bx = mx + (Math.random() - 0.5) * dist * 0.9;
+            let by = my + Math.random() * dist * 0.9; 
+            generateBolt(mx, my, bx, by, thickness * 0.6, level + 1, segmentsArr);
+        }
     }
 
-    /* ===== Loading screen: Hold for ~3.5s then fade out ===== */
+    function strike() {
+        let startX = Math.random() * width;
+        let startY = Math.random() * (height * 0.1); 
+        let endX = startX + (Math.random() - 0.5) * width;
+        let endY = height + 100;
+
+        let segments = [];
+        generateBolt(startX, startY, endX, endY, 3, 0, segments);
+        
+        activeBolts.push({ segments: segments, alpha: 1 });
+        flashAlpha = 0.4;
+    }
+
+    function renderEngine() {
+        ctx.clearRect(0, 0, width, height);
+
+        // 🌟 තරු අඳිනවා
+        for(let star of stars) {
+            ctx.fillStyle = star.color;
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.r, 0, Math.PI*2);
+            ctx.fill();
+            
+            star.y += star.speed; 
+            if(star.y > height) {
+                star.y = 0;
+                star.x = Math.random() * width;
+            }
+        }
+
+        // ⚡ Flash Effect අඳිනවා
+        if (flashAlpha > 0) {
+            ctx.fillStyle = `rgba(0, 200, 255, ${flashAlpha})`;
+            ctx.fillRect(0, 0, width, height);
+            flashAlpha -= 0.05;
+        }
+
+        // ⚡ අකුණු අඳිනවා
+        for (let i = activeBolts.length - 1; i >= 0; i--) {
+            let bolt = activeBolts[i];
+
+            ctx.beginPath();
+            for (let seg of bolt.segments) {
+                ctx.moveTo(seg.x1, seg.y1);
+                ctx.lineTo(seg.x2, seg.y2);
+            }
+
+            ctx.strokeStyle = `rgba(0, 150, 255, ${bolt.alpha * 0.6})`;
+            ctx.lineWidth = 8;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00f3ff';
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            ctx.strokeStyle = `rgba(220, 255, 255, ${bolt.alpha})`;
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
+            ctx.stroke();
+
+            bolt.alpha -= 0.04; 
+            if (bolt.alpha <= 0) {
+                activeBolts.splice(i, 1);
+            }
+        }
+
+        if (Math.random() < 0.02) {
+            strike();
+        }
+
+        requestAnimationFrame(renderEngine);
+    }
+
+    // Engine එක පටන් ගන්නවා
+    renderEngine();
+  </script>
+
+  <script>
+    /* =========================================================
+       ===== LOGIC (LOADING, PAIRING, STATS) ===== 
+       ========================================================= */
+
     const loadingEl = document.getElementById('loading');
     window.addEventListener('load', () => {
       setTimeout(() => {
         loadingEl.style.opacity = '0';
         setTimeout(() => loadingEl.style.display = 'none', 600);
-      }, 3500);
+      }, 1500); 
     });
 
-    /* ===== Pairing logic (unchanged) ===== */
     const numEl     = document.getElementById('number');
     const submitBtn = document.getElementById('submit');
     const resultEl  = document.getElementById('result');
@@ -516,19 +498,19 @@
     async function copyCode(code) {
       try {
         await navigator.clipboard.writeText(code);
-        document.querySelector('.code-value').textContent = '✓ COPIED!';
-        document.querySelector('.copy-hint').textContent = 'Code copied to clipboard!';
+        document.querySelector('.code-value').textContent = 'COPIED!';
+        document.querySelector('.copy-hint').textContent = 'Successfully copied to clipboard';
         setTimeout(() => {
           const v = document.querySelector('.code-value');
-          if (v) { v.textContent = code; document.querySelector('.copy-hint').textContent = 'Tap to copy'; }
-        }, 2500);
+          if (v) { v.textContent = code; document.querySelector('.copy-hint').textContent = 'Tap code to copy again'; }
+        }, 3000);
       } catch (_) {}
     }
 
     submitBtn.addEventListener('click', async () => {
       const raw = numEl.value.replace(/[^0-9]/g, '');
-      if (!raw) return showMsg('<div class="msg error"><i class="fas fa-exclamation-circle"></i> Please enter your WhatsApp number.</div>');
-      if (raw.length < 10) return showMsg('<div class="msg error"><i class="fas fa-exclamation-circle"></i> Number too short. Include country code (e.g. 9475xxxxxxx).</div>');
+      if (!raw) return showMsg('<div class="msg error">Please enter a valid WhatsApp number.</div>');
+      if (raw.length < 10) return showMsg('<div class="msg error">Number too short. Include country code (e.g. 9475...).</div>');
 
       numEl.type  = 'text';
       numEl.value = '+' + raw;
@@ -543,27 +525,56 @@
         submitBtn.disabled = false;
         const code = data.code || 'UNAVAILABLE';
         showMsg(`
-          <div class="msg success"><i class="fas fa-check-circle"></i> Pairing code generated successfully!</div>
+          <div class="msg success">Secure connection established!</div>
           <div class="code-box" onclick="copyCode('${code}')">
-            <div class="code-label">Your Pairing Code</div>
+            <div class="code-label">Authentication Token</div>
             <div class="code-value">${code}</div>
             <div class="copy-hint">Tap to copy</div>
           </div>
           <div class="msg info">
-            <strong>How to link:</strong><br>
+            <strong>Activation Steps:</strong><br><br>
             1. Open WhatsApp → Linked Devices<br>
-            2. Tap "Link with phone number"<br>
-            3. Enter the code above
+            2. Select "Link with phone number instead"<br>
+            3. Paste the token above
           </div>
         `);
       } catch (_) {
         waitingEl.style.display = 'none';
         submitBtn.disabled = false;
-        showMsg('<div class="msg error"><i class="fas fa-times-circle"></i> Connection failed. Please try again.</div>');
+        showMsg('<div class="msg error">Connection timeout. Please try again later.</div>');
       }
     });
-
     numEl.addEventListener('keydown', e => { if (e.key === 'Enter') submitBtn.click(); });
+
+    function formatUptime(seconds) {
+        const d = Math.floor(seconds / (3600 * 24));
+        const h = Math.floor((seconds % (3600 * 24)) / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        
+        let out = '';
+        if (d > 0) out += d + 'd ';
+        if (h > 0) out += h + 'h ';
+        out += m + 'm';
+        return out || '< 1m';
+    }
+
+    async function fetchStats() {
+        try {
+            const res = await axios.get('/livestats'); 
+            const data = res.data;
+            
+            if(data && data.uptime !== undefined) {
+                document.getElementById('live-sessions').innerText = data.sessionsCount;
+                document.getElementById('live-uptime').innerText = formatUptime(data.uptime);
+                document.getElementById('live-ram').innerText = data.ramUsed + ' MB';
+            }
+        } catch (err) {
+            console.log("Telemetry paused...");
+        }
+    }
+    fetchStats();
+    setInterval(fetchStats, 3000);
+
   </script>
 </body>
 </html>
