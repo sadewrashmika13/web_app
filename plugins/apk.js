@@ -23,7 +23,7 @@ module.exports = {
             
             await socket.sendMessage(sender, { text: `🔍 *Searching for "${query}"...*` }, { quoted: msg });
 
-            const API_TOKEN = "VK4fry";
+            const API_TOKEN = "4ehG6P";
             const API_BASE = "https://whiteshadow-x-api.onrender.com/api";
 
             // 1. Search for the app
