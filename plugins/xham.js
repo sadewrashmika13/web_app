@@ -5,9 +5,9 @@ const crypto = require('crypto');
 if (!global.xhamStore) global.xhamStore = {};
 
 module.exports = {
-    name: "xham_search",
+    name: "xHamster",
     category: "18+",
-    description: "Search and download xHamster videos via Mizuki API",
+    description: "Search and download xHamster videos",
     commands: ["xham", "xhamget", "xhamdl"], // 👈 Commands ටික
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
