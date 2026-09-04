@@ -41,7 +41,7 @@ module.exports = {
 
                 await reply("✅ *ප්‍රතිඵල සොයාගන්නා ලදී. එකින් එක එවීම ආරම්භ කරමි...*");
 
-                const topItems = items.slice(0, 4);
+                const topItems = items.slice(0, 10);
 
                 for (let i = 0; i < topItems.length; i++) {
                     const item = topItems[i];
