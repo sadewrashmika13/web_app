@@ -15,7 +15,7 @@ const { generateWAMessageFromContent, generateWAMessageContent } = baileys;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = {
-    name: "pronhub(search)",
+    name: "pornhub_search",
     category: "18+",
     description: "Search videos link",
     commands: ["ph"],
@@ -23,9 +23,10 @@ module.exports = {
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const API_KEY = "slk_feb4c1b4888e42998f43b746336ca25e";
 
-        if (command === "xx") {
+        // මෙතන "xx" වෙනුවට "ph" කියලා වෙනස් කළා 👇
+        if (command === "ph") {
             const query = args.join(' ').trim();
-            if (!query) return reply("🔍 *කරුණාකර නමක් ලබා දෙන්න!*\n💡 උදා: `.xx new`");
+            if (!query) return reply("🔍 *කරුණාකර නමක් ලබා දෙන්න!*\n💡 උදා: `.ph new`");
 
             try {
                 await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } });
@@ -63,7 +64,7 @@ module.exports = {
                                 });
                                 imageBuffer = Buffer.from(imgRes.data, 'binary');
                             } catch (imgDownloadErr) {
-                                console.log(`[XX Plugin] Failed to fetch image via axios for item ${i + 1}`);
+                                console.log(`[PH Plugin] Failed to fetch image via axios for item ${i + 1}`);
                             }
                         }
 
@@ -79,7 +80,7 @@ module.exports = {
                                 imageMessage = msgContent.imageMessage;
                                 hasImage = true;
                             } catch (baileysErr) {
-                                console.log(`[XX Plugin] Failed to generate WA image content for item ${i + 1}`);
+                                console.log(`[PH Plugin] Failed to generate WA image content for item ${i + 1}`);
                             }
                         }
 
@@ -121,7 +122,7 @@ module.exports = {
                         await socket.relayMessage(sender, waMessage.message, { messageId: waMessage.key.id });
 
                     } catch (innerError) {
-                        console.log(`[XX Plugin] Completely failed to send item ${i + 1}`, innerError);
+                        console.log(`[PH Plugin] Completely failed to send item ${i + 1}`, innerError);
                     }
 
                     // අන්තිම Video එකට පස්සේ Delay එකක් ඕනේ නෑ
