@@ -1,35 +1,17 @@
 const axios = require('axios');
-const crypto = require('crypto');
 
-// Baileys Require - (ඔයාගේ Bot එකේ තියෙන විදිහට)
-let baileys;
-try {
-    baileys = require('@whiskeysockets/baileys');
-} catch (err) {
-    try {
-        baileys = require('@adiwajshing/baileys');
-    } catch (err) {
-        baileys = require('baileys');
-    }
-}
-const { generateWAMessageFromContent } = baileys;
-
-// Memory Store
-if (!global.phxStore) global.phxStore = {};
+// තත්පර 5ක් රඳවන්න හදපු function එක
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = {
-    name: "xx_search_carousel",
+    name: "xx_search",
     category: "18+",
-    description: "Search videos and display as Horizontal Cards",
-    commands: ["xx", "xxget"], // Download අයින් කරා, Link එක විතරක් දෙනවා
+    description: "Search videos and send photos with CTA buttons one by one",
+    commands: ["xx"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
-        
         const API_KEY = "slk_feb4c1b4888e42998f43b746336ca25e";
 
-        // ==============================================================
-        // 1. SEARCH & SEND HORIZONTAL CARDS (.xx)
-        // ==============================================================
         if (command === "xx") {
             const query = args.join(' ').trim();
             if (!query) return reply("🔍 *කරුණාකර නමක් ලබා දෙන්න!*\n💡 උදා: `.xx new`");
@@ -47,100 +29,60 @@ module.exports = {
                     return reply("❌ *සමාවෙන්න, කිසිවක් සොයාගත නොහැකි විය!*");
                 }
 
-                let cards = [];
+                await reply("✅ *ප්‍රතිඵල සොයාගන්නා ලදී. එකින් එක එවීම ආරම්භ කරමි...*");
 
-                // මුල් ප්‍රතිඵල 5 පමණක් ගන්නවා
-                items.slice(0, 5).forEach((item, i) => {
-                    const shortId = crypto.randomBytes(3).toString('hex');
+                // මුල් ප්‍රතිඵල 4 පමණක් ගන්නවා
+                const topItems = items.slice(0, 4);
+
+                for (let i = 0; i < topItems.length; i++) {
+                    const item = topItems[i];
                     
-                    global.phxStore[shortId] = { 
-                        url: item.url, 
-                        title: item.title, 
-                        thumb: item.thumb,
-                        duration: item.duration 
+                    let captionText = `*🎬 Title:* ${item.title}\n`;
+                    captionText += `⏱️ *Duration:* ${item.duration}\n\n`;
+                    captionText += `> *👑 SADEW-MINI 👑*`;
+
+                    // Open Browser සහ Copy Link Buttons දෙක
+                    const buttons = [
+                        {
+                            name: "cta_url",
+                            buttonParamsJson: JSON.stringify({
+                                display_text: "🌐 Open in Browser",
+                                url: item.url,
+                                merchant_url: item.url
+                            })
+                        },
+                        {
+                            name: "cta_copy",
+                            buttonParamsJson: JSON.stringify({
+                                display_text: "📋 Copy Link",
+                                id: `copy_btn_${i}`,
+                                copy_code: item.url
+                            })
+                        }
+                    ];
+
+                    const msgOpts = {
+                        image: { url: item.thumb },
+                        caption: captionText,
+                        footer: "SADEW-MINI",
+                        buttons: buttons,
+                        headerType: 4
                     };
 
-                    // Horizontal Card එක හදනවා
-                    cards.push({
-                        "body": { "text": `*${item.title}*\n⏱️ *Duration:* ${item.duration}` },
-                        "header": {
-                            "title": `🎬 Video ${i + 1}`,
-                            "hasMediaAttachment": true,
-                            "imageMessage": {
-                                "url": item.thumb // මේක WhatsApp එකෙන් load කරගන්නවා
-                            }
-                        },
-                        "nativeFlowMessage": {
-                            "buttons": [{
-                                "name": "quick_reply",
-                                "buttonParamsJson": `{"display_text":"🔗 Get Link","id":".xxget ${shortId}"}`
-                            }]
-                        }
-                    });
-                });
+                    // Message එක යවනවා
+                    await socket.sendMessage(sender, msgOpts, { quoted: msg });
 
-                // Carousel Message එක හදනවා
-                const carouselMessage = {
-                    "viewOnceMessage": {
-                        "message": {
-                            "interactiveMessage": {
-                                "header": { "hasMediaAttachment": false },
-                                "body": { "text": `*🔥 SADEW-MINI SEARCH RESULTS*\n\n> *පැත්තට Slide කරලා බලන්න.*` },
-                                "carouselMessage": { "cards": cards }
-                            }
-                        }
+                    // අන්තිම Video එකට පස්සේ Delay එකක් ඕනේ නෑ
+                    if (i < topItems.length - 1) {
+                        await delay(5000); // හරියටම තත්පර 5ක් ඉන්නවා
                     }
-                };
+                }
 
-                const waMessage = generateWAMessageFromContent(sender, carouselMessage, { quoted: msg });
-                await socket.relayMessage(sender, waMessage.message, { messageId: waMessage.key.id });
                 await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
 
             } catch (e) {
                 console.error(e);
                 reply("❌ *API දෝෂයකි! පසුව නැවත උත්සාහ කරන්න.*");
-            }
-        }
-
-        // ==============================================================
-        // 2. GET DIRECT LINK (.xxget)
-        // ==============================================================
-        else if (command === "xxget") {
-            const shortId = args[0];
-            const item = global.phxStore[shortId];
-
-            if (!item) return reply("❌ *මෙම ලින්ක් එක කල් ඉකුත් වී ඇත. කරුණාකර මුල සිට Search කරන්න.*");
-
-            try {
-                await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
-                
-                // Download API Request
-                const dlApiUrl = `https://mizuki-md-api.netlify.app/api/download/pornhub?q=${encodeURIComponent(item.url)}&apiKey=${API_KEY}`;
-                const res = await axios.get(dlApiUrl, { timeout: 15000 });
-                
-                const dlUrl = res.data?.data;
-                if (!res.data?.status || !dlUrl) {
-                    await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
-                    return reply("❌ *මෙම වීඩියෝව සඳහා Download Link එකක් සොයාගත නොහැකි විය.*");
-                }
-
-                // කෙලින්ම විස්තරයි Link එකයි යවනවා (Download වෙන්නේ නෑ)
-                let infoText = `*🎬 SADEW-MINI VIDEO LINK*\n\n`;
-                infoText += `📌 *Title:* ${item.title}\n`;
-                infoText += `⏱️ *Duration:* ${item.duration}\n\n`;
-                infoText += `🔗 *Download / Watch Link:*\n${dlUrl}\n\n`;
-                infoText += `> *👑 SADEW-MINI 👑*`;
-
-                await socket.sendMessage(sender, {
-                    image: { url: item.thumb },
-                    caption: infoText
-                }, { quoted: msg });
-                
-                await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
-
-            } catch (e) {
-                console.error(e);
-                reply("❌ *දෝෂයකි! පසුව නැවත උත්සාහ කරන්න.*");
             }
         }
     }
