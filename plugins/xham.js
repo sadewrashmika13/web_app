@@ -103,20 +103,20 @@ module.exports = {
             try {
                 await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
                 
-                // Download API Request
                 const dlApiUrl = `https://mizuki-md-api.netlify.app/api/download/xhamster?q=${encodeURIComponent(item.url)}&apiKey=${API_KEY}`;
-                const res = await axios.get(dlApiUrl, { timeout: 15000 });
                 
-                // API එකෙන් එන `formats` අරගෙන පළවෙනි URL එක ගන්නවා
+                // ⚠️ මෙතන Timeout එක තත්පර 60ක් කරා (60000ms)
+                const res = await axios.get(dlApiUrl, { timeout: 60000 }); 
+                
                 const formats = res.data?.data?.formats || [];
                 const dlUrl = formats[0]?.url;
 
                 if (!res.data?.status || !dlUrl) {
                     await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
-                    return reply("❌ *මෙම වීඩියෝව සඳහා Download Link එකක් සොයාගත නොහැකි විය.*");
+                    return reply("❌ *මෙම වීඩියෝව සඳහා Download Link එකක් API එකෙන් ලබා දුන්නේ නැත. සමහරවිට එය ඉවත් කර තිබිය හැක.*");
                 }
 
-                item.dlUrl = dlUrl; // Store එකට දාගන්නවා
+                item.dlUrl = dlUrl;
 
                 let infoText = `*🎬 SADEW-MINI XHAMSTER INFO*\n\n`;
                 infoText += `📌 *Title:* ${res.data.data.title || item.title}\n`;
@@ -143,7 +143,7 @@ module.exports = {
 
             } catch (e) {
                 console.error(e);
-                reply("❌ *දෝෂයකි! පසුව නැවත උත්සාහ කරන්න.*");
+                reply("❌ *API එකෙන් ප්‍රතිචාරයක් නොලැබුණි (Timeout). වෙනත් වීඩියෝවක් උත්සාහ කරන්න.*");
             }
         }
 
@@ -159,10 +159,10 @@ module.exports = {
             try {
                 await socket.sendMessage(sender, { react: { text: '⬇️', key: msg.key } });
 
-                // Size එක පෙන්නන්න විතරක් HEAD Request එකක් යවනවා
                 let sizeMB = "Unknown";
                 try {
-                    const headRes = await axios.head(item.dlUrl);
+                    // මෙතනත් Timeout එක තත්පර 30ක් කරා
+                    const headRes = await axios.head(item.dlUrl, { timeout: 30000 });
                     const contentLength = headRes.headers['content-length'];
                     if (contentLength) {
                         sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
@@ -174,12 +174,11 @@ module.exports = {
                 await reply(`📥 *Downloading...*\n🎬 ${item.title.substring(0, 30)}...\n📦 Size: ~${sizeMB} MB\n⏳ _Directly streaming..._`);
                 await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } });
                 
-                // Unlimited Streaming
                 const streamRes = await axios({
                     method: 'GET',
                     url: item.dlUrl,
                     responseType: 'stream',
-                    timeout: 0 // Limit එකක් නෑ, ලොකු ෆයිල්ස් වලට වෙලා දෙනවා
+                    timeout: 0 // මෙතන 0 තියෙන්නේ Download වෙන්න ඕන තරම් වෙලාවක් ගන්න දෙනවා
                 });
 
                 await socket.sendMessage(sender, {
@@ -194,7 +193,7 @@ module.exports = {
             } catch (e) {
                 console.error(e);
                 await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
-                reply(`❌ *බාගත කිරීම අසාර්ථක විය.*\n\n🔗 *Link:* ${item.dlUrl}`);
+                reply(`❌ *බාගත කිරීම අසාර්ථක විය (Stream Error).*\n\n🔗 *Link:* ${item.dlUrl}`);
             }
         }
     }
