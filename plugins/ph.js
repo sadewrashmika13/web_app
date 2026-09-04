@@ -50,23 +50,40 @@ module.exports = {
                         let captionText = `*🎬 Title:* ${item.title}\n`;
                         captionText += `⏱️ *Duration:* ${item.duration}`;
 
-                        // 1. Image එක ගන්න Try කරනවා
-                        let imageMessage = null;
-                        let hasImage = false;
-
+                        // 1. Axios පාවිච්චි කරලා ඉස්සෙල්ලාම Photo එක බාගන්නවා
+                        let imageBuffer = null;
                         if (item.thumb) {
                             try {
-                                const msgContent = await generateWAMessageContent({ 
-                                    image: { url: item.thumb } 
-                                }, { upload: socket.waUploadToServer });
-                                imageMessage = msgContent.imageMessage;
-                                hasImage = true;
-                            } catch (imgErr) {
-                                console.log(`[XX Plugin] Image failed for item ${i + 1}, sending without image.`);
+                                const imgRes = await axios.get(item.thumb, {
+                                    responseType: 'arraybuffer',
+                                    timeout: 10000,
+                                    headers: {
+                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                                    }
+                                });
+                                imageBuffer = Buffer.from(imgRes.data, 'binary');
+                            } catch (imgDownloadErr) {
+                                console.log(`[XX Plugin] Failed to fetch image via axios for item ${i + 1}`);
                             }
                         }
 
-                        // 2. Image එක තියෙනවද නැද්ද බලලා Header එක හදනවා
+                        // 2. Buffer එක WhatsApp එකට Upload කරනවා
+                        let imageMessage = null;
+                        let hasImage = false;
+
+                        if (imageBuffer) {
+                            try {
+                                const msgContent = await generateWAMessageContent({ 
+                                    image: imageBuffer 
+                                }, { upload: socket.waUploadToServer });
+                                imageMessage = msgContent.imageMessage;
+                                hasImage = true;
+                            } catch (baileysErr) {
+                                console.log(`[XX Plugin] Failed to generate WA image content for item ${i + 1}`);
+                            }
+                        }
+
+                        // 3. Image එක තියෙනවද නැද්ද බලලා Header එක හදනවා
                         const headerProps = hasImage ? {
                             "hasMediaAttachment": true,
                             "imageMessage": imageMessage
@@ -74,7 +91,7 @@ module.exports = {
                             "hasMediaAttachment": false
                         };
 
-                        // 3. Core Message එක හදනවා
+                        // 4. Core Message එක හදනවා
                         const interactiveMessage = {
                             "viewOnceMessage": {
                                 "message": {
@@ -99,18 +116,17 @@ module.exports = {
                             }
                         };
 
-                        // 4. Message එක යවනවා
+                        // 5. Message එක යවනවා
                         const waMessage = generateWAMessageFromContent(sender, interactiveMessage, { quoted: msg });
                         await socket.relayMessage(sender, waMessage.message, { messageId: waMessage.key.id });
 
                     } catch (innerError) {
-                        console.log(`[XX Plugin] Completely failed to send item ${i + 1}`);
-                        // මොකක් හරි ලොකු අවුලක් ගියොත් මේක අතෑරලා ඊළඟ එකට යනවා
+                        console.log(`[XX Plugin] Completely failed to send item ${i + 1}`, innerError);
                     }
 
                     // අන්තිම Video එකට පස්සේ Delay එකක් ඕනේ නෑ
                     if (i < topItems.length - 1) {
-                        await delay(5000); // තත්පර 5ක් ඉන්නවා
+                        await delay(5000); // හරියටම තත්පර 5ක් ඉන්නවා
                     }
                 }
 
