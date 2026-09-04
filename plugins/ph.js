@@ -1,6 +1,5 @@
 const axios = require('axios');
 
-// Baileys Require (Bot එකේ තියෙන විදිහට)
 let baileys;
 try {
     baileys = require('@whiskeysockets/baileys');
@@ -42,55 +41,76 @@ module.exports = {
 
                 await reply("✅ *ප්‍රතිඵල සොයාගන්නා ලදී. එකින් එක එවීම ආරම්භ කරමි...*");
 
-                // මුල් ප්‍රතිඵල 4 පමණක් ගන්නවා
                 const topItems = items.slice(0, 4);
 
                 for (let i = 0; i < topItems.length; i++) {
                     const item = topItems[i];
                     
-                    let captionText = `*🎬 Title:* ${item.title}\n`;
-                    captionText += `⏱️ *Duration:* ${item.duration}`;
+                    try {
+                        let captionText = `*🎬 Title:* ${item.title}\n`;
+                        captionText += `⏱️ *Duration:* ${item.duration}`;
 
-                    // 1. Image එක කෙලින්ම WhatsApp Server එකට Upload කරලා Message Content එක හදාගන්නවා (Error එන්නේ නැති වෙන්න)
-                    const msgContent = await generateWAMessageContent({ 
-                        image: { url: item.thumb } 
-                    }, { upload: socket.waUploadToServer });
+                        // 1. Image එක ගන්න Try කරනවා
+                        let imageMessage = null;
+                        let hasImage = false;
 
-                    // 2. Core Interactive Message එක හදනවා (Protobuf)
-                    const interactiveMessage = {
-                        "viewOnceMessage": {
-                            "message": {
-                                "interactiveMessage": {
-                                    "header": {
-                                        "hasMediaAttachment": true,
-                                        "imageMessage": msgContent.imageMessage // Upload කරපු Image එක
-                                    },
-                                    "body": { "text": captionText },
-                                    "footer": { "text": "👑 SADEW-MINI 👑" },
-                                    "nativeFlowMessage": {
-                                        "buttons": [
-                                            {
-                                                "name": "cta_url",
-                                                "buttonParamsJson": `{"display_text":"🌐 Open in Browser","url":"${item.url}","merchant_url":"${item.url}"}`
-                                            },
-                                            {
-                                                "name": "cta_copy",
-                                                "buttonParamsJson": `{"display_text":"📋 Copy Link","id":"copy_btn_${i}","copy_code":"${item.url}"}`
-                                            }
-                                        ]
+                        if (item.thumb) {
+                            try {
+                                const msgContent = await generateWAMessageContent({ 
+                                    image: { url: item.thumb } 
+                                }, { upload: socket.waUploadToServer });
+                                imageMessage = msgContent.imageMessage;
+                                hasImage = true;
+                            } catch (imgErr) {
+                                console.log(`[XX Plugin] Image failed for item ${i + 1}, sending without image.`);
+                            }
+                        }
+
+                        // 2. Image එක තියෙනවද නැද්ද බලලා Header එක හදනවා
+                        const headerProps = hasImage ? {
+                            "hasMediaAttachment": true,
+                            "imageMessage": imageMessage
+                        } : {
+                            "hasMediaAttachment": false
+                        };
+
+                        // 3. Core Message එක හදනවා
+                        const interactiveMessage = {
+                            "viewOnceMessage": {
+                                "message": {
+                                    "interactiveMessage": {
+                                        "header": headerProps,
+                                        "body": { "text": captionText },
+                                        "footer": { "text": "👑 SADEW-MINI 👑" },
+                                        "nativeFlowMessage": {
+                                            "buttons": [
+                                                {
+                                                    "name": "cta_url",
+                                                    "buttonParamsJson": `{"display_text":"🌐 Open in Browser","url":"${item.url}","merchant_url":"${item.url}"}`
+                                                },
+                                                {
+                                                    "name": "cta_copy",
+                                                    "buttonParamsJson": `{"display_text":"📋 Copy Link","id":"copy_btn_${i}","copy_code":"${item.url}"}`
+                                                }
+                                            ]
+                                        }
                                     }
                                 }
                             }
-                        }
-                    };
+                        };
 
-                    // 3. Message එක යවනවා
-                    const waMessage = generateWAMessageFromContent(sender, interactiveMessage, { quoted: msg });
-                    await socket.relayMessage(sender, waMessage.message, { messageId: waMessage.key.id });
+                        // 4. Message එක යවනවා
+                        const waMessage = generateWAMessageFromContent(sender, interactiveMessage, { quoted: msg });
+                        await socket.relayMessage(sender, waMessage.message, { messageId: waMessage.key.id });
+
+                    } catch (innerError) {
+                        console.log(`[XX Plugin] Completely failed to send item ${i + 1}`);
+                        // මොකක් හරි ලොකු අවුලක් ගියොත් මේක අතෑරලා ඊළඟ එකට යනවා
+                    }
 
                     // අන්තිම Video එකට පස්සේ Delay එකක් ඕනේ නෑ
                     if (i < topItems.length - 1) {
-                        await delay(5000); // හරියටම තත්පර 5ක් ඉන්නවා
+                        await delay(5000); // තත්පර 5ක් ඉන්නවා
                     }
                 }
 
