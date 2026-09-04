@@ -15,10 +15,10 @@ const { generateWAMessageFromContent, generateWAMessageContent } = baileys;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = {
-    name: "xx_search_direct",
+    name: "pronhub(search)",
     category: "18+",
-    description: "Search videos and send photos with CTA buttons one by one",
-    commands: ["xx"],
+    description: "Search videos link",
+    commands: ["ph"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const API_KEY = "slk_feb4c1b4888e42998f43b746336ca25e";
