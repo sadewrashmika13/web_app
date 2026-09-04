@@ -41,7 +41,7 @@ module.exports = {
                 // මුල් ප්‍රතිඵල 5 පමණක් ගන්නවා
                 let count = 0;
                 for (const item of items) {
-                    if (count >= 5) break;
+                    if (count >= 10) break;
 
                     // සමහර Ads/Shorts වල එන අවුල් Links අයින් කරනවා
                     if (item.url.includes("xhamster.com/ff/out")) continue; 
