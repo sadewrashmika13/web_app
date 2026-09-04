@@ -11,9 +11,12 @@ app.use(express.urlencoded({ extended: true }));
 
 // ════════════ 📊 SERVER LIVE STATS API (MAIN) ════════════
 app.get('/livestats', (req, res) => {
-    try {
+    try { 
         const uptime = process.uptime();
-        const ramUsed = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
+        
+        // 🎯 REAL RAM FIX: process.memoryUsage().rss (Resident Set Size)
+        // Heroku සර්වර් එකෙන් ඇත්තටම මනින සම්පූර්ණ Physical RAM Usage එක මෙතැනින් මැනිය හැක.
+        const ramUsed = (process.memoryUsage().rss / 1024 / 1024).toFixed(2);
         
         // global.activeSockets හරහා sessions ගාණ ගන්නවා
         const sessionsCount = (global.activeSockets && global.activeSockets.size) 

@@ -1,14 +1,25 @@
 const axios = require("axios");
+const crypto = require("crypto");
+
+// ═══════ API CONFIG & SHORT STORE ═══════
+const API_KEY = "zan_FIAO7Ayh_eo1vllkep6";
+const API_BASE = "https://api.zanta-mini.store/api/modapk";
+const botName = "👑 SADEW-MINI 👑";
+
+if (!global.modStore) global.modStore = {};
+
+const metaQuote = {
+    key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_MOD" },
+    message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew ModApk\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
+};
 
 module.exports = {
     name: "mod_downloader_buttons",
-    category: "download",
+    category: 1, // 👈 Category 1 (Download Menu)
     description: "🎮 Search and download MOD APK games using buttons",
-    commands: ["mod", "mod_dl"], // 🛑 mod_dl කියලා අලුත් කමාන්ඩ් එකකුත් දැම්මා button එකට
+    commands: ["mod", "mod_dl"],
 
     handler: async ({ socket, msg, sender, command, args }) => {
-        const API_KEY = "zan_FIAO7Ayh_eo1vllkep6";
-        const API_BASE = "https://api.zanta-mini.store/api/modapk";
 
         // ==========================================
         // 🔥 1. SEARCH COMMAND (.mod)
@@ -23,28 +34,36 @@ module.exports = {
             }
 
             await socket.sendMessage(sender, { react: { text: "🔍", key: msg.key } });
-            await socket.sendPresenceUpdate('composing', sender);
 
             try {
-                let searchRes = await axios.get(`${API_BASE}/search?apiKey=${API_KEY}&url=${encodeURIComponent(query)}`, { timeout: 15000 });
+                const searchRes = await axios.get(`${API_BASE}/search?apiKey=${API_KEY}&url=${encodeURIComponent(query)}`, { timeout: 15000 });
                 
                 if (!searchRes.data?.success || !searchRes.data?.result?.length) {
                     await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
                     return await socket.sendMessage(sender, { text: `❌ *"${query}" සඳහා ප්‍රතිඵල හමුවූයේ නැත!*` }, { quoted: msg });
                 }
 
-                // 🛑 WhatsApp Button Limit එක 3ක් නිසා මුල් රිසල්ට්ස් 3 විතරක් ගන්නවා
-                let results = searchRes.data.result.slice(0, 3); 
-                
+                // WhatsApp Button Limit එකට අනුකූලව 3ක් තෝරාගැනීම
+                const results = searchRes.data.result.slice(0, 3); 
                 let listMsg = `🎮 *MOD APK Results*\n🔍 *Search:* ${query}\n\n`;
                 
-                // Buttons ටික හදනවා
                 const buttons = results.map((game, i) => {
                     listMsg += `*${i+1}.* ${game.title}\n👤 ${game.developer || "Unknown"} | ⭐ ${game.rating || "N/A"}\n\n`;
                     
-                    // Button එක එබුවම යන්න ඕන Command එක (Title එක දිග වැඩි නම් කපනවා)
+                    // 🛡️ Short ID generator (Prevents WhatsApp Button Payload Overflow)
+                    const shortId = crypto.randomBytes(4).toString('hex');
+                    global.modStore[shortId] = {
+                        url: game.url,
+                        title: game.title
+                    };
+
+                    // TTL Memory Cleanup (15 mins)
+                    setTimeout(() => {
+                        if (global.modStore[shortId]) delete global.modStore[shortId];
+                    }, 15 * 60 * 1000);
+
                     return {
-                        buttonId: `.mod_dl ${game.url} || ${game.title}`,
+                        buttonId: `.mod_dl ${shortId}`,
                         buttonText: { displayText: `📥 ${game.title.substring(0, 16)}...` },
                         type: 1
                     };
@@ -52,69 +71,63 @@ module.exports = {
                 
                 listMsg += `> 💡 *ඔබට අවශ්‍ය Game එක පහත Button වලින් තෝරන්න.*\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
 
-                // Button මැසේජ් එක යවනවා
                 await socket.sendMessage(sender, {
                     text: listMsg,
-                    footer: '👑 SADEW-MINI 👑',
+                    footer: botName,
                     buttons: buttons,
                     headerType: 1
-                }, { quoted: msg });
+                }, { quoted: metaQuote });
 
                 await socket.sendMessage(sender, { react: { text: "📑", key: msg.key } });
 
             } catch (err) {
-                console.error("Search error:", err);
+                console.error("Mod Search error:", err.message);
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
                 await socket.sendMessage(sender, { text: `❌ *Search failed:*\n_${err.message}_` }, { quoted: msg });
             }
         }
 
         // ==========================================
-        // 🔥 2. DOWNLOAD COMMAND (.mod_dl) 👈 Button එක එබුවම වැඩ කරන්නේ මේක
+        // 🔥 2. DOWNLOAD COMMAND (.mod_dl)
         // ==========================================
         else if (command === "mod_dl") {
-            const inputData = args.join(" ").trim();
-            if (!inputData.includes('||')) return;
+            const shortId = args[0]?.trim();
+            const storedData = global.modStore[shortId];
 
-            // Button එකෙන් එන ඩේටා ටික වෙන් කරගන්නවා
-            const parts = inputData.split(' || ');
-            const gameUrl = encodeURIComponent(parts[0].trim());
-            const gameTitle = parts[1].trim();
+            if (!storedData) {
+                return await socket.sendMessage(sender, { 
+                    text: "❌ *ලින්ක් එක කල් ඉකුත් වී ඇත. නැවත .mod search කරන්න.*" 
+                }, { quoted: msg });
+            }
+
+            const gameUrl = encodeURIComponent(storedData.url);
+            const gameTitle = storedData.title;
 
             await socket.sendMessage(sender, { react: { text: "⏳", key: msg.key } });
-            await socket.sendPresenceUpdate('composing', sender);
             await socket.sendMessage(sender, { 
-                text: `📥 *Downloading ${gameTitle}...*\n_මෙයට සුළු වේලාවක් ගත විය හැක, රැඳී සිටින්න._` 
+                text: `📥 *Downloading ${gameTitle}...*\n_මෙයට සුළු වේලාවක් ගත විය හැක, රැඳී සිටින්න..._` 
             }, { quoted: msg });
 
             try {
-                let dlRes = await axios.get(`${API_BASE}/dl?apiKey=${API_KEY}&url=${gameUrl}`, { timeout: 15000 });
-                if (!dlRes.data?.success || !dlRes.data?.download_url) throw new Error("No download link");
+                const dlRes = await axios.get(`${API_BASE}/dl?apiKey=${API_KEY}&url=${gameUrl}`, { timeout: 20000 });
+                if (!dlRes.data?.success || !dlRes.data?.download_url) throw new Error("Download link එක හමුවූයේ නැත");
 
-                let apkRes = await axios.get(dlRes.data.download_url, {
-                    responseType: 'arraybuffer',
-                    timeout: 90000, 
-                    headers: { 'User-Agent': 'Mozilla/5.0' }
-                });
+                const downloadUrl = dlRes.data.download_url;
+                const safeFileName = `${gameTitle.replace(/[^a-zA-Z0-9._-]/g, '_')}_MOD.apk`;
+                const caption = `🎮 *${gameTitle}* [MOD]\n\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
 
-                let buffer = Buffer.from(apkRes.data);
-                let sizeMB = (buffer.length / (1024 * 1024)).toFixed(2);
-                if (buffer.length < 500000) throw new Error("File too small");
-
-                let fileName = `${gameTitle.replace(/[^a-z0-9]/gi, '_')}.apk`;
-                let caption = `🎮 *${gameTitle}* [MOD]\n📦 *Size:* ${sizeMB} MB\n\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
-
+                // 🚀 Direct URL Stream (No ArrayBuffer, 0% RAM Usage)
                 await socket.sendMessage(sender, {
-                    document: buffer,
+                    document: { url: downloadUrl },
                     mimetype: "application/vnd.android.package-archive",
-                    fileName: fileName,
+                    fileName: safeFileName,
                     caption: caption
-                }, { quoted: msg });
+                }, { quoted: metaQuote });
 
                 await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
 
             } catch (downloadErr) {
-                console.error("Mod DL Error:", downloadErr);
+                console.error("Mod DL Error:", downloadErr.message);
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
                 await socket.sendMessage(sender, { text: `❌ *Download failed:*\n_${downloadErr.message}_` }, { quoted: msg });
             }

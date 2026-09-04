@@ -1,4 +1,16 @@
 const axios = require('axios');
+const crypto = require('crypto');
+
+// ═══════ CONSTANTS & SHORT STORE ═══════
+const PINTEREST_API = "https://www.movanest.xyz/v2/pinterest";
+const botName = "👑 SADEW-MINI 👑";
+
+if (!global.pinStore) global.pinStore = {};
+
+const metaQuote = {
+    key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_IMG" },
+    message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Pinterest\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
+};
 
 module.exports = {
     name: "pinterest-image-search",
@@ -7,12 +19,6 @@ module.exports = {
     commands: ["img", "img_dl"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
-        const botName = "👑 SADEW-MINI 👑";
-        const PINTEREST_API = "https://www.movanest.xyz/v2/pinterest";
-        const metaQuote = {
-            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_IMG" },
-            message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Pinterest\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
-        };
 
         // ==========================================
         // 1. IMAGE SEARCH COMMAND (.img)
@@ -36,8 +42,8 @@ module.exports = {
                     return await reply("❌ *සමාවෙන්න, එම නමින් Images කිසිවක් හමුවූයේ නැත.*");
                 }
 
-                // Filter only non-video results and take first 10
-                const imageResults = data.results.filter(r => !r.is_video).slice(0, 10);
+                // 🛑 Photos 10 ම ලබා ගැනීම (slice 0, 10)
+                const imageResults = data.results.filter(r => !r.is_video && r.image).slice(0, 10);
 
                 if (imageResults.length === 0) {
                     await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
@@ -46,14 +52,21 @@ module.exports = {
 
                 await socket.sendMessage(sender, { react: { text: "📤", key: msg.key } });
 
-                // Send all 10 images as horizontal cards with download buttons
+                // Cards 10 යැවීම (තත්පර 3 ක Delay එකක් සහිතව)
                 for (let i = 0; i < imageResults.length; i++) {
                     const img = imageResults[i];
                     const imgTitle = img.title || 'Pinterest Image';
-                    const shortTitle = imgTitle.length > 60 ? imgTitle.substring(0, 57) + '...' : imgTitle;
-                    const imgUrl = img.image || '';
+                    const shortTitle = imgTitle.length > 50 ? imgTitle.substring(0, 47) + '...' : imgTitle;
+                    const imgUrl = img.image;
 
-                    if (!imgUrl) continue;
+                    // Short ID Generator for Lightweight Buttons
+                    const shortId = crypto.randomBytes(4).toString('hex');
+                    global.pinStore[shortId] = imgUrl;
+
+                    // TTL Memory Cleanup
+                    setTimeout(() => {
+                        if (global.pinStore[shortId]) delete global.pinStore[shortId];
+                    }, 15 * 60 * 1000);
 
                     try {
                         const cardCaption = `*📸 ${i + 1}/${imageResults.length}*\n\n` +
@@ -62,13 +75,14 @@ module.exports = {
                             `📌 *Board:* ${img.board || 'N/A'}\n\n` +
                             `> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
 
+                        // 🚀 Direct URL Stream (0% RAM Buffer)
                         await socket.sendMessage(sender, {
                             image: { url: imgUrl },
                             caption: cardCaption,
                             footer: '👑 SADEW-MINI 👑',
                             buttons: [
                                 {
-                                    buttonId: `.img_dl ${imgUrl}`,
+                                    buttonId: `.img_dl ${shortId}`,
                                     buttonText: { displayText: '📥 Download HD' },
                                     type: 1
                                 }
@@ -76,9 +90,9 @@ module.exports = {
                             headerType: 4
                         }, { quoted: metaQuote });
 
-                        // Small delay between cards to avoid flood
+                        // ⏱️ හරියටම තත්පර 3 ක Delay එකක්
                         if (i < imageResults.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 800));
+                            await new Promise(resolve => setTimeout(resolve, 3000));
                         }
                     } catch (cardErr) {
                         console.log(`Pinterest card ${i + 1} failed:`, cardErr.message);
@@ -98,20 +112,27 @@ module.exports = {
         // 2. IMAGE DOWNLOAD COMMAND (.img_dl)
         // ==========================================
         else if (command === "img_dl") {
-            const imgUrl = args.join(" ").trim();
-            if (!imgUrl) return;
+            const shortId = args[0]?.trim();
+            if (!shortId) return;
+
+            const imgUrl = global.pinStore[shortId] || (shortId.startsWith('http') ? shortId : null);
+
+            if (!imgUrl) {
+                return await reply("❌ *ලින්ක් එක කල් ඉකුත් වී ඇත. නැවත .img search කරන්න.*");
+            }
 
             try {
                 await socket.sendMessage(sender, { react: { text: "⬇️", key: msg.key } });
 
-                // Determine file extension from URL
+                const cleanUrl = imgUrl.split('?')[0].toLowerCase();
                 let ext = 'jpg';
-                if (imgUrl.includes('.png')) ext = 'png';
-                else if (imgUrl.includes('.webp')) ext = 'webp';
-                else if (imgUrl.includes('.gif')) ext = 'gif';
+                if (cleanUrl.endsWith('.png')) ext = 'png';
+                else if (cleanUrl.endsWith('.webp')) ext = 'webp';
+                else if (cleanUrl.endsWith('.gif')) ext = 'gif';
 
-                const fileName = `pinterest_${Date.now()}.${ext}`;
+                const fileName = `Pinterest_${Date.now()}.${ext}`;
 
+                // 🚀 Direct URL Document Stream (0% RAM Buffer)
                 await socket.sendMessage(sender, {
                     document: { url: imgUrl },
                     mimetype: `image/${ext === 'jpg' ? 'jpeg' : ext}`,

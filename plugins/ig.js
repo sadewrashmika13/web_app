@@ -13,7 +13,7 @@ module.exports = {
         const API_1 = {
             name: "WhiteShadow",
             url: "https://whiteshadow-x-api.onrender.com/api/download/ig",
-            token: "VK4fry",
+            token: "4ehG6P",
             buildUrl: (igUrl) => `https://whiteshadow-x-api.onrender.com/api/download/ig?url=${encodeURIComponent(igUrl)}&apitoken=4ehG6P`
         };
         const API_2 = {

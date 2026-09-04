@@ -1,15 +1,19 @@
 const { spawn } = require("child_process");
 const sharp = require("sharp");
 
-// 🛠️ බොට් ඇතුළේ හැංගිලා තියෙන FFmpeg එක හොයන ට්‍රික් එක
+// 🛡️ RAM Optimization: Sharp Cache & Concurrency Lock (Heroku Safety)
+sharp.cache(false);
+sharp.concurrency(1);
+
+// 🛠️ FFmpeg Finder
 let ffmpegBin = "ffmpeg";
 try {
-    ffmpegBin = require("ffmpeg-static"); // ffmpeg-static තියෙනවද බලනවා
+    ffmpegBin = require("ffmpeg-static");
 } catch (e1) {
     try {
-        ffmpegBin = require("@ffmpeg-installer/ffmpeg").path; // නැත්නම් මේක තියෙනවද බලනවා
+        ffmpegBin = require("@ffmpeg-installer/ffmpeg").path;
     } catch (e2) {
-        ffmpegBin = "ffmpeg"; // මුකුත්ම නැත්නම් සාමාන්‍ය එක ගන්නවා
+        ffmpegBin = "ffmpeg";
     }
 }
 
@@ -30,7 +34,7 @@ function getFontSize(text) {
     return 32;
 }
 
-// 🖼️ Frame එකක් හදන Function එක
+// 🖼️ Frame Generator (Optimized)
 async function makeFrame(text, index, totalFrames) {
     const colors = ["#ff1744", "#ffea00", "#00e676", "#00b0ff", "#d500f9", "#ff9100"];
     const color = colors[index % colors.length];
@@ -72,14 +76,9 @@ async function makeFrame(text, index, totalFrames) {
     return await sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-// 🎬 Animated WebP එක හදන Function එක (FFmpeg හරහා)
+// 🎬 Animated WebP Generator (Memory-Safe Direct Streaming)
 async function createAttpSticker(text) {
-    const totalFrames = 24;
-    const frames = [];
-
-    for (let i = 0; i < totalFrames; i++) {
-        frames.push(await makeFrame(text, i, totalFrames));
-    }
+    const totalFrames = 20; // 20 Frames is optimal for high quality & low RAM
 
     return new Promise((resolve, reject) => {
         const args = [
@@ -106,9 +105,12 @@ async function createAttpSticker(text) {
         const errorChunks = [];
 
         const timeout = setTimeout(() => {
-            ffmpeg.kill("SIGKILL");
+            try { ffmpeg.kill("SIGKILL"); } catch (_) {}
             reject(new Error("ATTP render timeout වුණා."));
-        }, 60 * 1000);
+        }, 30 * 1000);
+
+        // 🛡️ Prevent Process-Level EPIPE Crash if FFmpeg closes pipe early
+        ffmpeg.stdin.on("error", (_) => {});
 
         ffmpeg.stdout.on("data", (chunk) => outputChunks.push(chunk));
         ffmpeg.stderr.on("data", (chunk) => errorChunks.push(chunk));
@@ -129,32 +131,43 @@ async function createAttpSticker(text) {
                 return;
             }
 
-            if (!output || output.length < 1000) {
-                reject(new Error("Sticker output එක empty වුණා. FFmpeg WebP encoder check කරන්න."));
+            if (!output || output.length < 500) {
+                reject(new Error("Sticker output එක empty වුණා."));
                 return;
             }
 
             resolve(output);
         });
 
-        for (const frame of frames) {
-            ffmpeg.stdin.write(frame);
-        }
-
-        ffmpeg.stdin.end();
+        // 🚀 Directly Generate & Pipe Frames On-The-Fly (Zero RAM Retention)
+        (async () => {
+            try {
+                for (let i = 0; i < totalFrames; i++) {
+                    if (ffmpeg.stdin.writable) {
+                        const frameBuffer = await makeFrame(text, i, totalFrames);
+                        ffmpeg.stdin.write(frameBuffer);
+                    }
+                }
+                if (ffmpeg.stdin.writable) {
+                    ffmpeg.stdin.end();
+                }
+            } catch (err) {
+                try { ffmpeg.kill("SIGKILL"); } catch (_) {}
+                reject(err);
+            }
+        })();
     });
 }
 
 // 🚀 Main Plugin Export
 module.exports = {
     name: "attp_sticker",
-    category: "tools",
+    category: 5, // 👈 Category 5 (Tools & Edits)
     description: "Convert text to an animated color sticker",
-    commands: ["attp", "ttp", "animatedtext"],
+    commands: ["attp", "animatedtext"], // 👈 Conflict වෙන ttp කමාන්ඩ් එක අයින් කළා
 
     handler: async ({ socket, msg, sender, command, args }) => {
         try {
-            // Text එක ලබා ගැනීම
             let text = args.join(" ").trim();
             
             if (!text) {
@@ -170,8 +183,8 @@ module.exports = {
                 }, { quoted: msg });
             }
 
-            if (text.length > 35) {
-                return await socket.sendMessage(sender, { text: "❌ *Text එක දිග වැඩියි මචං. අකුරු 35 කට අඩුවෙන් දෙන්න.*" }, { quoted: msg });
+            if (text.length > 30) {
+                return await socket.sendMessage(sender, { text: "❌ *Text එක දිග වැඩියි මචං. අකුරු 30 කට අඩුවෙන් දෙන්න.*" }, { quoted: msg });
             }
 
             await socket.sendMessage(sender, { react: { text: "🎨", key: msg.key } });

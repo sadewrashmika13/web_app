@@ -1,80 +1,105 @@
+// 🛡️ Timeout Guard
+const withTimeout = (promise, ms = 4000) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
+    ]);
+};
+
 module.exports = {
     name: "getdp",
     category: 5, // Tools & Edits
     description: "📸 Get WhatsApp profile picture and about",
     commands: ["getdp", "dp", "getprofile"],
 
-    handler: async ({ socket, msg, sender, command, args, reply }) => {
-        let targetJid = '';
-
-        // 1. Reply කරපු කෙනෙක් ඉන්නවද කියලා බලනවා
-        const qCtx = msg.message?.extendedTextMessage?.contextInfo;
-        if (qCtx && qCtx.participant) {
-            targetJid = qCtx.participant;
-        } 
-        // 2. මැසේජ් එකේ නම්බර් එකක් ගහලද බලනවා (.dp 947...)
-        else if (args && args.length > 0) {
-            let number = args.join('').replace(/[^0-9]/g, '');
-            if (number.length >= 10) {
-                targetJid = number + '@s.whatsapp.net';
-            }
-        } 
-        // මුකුත්ම නැත්නම් Error එකක් දෙනවා
-        else {
-            return reply(`📸 *Profile Fetcher*\n\n*Usage:* .dp <number>\n*Example:* .dp 94753518443\n_(හෝ යම් අයෙකුගේ Message එකකට Reply කරන්න)_`);
-        }
-
-        let number = targetJid.split('@')[0];
-        
-        try { await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } }); } catch (_) {}
-
+    handler: async ({ socket, msg, sender, args, reply }) => {
         try {
-            // WhatsApp එකේ නම්බර් එක තියෙනවද කියලා බලනවා
-            const existsCheck = await socket.onWhatsApp(targetJid);
-            if (!existsCheck || existsCheck.length === 0 || !existsCheck[0].exists) {
-                try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
-                return reply(`❌ *Number +${number} is not on WhatsApp.*`);
+            let targetJid = null;
+            const qCtx = msg.message?.extendedTextMessage?.contextInfo;
+
+            // 1. Target JID හඳුනාගැනීම (Mentions / Reply / Number / Self)
+            if (qCtx?.mentionedJid?.length > 0) {
+                targetJid = qCtx.mentionedJid[0];
+            } else if (qCtx?.participant) {
+                targetJid = qCtx.participant;
+            } else if (args && args.length > 0) {
+                let rawNum = args.join('').replace(/[^0-9]/g, '');
+                if (rawNum.startsWith('0') && rawNum.length === 10) {
+                    rawNum = '94' + rawNum.slice(1);
+                }
+                if (rawNum.length >= 8) {
+                    targetJid = rawNum + '@s.whatsapp.net';
+                }
+            } else {
+                targetJid = sender;
             }
 
-            targetJid = existsCheck[0].jid;
-
-            // About එක ගන්නවා (Bio එක)
-            let about = 'Not available';
-            try {
-                const status = await socket.fetchStatus(targetJid);
-                if (status && status.status) about = status.status;
-            } catch(e) { 
-                about = 'Not available (Privacy Protected)'; 
+            if (!targetJid) {
+                return reply("❌ *කරුණාකර අංකයක්, Tag එකක් හෝ Message එකකට Reply එකක් ලබා දෙන්න.*");
             }
 
-            // Profile Picture එක ගන්නවා (Cache එක අයින් කරලා Fresh URL එකම ගන්නවා)
-            let ppUrl;
+            try { await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } }); } catch (_) {}
+
+            // 2. Multi-Device JID Normalization (Device Node Clean කිරීම)
+            const cleanNumber = targetJid.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+            const cleanJid = `${cleanNumber}@s.whatsapp.net`;
+
+            // 3. Status (Bio) ලබාගැනීම
+            let about = 'Not available (Privacy / Restricted)';
             try {
-                ppUrl = await socket.profilePictureUrl(targetJid, 'image'); // මුලින්ම HD එක බලනවා
-            } catch (err) {
+                const statusRes = await withTimeout(socket.fetchStatus(cleanJid), 3500);
+                if (statusRes?.status) about = statusRes.status;
+            } catch (_) {}
+
+            // 4. Triple Fallback Profile Picture Fetching
+            let ppUrl = null;
+            try {
+                // Try HD Image
+                ppUrl = await withTimeout(socket.profilePictureUrl(cleanJid, 'image'), 4000);
+            } catch (_) {
                 try {
-                    ppUrl = await socket.profilePictureUrl(targetJid, 'preview'); // ඊළඟට SD එක බලනවා
-                } catch (err2) {
-                    ppUrl = null; // කොහොමටවත් ගන්න බැරිනම් null කරනවා
+                    // Try SD Preview
+                    ppUrl = await withTimeout(socket.profilePictureUrl(cleanJid, 'preview'), 3500);
+                } catch (_) {
+                    try {
+                        // Try Default Method
+                        ppUrl = await withTimeout(socket.profilePictureUrl(cleanJid), 3000);
+                    } catch (_) {
+                        ppUrl = null;
+                    }
                 }
             }
 
-            let caption = `*↳ ❝ [📸 𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗣𝗿𝗼𝗳𝗶𝗹𝗲 📸] ¡! ❞*\n\n` +
-                          `📞 *Number:* +${number}\n` +
-                          `📝 *About:* ${about}\n\n` +
-                          `> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
+            const caption = `*↳ ❝ [📸 𝗦𝗮𝗱𝗲 w-𝗠𝗶𝗻𝗶 𝗣𝗿𝗼𝗳𝗶𝗹𝗲 📸] ¡! ❞*\n\n` +
+                            `📞 *Number:* +${cleanNumber}\n` +
+                            `📝 *About:* ${about}\n\n` +
+                            `> *𝗦𝗮𝗱𝗲 w-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲 w 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
 
+            // 5. Message Send කිරීම
             if (ppUrl) {
-                // Axios නැතුව Baileys වල Native URL Loader එක පාවිච්චි කිරීම (Crash වෙන්නේ නෑ)
-                await socket.sendMessage(sender, { image: { url: ppUrl }, caption: caption }, { quoted: msg });
+                try {
+                    await socket.sendMessage(sender, { 
+                        image: { url: ppUrl }, 
+                        caption: caption,
+                        mentions: [cleanJid]
+                    }, { quoted: msg });
+                } catch (imgErr) {
+                    await socket.sendMessage(sender, { 
+                        text: `🖼️ *DP Link හමුවූ නමුත් Image එක Load කිරීම අසාර්ථක විය.*\n\n${caption}`,
+                        mentions: [cleanJid]
+                    }, { quoted: msg });
+                }
             } else {
-                await socket.sendMessage(sender, { text: `🖼️ *No profile picture (or Privacy protected)*\n\n${caption}` }, { quoted: msg });
+                await socket.sendMessage(sender, { 
+                    text: `🖼️ *Profile Picture එක ලබාගත නොහැකි විය.*\n_(මෙම අංකය සමඟ බොට්ගේ Chat History එකක් නැති නිසා WhatsApp Server එකෙන් Query එක Block කර ඇත.)_\n\n${caption}`,
+                    mentions: [cleanJid]
+                }, { quoted: msg });
             }
-            
+
             try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
         } catch (error) {
-            console.error("[SADEW-MINI BOT] GetDP error:", error);
+            console.error("[GetDP Error]:", error.message);
             try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
             await reply(`❌ *Failed:* ${error.message}`);
         }
