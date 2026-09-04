@@ -3,7 +3,7 @@ const axios = require('axios');
 // පරණ චැට් මතක තියාගන්න Global Memory Object එක
 if (!global.alyaChatMemory) global.alyaChatMemory = {};
 
-// 📸 මෙන්න මෙතනට ඔයාගේ Photo Links 10 දාන්න (දැනට මම Dummy links ටිකක් දාලා තියෙන්නේ)
+// 📸 මෙන්න මෙතනට ඔයාගේ Photo Links ටික තියෙනවා
 const imageUrls = [
     'https://res.cloudinary.com/dqlh378fb/image/upload/v1783327996/zanta_media_uploads/vfq2mrf2hwkzhjerc3zz.jpg',
     'https://res.cloudinary.com/dqlh378fb/image/upload/v1783328021/zanta_media_uploads/tnuazopka24oahpvh3mc.jpg',
@@ -17,7 +17,7 @@ const imageUrls = [
     'https://res.cloudinary.com/dqlh378fb/image/upload/v1780590033/zanta_media_uploads/dttqjshprca9zvqcpbwg.jpg',
     'https://res.cloudinary.com/dqlh378fb/image/upload/v1783332950/zanta_media_uploads/sxkybgfhhi5gtkqsns2z.jpg',
     'https://res.cloudinary.com/dqlh378fb/image/upload/v1783332958/zanta_media_uploads/yxtvp8zwoju8xsvghzr7.jpg'
-  ]; 
+]; 
 
 module.exports = {
     name: "luna_ai",
@@ -29,7 +29,7 @@ module.exports = {
     handler: async ({ socket, reply, msg, sender, args }) => {
         try {
             const query = args.join(" ").trim();
-            
+
             if (!query) {
                 return await reply("👋 ඔයා මට මොනවද කියන්න ඕනේ මැනික? 🥰");
             }
@@ -58,12 +58,14 @@ RULES:
             }
             chatContext += `Sajana: ${query}\nLuna:`;
 
-            // 🚀 WhiteShadow Gemini API එකට කෝල් එක යවනවා
-            const url = `https://whiteshadow-x-api.onrender.com/api/ai/gemini?q=${encodeURIComponent(chatContext)}&apitoken=4ehG6P`;
-            
+            // 🚀 Zanta API එකට අලුත් Key එකත් එක්ක කෝල් එක යවනවා
+            const apiKey = "zan_FIAO7Ayh_eo1vllkep6";
+            const url = `https://api.zanta-mini.store/api/gemini?apiKey=${apiKey}&text=${encodeURIComponent(chatContext)}`;
+
             const res = await axios.get(url, { timeout: 20000 });
 
-            let aiReply = res.data?.result?.response;
+            // Zanta API Response Structure එකට අනුව 'res.data.result' ලබාගනී
+            let aiReply = res.data?.result;
 
             if (!aiReply) throw new Error("API Response is empty");
 
@@ -88,10 +90,10 @@ RULES:
             if (global.alyaChatMemory[sender].length > 6) {
                 global.alyaChatMemory[sender] = global.alyaChatMemory[sender].slice(-6);
             }
-          
+
         } catch (err) {
             console.error("Luna AI Error:", err.message);
-            
+
             // 🛑 431 එරර් එක ආවොත් (URL දිග වැඩි වුණොත්) ඔටෝම මතකය Reset කරනවා!
             if (err.message.includes('431')) {
                 global.alyaChatMemory[sender] = []; // මතකය මකලා දානවා
