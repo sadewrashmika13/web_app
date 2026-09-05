@@ -5,7 +5,7 @@ if (!global.alyaChatMemory) global.alyaChatMemory = {};
 module.exports = {
     name: "alya_ai", 
     category: "ai",
-    description: "ALYA AI GF with Dual Gemini Keys",
+    description: "ALYA AI GF with Gemini 3.1 Flash Lite",
     commands: ["alya"],
     on: "message",
 
@@ -48,11 +48,11 @@ RULES:
 
             let aiReply = "";
 
-            // 🚀 DUAL API KEY SYSTEM
+            // 🚀 DUAL API KEY SYSTEM (Gemini 3.1 Flash Lite)
             try {
-                // 1️⃣ පළවෙනි Key එක ට්‍රයි කරනවා
+                // 1️⃣ පළවෙනි Key එක
                 const primaryKey = "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA";
-                const url1 = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${primaryKey}`;
+                const url1 = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${primaryKey}`;
                 
                 const res1 = await axios.post(url1, requestBody, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
                 aiReply = res1.data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -63,9 +63,9 @@ RULES:
             } catch (err1) {
                 console.log(`[ALYA AI] ⚠️ Primary Key Failed (${err1.message}). Switching to Backup Key...`);
                 
-                // 2️⃣ පළවෙනි එක වැඩ නැත්තම් Backup Key එකට මාරු වෙනවා
+                // 2️⃣ Backup Key එක
                 const backupKey = "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ";
-                const url2 = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${backupKey}`;
+                const url2 = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${backupKey}`;
                 
                 const res2 = await axios.post(url2, requestBody, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
                 aiReply = res2.data?.candidates?.[0]?.content?.parts?.[0]?.text;
