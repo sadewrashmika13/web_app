@@ -136,19 +136,14 @@ module.exports = {
                 if (firstThumb) {
                     try {
                         media = await prepareWAMessageMedia({ image: { url: firstThumb } }, { upload: socket.waUploadToServer });
-                    } catch (e) {
-                        console.log("Media Upload Error", e);
-                    }
+                    } catch (e) {}
                 }
                 
                 const msgContent = {
                     viewOnceMessage: {
                         message: {
                             interactiveMessage: {
-                                header: { 
-                                    hasMediaAttachment: !!firstThumb,
-                                    ...media
-                                },
+                                header: { hasMediaAttachment: !!firstThumb, ...media },
                                 body: { text: `🎯 *Search Results for:* _${q}_\n\n👇 පහළ Buttons වලින් Anime එක තෝරන්න.` },
                                 footer: { text: "🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮" },
                                 nativeFlowMessage: { buttons: buttons }
@@ -168,13 +163,23 @@ module.exports = {
             }
         }
 
-        // ════════════ EPISODE LIST (TEXT MENU) ════════════
+        // ════════════ EPISODE LIST (.hdown) ════════════
         if (command === "hdown") {
             if (!input) return;
             
             const parts = input.split('|');
             const animeId = parts[0].trim();
-            const targetJid = parts[1] || sender;
+            
+            // JID එක සහ 'all' කමාන්ඩ් එක වෙන් කරගැනීම
+            let action = 'list';
+            let targetJid = sender;
+            if (parts.length === 2) {
+                if (parts[1].trim() === 'all') action = 'all';
+                else targetJid = parts[1].trim();
+            } else if (parts.length === 3) {
+                if (parts[1].trim() === 'all') action = 'all';
+                targetJid = parts[2].trim();
+            }
             
             await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
             
@@ -216,8 +221,16 @@ module.exports = {
                     return socket.sendMessage(sender, { text: `🚫 *Episodes හොයාගන්න බැරි වුණා!*\n\n🛠 *Debug logs:*\nURL: ${seriesUrl}\nHTML: ${snippet}...` }, { quoted: msg });
                 }
                 episodes.sort((a, b) => a.num - b.num);
+                const meta = { videoname, desc, thumbnail, seriesUrl };
                 
-                const displayEps = episodes.slice(0, 30);
+                // 1️⃣ 'Download All' බොත්තම එබුවම කෙලින්ම බානවා 
+                if (action === 'all') {
+                    await processDownload(socket, msg, sender, animeId, episodes, targetJid, meta);
+                    return;
+                }
+                
+                // 2️⃣ එහෙම නැත්තම් Episode List එක යවනවා (Download All Button එකත් එක්ක)
+                const displayEps = episodes.slice(0, 30); // උපරිම 30ක් පෙන්නනවා
                 
                 let menuText = `🎬 *${videoname}*\n\n📝 _${desc}_\n\n`;
                 menuText += `*Episodes ලැයිස්තුව:*\n\n`;
@@ -225,56 +238,77 @@ module.exports = {
                 for (let i = 0; i < displayEps.length; i++) {
                     menuText += `*[ ${i + 1} ]* - Episode ${displayEps[i].num}\n`;
                 }
-                menuText += `\n*[ all ]* - ඔක්කොම Download කරන්න\n\n`;
-                menuText += `> 💡 *ඔයාට ඕනේ Episode එකේ අංකය (උදා: 1) මේ මැසේජ් එකට Reply කරන්න.* (ඔක්කොම ඕනේ නම් 'all' දෙන්න)`;
+                menuText += `\n> 💡 *ඔයාට ඕනේ Episode එකේ අංකය (උදා: 1) මේ මැසේජ් එකට Reply කරන්න.* (ඔක්කොම බාන්න පහළ බොත්තම ඔබන්න)\n`;
                 
-                const meta = { videoname, desc, thumbnail, seriesUrl };
-                
-                let sentMsg;
+                let media = {};
                 if (thumbnail) {
-                    sentMsg = await socket.sendMessage(sender, { image: { url: thumbnail }, caption: menuText }, { quoted: msg });
-                } else {
-                    sentMsg = await socket.sendMessage(sender, { text: menuText }, { quoted: msg });
+                    try { media = await prepareWAMessageMedia({ image: { url: thumbnail } }, { upload: socket.waUploadToServer }); } catch (e) {}
                 }
                 
-                // ==========================================
-                // 🔥 DYNAMIC EPISODE REPLY LISTENER 
-                // ==========================================
-                global.hanimeContexts[sender] = {
-                    quotedId: sentMsg.key.id,
-                    episodes: displayEps,
-                    animeId: animeId,
-                    targetJid: targetJid,
-                    meta: meta
+                const msgContent = {
+                    viewOnceMessage: {
+                        message: {
+                            interactiveMessage: {
+                                header: { hasMediaAttachment: !!thumbnail, ...media },
+                                body: { text: menuText },
+                                footer: { text: "🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮" },
+                                nativeFlowMessage: {
+                                    buttons: [{
+                                        name: "quick_reply",
+                                        buttonParamsJson: JSON.stringify({
+                                            display_text: "📥 Download All",
+                                            id: `.hdown ${animeId}|all|${targetJid}`
+                                        })
+                                    }]
+                                }
+                            }
+                        }
+                    }
                 };
+                
+                let waMsg;
+                try { waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg }); } 
+                catch (e) { waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user?.id, quoted: msg }); }
+                
+                await socket.relayMessage(sender, waMsg.message, { messageId: waMsg.key.id });
+                
+                // ==========================================
+                // 🔥 DYNAMIC EPISODE REPLY LISTENER (දැන් off වෙන්නේ නෑ!)
+                // ==========================================
+                
+                // පරණ Listener එකක් තිබ්බොත් අයින් කරනවා (Memory Leak නොවෙන්න)
+                if (global.hanimeContexts[sender] && global.hanimeContexts[sender].listener) {
+                    socket.ev.off('messages.upsert', global.hanimeContexts[sender].listener);
+                }
 
                 const replyListener = async ({ messages }) => {
                     try {
                         const replyMsg = messages[0];
                         if (!replyMsg.message || replyMsg.key.remoteJid !== sender) return;
 
-                        const ctx = replyMsg.message.extendedTextMessage?.contextInfo;
-                        if (!ctx) return;
+                        const getActualMessage = (m) => {
+                            if (!m) return null;
+                            if (m.ephemeralMessage) return m.ephemeralMessage.message;
+                            if (m.viewOnceMessage) return m.viewOnceMessage.message;
+                            return m;
+                        };
+
+                        const actualMsg = getActualMessage(replyMsg.message);
+                        const extMsg = actualMsg?.extendedTextMessage;
+                        const ctx = extMsg?.contextInfo;
+                        if (!ctx || !ctx.stanzaId) return;
 
                         const context = global.hanimeContexts[sender];
                         if (!context) return;
 
                         if (ctx.stanzaId === context.quotedId) {
-                            const replyText = (replyMsg.message.extendedTextMessage?.text || '').trim().toLowerCase();
+                            const replyText = (extMsg.text || '').trim().toLowerCase();
                             
-                            let epsToDl = [];
-                            if (replyText === 'all') {
-                                epsToDl = context.episodes;
-                            } else {
-                                const num = parseInt(replyText);
-                                if (isNaN(num) || num < 1 || num > context.episodes.length) return;
-                                epsToDl = [context.episodes[num - 1]];
-                            }
+                            const num = parseInt(replyText);
+                            if (isNaN(num) || num < 1 || num > context.episodes.length) return;
+                            const epsToDl = [context.episodes[num - 1]];
 
-                            // වැඩේ හරි නිසා Listener එක අයින් කරනවා
-                            socket.ev.off('messages.upsert', replyListener);
-                            delete global.hanimeContexts[sender];
-
+                            // 🛑 මෙතනින් Off වෙන කෑල්ල අයින් කරා! එතකොට ආයෙ ආයෙ Reply කරන්න පුළුවන්!
                             await processDownload(socket, replyMsg, sender, context.animeId, epsToDl, context.targetJid, context.meta);
                         }
                     } catch (listenerErr) {
@@ -282,12 +316,25 @@ module.exports = {
                     }
                 };
 
+                // අලුත් Listener එක සේව් කරනවා
+                global.hanimeContexts[sender] = {
+                    quotedId: waMsg.key.id,
+                    episodes: displayEps,
+                    animeId: animeId,
+                    targetJid: targetJid,
+                    meta: meta,
+                    listener: replyListener 
+                };
+
                 socket.ev.on('messages.upsert', replyListener);
                 
+                // විනාඩි 3කින් Auto Off වෙනවා
                 setTimeout(() => {
-                    socket.ev.off('messages.upsert', replyListener);
-                    if (global.hanimeContexts[sender]) delete global.hanimeContexts[sender];
-                }, 5 * 60 * 1000);
+                    if (global.hanimeContexts[sender] && global.hanimeContexts[sender].listener === replyListener) {
+                        socket.ev.off('messages.upsert', replyListener);
+                        delete global.hanimeContexts[sender];
+                    }
+                }, 3 * 60 * 1000);
                 
             } catch (err) {
                 reply(`❌ *Error:* ${err.message}`);
