@@ -1,78 +1,11 @@
 const axios = require('axios');
+const { generateWAMessageFromContent } = require('baileys');
 
-// ════════ Helper Functions ════════
-async function processAnimeSelection(socket, msg, sender, animeId, targetJid) {
-    await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
-    
-    try {
-        const seriesUrl = `https://animeheaven.me/anime.php?${animeId}`;
-        const res = await axios.get(seriesUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const html = res.data;
-        
-        const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
-        let videoname = titleMatch ? titleMatch[1].replace('Anime | AnimeHeaven.Me', '').trim() : "Anime";
-        
-        const descMatch = html.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
-        let desc = descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '') : videoname;
-        if (desc.length > 300) desc = desc.substring(0, 300) + '...';
-        
-        const thumbMatch = html.match(/<div class=['"]infoimg['"]><img[^>]+src=['"]([^'"]+)['"]/i) || html.match(/<meta property=['"]og:image['"] content=['"]([^'"]+)['"]/i);
-        let thumbnail = thumbMatch ? thumbMatch[1] : "";
-        if (thumbnail && !thumbnail.startsWith('http')) thumbnail = 'https://animeheaven.me/' + thumbnail;
-        
-        const epRegex = /onclick=['"]gatea\(['"]([^'"]+)['"]\)['"][^>]*>[\s\S]*?<div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
-        const episodes = [];
-        let epMatch;
-        while ((epMatch = epRegex.exec(html)) !== null) {
-            episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
-        }
-        if (episodes.length === 0) {
-            const fallbackEpRegex = /gatea\(['"]([^'"]+)['"]\)[\s\S]*?Episode\s*<\/div><div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
-            let fMatch; while ((fMatch = fallbackEpRegex.exec(html)) !== null) episodes.push({ hash: fMatch[1], num: parseInt(fMatch[2]) });
-        }
-        if (episodes.length === 0) {
-            const movieRegex = /gatea\(['"]([^'"]+)['"]\)/gi;
-            let mMatch; let count = 1;
-            while ((mMatch = movieRegex.exec(html)) !== null) {
-                if (!episodes.find(e => e.hash === mMatch[1])) { episodes.push({ hash: mMatch[1], num: count }); count++; }
-            }
-        }
-        
-        if (episodes.length === 0) return socket.sendMessage(sender, { text: "🚫 *Episodes හොයාගන්න බැරි වුණා!*" }, { quoted: msg });
-        episodes.sort((a, b) => a.num - b.num);
-        
-        const displayEps = episodes.slice(0, 30);
-        
-        let menuText = `🎬 *${videoname}*\n\n📝 _${desc}_\n\n`;
-        menuText += `*Episodes ලැයිස්තුව:*\n\n`;
-        
-        for (let i = 0; i < displayEps.length; i++) {
-            menuText += `*[ ${i + 1} ]* - Episode ${displayEps[i].num}\n`;
-        }
-        menuText += `\n*[ all ]* - ඔක්කොම Download කරන්න\n\n`;
-        menuText += `> 💡 *ඔයාට ඕනේ Episode එකේ අංකය මේ මැසේජ් එකට Reply කරන්න.* (ඔක්කොම ඕනේ නම් 'all' කියලා Reply කරන්න)`;
-        
-        const meta = { videoname, desc, thumbnail, seriesUrl };
-        
-        let sentMsg;
-        if (thumbnail) {
-            sentMsg = await socket.sendMessage(sender, { image: { url: thumbnail }, caption: menuText }, { quoted: msg });
-        } else {
-            sentMsg = await socket.sendMessage(sender, { text: menuText }, { quoted: msg });
-        }
-        
-        // Catcher එකට දත්ත සේව් කරනවා
-        global.hanimeCache[sentMsg.key.id] = { type: 'episodes', episodes: displayEps, animeId, targetJid, meta };
-        
-    } catch (err) {
-        socket.sendMessage(sender, { text: `❌ *Error:* ${err.message}` }, { quoted: msg });
-    }
-}
-
+// ════════ Helper Function (බාගන්න කෑල්ල) ════════
 async function processDownload(socket, msg, sender, animeId, epsToDownload, targetJid, meta) {
     await socket.sendMessage(sender, { react: { text: '📥', key: msg.key } });
     
-    // 1️⃣ Group එකට (JID) Details Card එක යවනවා!
+    // Group එකට (JID) Details Card එක යවනවා!
     if (targetJid !== sender) {
         let cardText = `🎬 *${meta.videoname}*\n\n📝 _${meta.desc}_\n\n> 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮`;
         if (meta.thumbnail) {
@@ -83,7 +16,7 @@ async function processDownload(socket, msg, sender, animeId, epsToDownload, targ
         await socket.sendMessage(sender, { text: `✅ *Details Card එක සහ Episodes ${targetJid} ට යවන්න පටන් ගත්තා!*` }, { quoted: msg });
     }
     
-    // 2️⃣ Episodes බානවා
+    // Episodes බානවා
     for (const ep of epsToDownload) {
         try {
             const hash = ep.hash;
@@ -140,45 +73,53 @@ async function processDownload(socket, msg, sender, animeId, epsToDownload, targ
 module.exports = {
     name: "hanime",
     category: "anime",
-    description: "Search and Download Anime (Text Menu Edition)",
-    commands: ["hanime"],
+    description: "Search (Buttons) and Download (Number Reply) Anime",
+    commands: ["hanime", "hdown"],
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         
-        // 🛑 REPLY CATCHER (Main කෝඩ් එක අල්ලන්නේ නැතුව ප්ලගින් එක ඇතුලෙම දුවනවා)
+        // 🛑 EPISODE REPLY CATCHER
         if (!global.hanimeListenerAttached) {
             global.hanimeCache = {};
             
+            const getActualMessage = (m) => {
+                if (!m) return null;
+                if (m.ephemeralMessage) return m.ephemeralMessage.message;
+                if (m.viewOnceMessage) return m.viewOnceMessage.message;
+                return m;
+            };
+
             socket.ev.on('messages.upsert', async (m) => {
-                const replyMsg = m.messages[0];
-                if (!replyMsg.message || replyMsg.key.fromMe) return;
+                try {
+                    const replyMsg = m.messages[0];
+                    if (!replyMsg.message || replyMsg.key.fromMe) return;
 
-                const context = replyMsg.message.extendedTextMessage?.contextInfo;
-                if (!context || !context.stanzaId) return;
+                    const actualMsg = getActualMessage(replyMsg.message);
+                    const extMsg = actualMsg?.extendedTextMessage;
+                    const context = extMsg?.contextInfo;
+                    if (!context || !context.stanzaId) return;
 
-                const cache = global.hanimeCache[context.stanzaId];
-                if (!cache) return;
+                    const cache = global.hanimeCache[context.stanzaId];
+                    if (!cache || cache.type !== 'episodes') return;
 
-                const replyText = (replyMsg.message.extendedTextMessage.text || "").trim().toLowerCase();
-                const replySender = replyMsg.key.remoteJid;
+                    let replyText = (extMsg.text || "").trim().toLowerCase().replace('.', '');
+                    const replySender = replyMsg.key.remoteJid;
 
-                if (cache.type === 'search') {
-                    const num = parseInt(replyText);
-                    if (isNaN(num) || num < 1 || num > cache.rows.length) return;
-                    
-                    const selectedAnimeId = cache.rows[num - 1].animeId;
-                    await processAnimeSelection(socket, replyMsg, replySender, selectedAnimeId, cache.targetJid);
-                } 
-                else if (cache.type === 'episodes') {
                     let epsToDl = [];
                     if (replyText === 'all') {
                         epsToDl = cache.episodes;
-                    } else {
-                        const num = parseInt(replyText);
+                    } else if (replyText.startsWith('e')) {
+                        const num = parseInt(replyText.replace('e', ''));
                         if (isNaN(num) || num < 1 || num > cache.episodes.length) return;
                         epsToDl = [cache.episodes[num - 1]];
+                    } else {
+                        return;
                     }
+                    
                     await processDownload(socket, replyMsg, replySender, cache.animeId, epsToDl, cache.targetJid, cache.meta);
+                    
+                } catch (e) {
+                    console.error("Hanime Catcher Error:", e);
                 }
             });
             
@@ -186,67 +127,156 @@ module.exports = {
         }
 
         const input = (args && args.length > 0) ? args.join(" ").trim() : "";
-        if (!input) return reply("❌ *කරුණාකර ඇනිමෙ නමක් දෙන්න!*\n💡 උදා: `.hanime naruto` හෝ `.hanime naruto 12036...`");
-        
-        let q = input;
-        let targetJid = sender;
-        
-        // JID එක වෙන් කරගන්නවා (ඉරි කෑලි ඕනේ නෑ)
-        const jidMatch = input.match(/(\d+@[a-z.A-Z]+)/);
-        if (jidMatch) {
-            targetJid = jidMatch[1];
-            q = input.replace(targetJid, '').trim(); 
-        }
-        
-        if (!q) return reply("❌ *Anime නමක් හොයාගන්න බැරි වුණා!*");
 
-        await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } });
-        
-        try {
-            const searchUrl = `https://animeheaven.me/search.php?s=${encodeURIComponent(q)}`;
-            const res = await axios.get(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        // ════════════ SEARCH ANIME (BUTTONS) ════════════
+        if (command === "hanime") {
+            if (!input) return reply("❌ *කරුණාකර ඇනිමෙ නමක් දෙන්න!*\n💡 උදා: `.hanime naruto` හෝ `.hanime naruto 12036...`");
             
-            const html = res.data;
-            const matches = [...html.matchAll(/<a href=['"](anime\.php\?[^'"]+)['"]>.*?<img class=['"]coverimg['"] src=['"]([^'"]*)['"] alt=['"]([^'"]*)['"]/gi)];
+            let q = input;
+            let targetJid = sender;
             
-            if (matches.length === 0) return reply("🚫 *සමාවෙන්න, ප්‍රතිඵල කිසිවක් හමුවුණේ නෑ!*");
+            const jidMatch = input.match(/(\d+@[a-z.A-Z]+)/);
+            if (jidMatch) {
+                targetJid = jidMatch[1];
+                q = input.replace(targetJid, '').trim(); 
+            }
             
-            let rows = [];
-            let seen = new Set();
-            let firstThumb = "";
+            if (!q) return reply("❌ *Anime නමක් හොයාගන්න බැරි වුණා!*");
+
+            await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } });
             
-            for (const m of matches) {
-                if (rows.length >= 10) break; 
-                const animeId = m[1].replace('anime.php?', '');
-                let thumbUrl = m[2];
-                if (thumbUrl && !thumbUrl.startsWith('http')) thumbUrl = 'https://animeheaven.me/' + thumbUrl;
-                const title = m[3].trim();
+            try {
+                const searchUrl = `https://animeheaven.me/search.php?s=${encodeURIComponent(q)}`;
+                const res = await axios.get(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                const html = res.data;
+                const matches = [...html.matchAll(/<a href=['"](anime\.php\?[^'"]+)['"]>.*?<img class=['"]coverimg['"] src=['"]([^'"]*)['"] alt=['"]([^'"]*)['"]/gi)];
                 
-                if (rows.length === 0) firstThumb = thumbUrl; // පළවෙනි එකේ Thumbnail එක ගන්නවා
+                if (matches.length === 0) return reply("🚫 *සමාවෙන්න, ප්‍රතිඵල කිසිවක් හමුවුණේ නෑ!*");
                 
-                if (!seen.has(animeId)) {
-                    seen.add(animeId);
-                    rows.push({ animeId, title });
+                let rows = [];
+                let seen = new Set();
+                
+                for (const m of matches) {
+                    if (rows.length >= 10) break; 
+                    const animeId = m[1].replace('anime.php?', '');
+                    const title = m[3].trim();
+                    
+                    if (!seen.has(animeId)) {
+                        seen.add(animeId);
+                        rows.push({
+                            header: "",
+                            title: title,
+                            description: "Tap to view episodes",
+                            id: `.hdown ${animeId}|${targetJid}`
+                        });
+                    }
                 }
+                
+                const listMessage = {
+                    title: "🎬 𝐒𝐞𝐥𝐞𝐜𝐭 𝐀𝐧𝐢𝐦𝐞",
+                    sections: [{ title: "Search Results (Top 10)", rows: rows }]
+                };
+                
+                const msgContent = {
+                    viewOnceMessage: {
+                        message: {
+                            interactiveMessage: {
+                                header: { hasMediaAttachment: false },
+                                body: { text: `🎯 *Search Results for :* _${q}_\n\n👇 පහළ Button එකෙන් Anime එක තෝරන්න.` },
+                                footer: { text: "🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮" },
+                                nativeFlowMessage: {
+                                    buttons: [{ name: "single_select", buttonParamsJson: JSON.stringify(listMessage) }]
+                                }
+                            }
+                        }
+                    }
+                };
+                
+                let waMsg;
+                try {
+                    waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg });
+                } catch (e) {
+                    waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user?.id, quoted: msg });
+                }
+                
+                await socket.relayMessage(sender, waMsg.message, { messageId: waMsg.key.id });
+                
+            } catch (err) {
+                reply(`❌ *Search Error:* ${err.message}`);
             }
+        }
+
+        // ════════════ EPISODE LIST (TEXT MENU) ════════════
+        if (command === "hdown") {
+            if (!input) return;
             
-            let menuText = `🎯 *Search Results for:* _${q}_\n\n`;
-            for (let i = 0; i < rows.length; i++) {
-                menuText += `*[ ${i + 1} ]* - ${rows[i].title}\n`;
+            const parts = input.split('|');
+            const animeId = parts[0];
+            const targetJid = parts[1] || sender;
+            
+            await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
+            
+            try {
+                const seriesUrl = `https://animeheaven.me/anime.php?${animeId}`;
+                const res = await axios.get(seriesUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                const html = res.data;
+                
+                const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+                let videoname = titleMatch ? titleMatch[1].replace('Anime | AnimeHeaven.Me', '').trim() : "Anime";
+                
+                const descMatch = html.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
+                let desc = descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '') : videoname;
+                if (desc.length > 300) desc = desc.substring(0, 300) + '...';
+                
+                const thumbMatch = html.match(/<div class=['"]infoimg['"]><img[^>]+src=['"]([^'"]+)['"]/i) || html.match(/<meta property=['"]og:image['"] content=['"]([^'"]+)['"]/i);
+                let thumbnail = thumbMatch ? thumbMatch[1] : "";
+                if (thumbnail && !thumbnail.startsWith('http')) thumbnail = 'https://animeheaven.me/' + thumbnail;
+                
+                const epRegex = /onclick=['"]gatea\(['"]([^'"]+)['"]\)['"][^>]*>[\s\S]*?<div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
+                const episodes = [];
+                let epMatch;
+                while ((epMatch = epRegex.exec(html)) !== null) {
+                    episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
+                }
+                if (episodes.length === 0) {
+                    const fallbackEpRegex = /gatea\(['"]([^'"]+)['"]\)[\s\S]*?Episode\s*<\/div><div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
+                    let fMatch; while ((fMatch = fallbackEpRegex.exec(html)) !== null) episodes.push({ hash: fMatch[1], num: parseInt(fMatch[2]) });
+                }
+                if (episodes.length === 0) {
+                    const movieRegex = /gatea\(['"]([^'"]+)['"]\)/gi;
+                    let mMatch; let count = 1;
+                    while ((mMatch = movieRegex.exec(html)) !== null) {
+                        if (!episodes.find(e => e.hash === mMatch[1])) { episodes.push({ hash: mMatch[1], num: count }); count++; }
+                    }
+                }
+                
+                if (episodes.length === 0) return socket.sendMessage(sender, { text: "🚫 *Episodes හොයාගන්න බැරි වුණා!*" }, { quoted: msg });
+                episodes.sort((a, b) => a.num - b.num);
+                
+                const displayEps = episodes.slice(0, 30);
+                
+                let menuText = `🎬 *${videoname}*\n\n📝 _${desc}_\n\n`;
+                menuText += `*Episodes ලැයිස්තුව:*\n\n`;
+                
+                for (let i = 0; i < displayEps.length; i++) {
+                    menuText += `*[ e${i + 1} ]* - Episode ${displayEps[i].num}\n`;
+                }
+                menuText += `\n*[ all ]* - ඔක්කොම Download කරන්න\n\n`;
+                menuText += `> 💡 *ඔයාට ඕනේ Episode එකේ අංකය (උදා: e1) මේ මැසේජ් එකට Reply කරන්න.* (ඔක්කොම ඕනේ නම් 'all' දෙන්න)`;
+                
+                const meta = { videoname, desc, thumbnail, seriesUrl };
+                let sentMsg;
+                if (thumbnail) {
+                    sentMsg = await socket.sendMessage(sender, { image: { url: thumbnail }, caption: menuText }, { quoted: msg });
+                } else {
+                    sentMsg = await socket.sendMessage(sender, { text: menuText }, { quoted: msg });
+                }
+                
+                global.hanimeCache[sentMsg.key.id] = { type: 'episodes', episodes: displayEps, animeId, targetJid, meta };
+                
+            } catch (err) {
+                reply(`❌ *Error:* ${err.message}`);
             }
-            menuText += `\n> 💡 *ඔයාට ඕනේ Anime එකේ අංකය (උදා: 1) මේ මැසේජ් එකට Reply කරන්න.*`;
-            
-            let sentMsg;
-            if (firstThumb) {
-                sentMsg = await socket.sendMessage(sender, { image: { url: firstThumb }, caption: menuText }, { quoted: msg });
-            } else {
-                sentMsg = await socket.sendMessage(sender, { text: menuText }, { quoted: msg });
-            }
-            
-            global.hanimeCache[sentMsg.key.id] = { type: 'search', rows, targetJid };
-            
-        } catch (err) {
-            reply(`❌ *Search Error:* ${err.message}`);
         }
     }
 };
