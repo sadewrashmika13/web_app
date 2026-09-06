@@ -8,7 +8,8 @@ module.exports = {
     commands: ["hanime", "hdown"],
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
-        const q = args.join(" ").trim();
+        // 🛑 Error එන්නේ නැති වෙන්න ආරක්ෂිතව args ගන්නවා
+        const q = (args && args.length > 0) ? args.join(" ").trim() : "";
 
         // ════════════ SEARCH ANIME (.hanime) ════════════
         if (command === "hanime") {
@@ -31,7 +32,7 @@ module.exports = {
                 let seen = new Set();
                 
                 for (const m of matches) {
-                    if (rows.length >= 10) break; // උපරිම Button 10 යි
+                    if (rows.length >= 10) break; 
                     const animeId = m[1].replace('anime.php?', '');
                     const title = m[3].trim();
                     
@@ -69,7 +70,14 @@ module.exports = {
                     }
                 };
                 
-                const waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user.id, quoted: msg });
+                // 🛑 මෙතනයි Error එක හැදුවේ (Safe message generation)
+                let waMsg;
+                try {
+                    waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg });
+                } catch (e) {
+                    waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user?.id, quoted: msg });
+                }
+                
                 await socket.relayMessage(sender, waMsg.message, { messageId: waMsg.key.id });
                 
             } catch (err) {
@@ -84,7 +92,6 @@ module.exports = {
             let animeId = q;
             let targetEp = null;
             
-            // Episode එකක් තෝරලා නම් තියෙන්නේ (උදා: .hdown id|ep)
             if (q.includes('|')) {
                 const parts = q.split('|');
                 animeId = parts[0];
@@ -114,7 +121,7 @@ module.exports = {
                 if (episodes.length === 0) return reply("🚫 *Episodes හොයාගන්න බැරි වුණා!*");
                 episodes.sort((a, b) => a.num - b.num);
                 
-                // 1️⃣ Episode එකක් දීලා නැත්නම්, Episodes 10ක Button ලිස්ට් එකක් යවනවා
+                // 1️⃣ Multiple episodes - Show List
                 if (!targetEp && episodes.length > 1) {
                     let rows = [];
                     for (let i = 0; i < Math.min(episodes.length, 10); i++) {
@@ -129,7 +136,7 @@ module.exports = {
                     
                     const listMessage = {
                         title: "📺 𝐒𝐞𝐥𝐞𝐜𝐭 𝐄𝐩𝐢𝐬𝐨𝐝𝐞",
-                        sections: [{ title: "Available Episodes (Max 10 shown)", rows: rows }]
+                        sections: [{ title: "Available Episodes (Max 10)", rows: rows }]
                     };
                     
                     const msgContent = {
@@ -145,11 +152,18 @@ module.exports = {
                         }
                     };
                     
-                    const waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user.id, quoted: msg });
+                    // 🛑 මෙතනත් Safe generation දැම්මා
+                    let waMsg;
+                    try {
+                        waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg });
+                    } catch (e) {
+                        waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user?.id, quoted: msg });
+                    }
+                    
                     return await socket.relayMessage(sender, waMsg.message, { messageId: waMsg.key.id });
                 }
                 
-                // 2️⃣ Episode එකක් තෝරලා නම්, ඒක අරගෙන Download කරනවා
+                // 2️⃣ Download specific episode
                 let selectedEp = targetEp ? episodes.find(e => e.num === targetEp) : episodes[0];
                 if (!selectedEp) return reply("🚫 Episode not found!");
                 
@@ -184,7 +198,6 @@ module.exports = {
                 
                 await socket.sendMessage(sender, { react: { text: '📤', key: msg.key } });
                 
-                // වීඩියෝ එක Document එකක් විදිහට යවනවා
                 await socket.sendMessage(sender, {
                     document: { url: finalDlLink },
                     mimetype: 'video/mp4',
