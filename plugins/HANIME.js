@@ -184,7 +184,16 @@ module.exports = {
                 
                 // 2️⃣ Download specific episode
                 let selectedEp = targetEp ? episodes.find(e => e.num === targetEp) : episodes[0];
-                if (!selectedEp) return reply("🚫 Episode not found!");
+                              // 🛠️ ERROR LOGS දාපු තැන
+                if (episodes.length === 0) {
+                    console.log("====== ANIMEHEAVEN HTML ======");
+                    console.log(html);
+                    console.log("==============================");
+                    
+                    // HTML එකේ තියෙන අකුරු ටිකක් අරගෙන WhatsApp එකට යවනවා 
+                    let snippet = html.replace(/<[^>]*>?/gm, '').trim().substring(0, 150);
+                    return reply(`🚫 *Episodes හොයාගන්න බැරි වුණා!*\n\n🛠 *Debug Logs:*\nTitle: ${videoname}\nHTML Length: ${html.length}\n\n*Page Text:* ${snippet}...\n\n(Terminal එකේ සම්පූර්ණ HTML එක Print වෙලා ඇති. බලන්න Cloudflare Block එකක්ද කියලා.)`);
+                }
                 
                 const hash = selectedEp.hash;
                 const gateRes = await axios.get('https://animeheaven.me/gate.php', {
