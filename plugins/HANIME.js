@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { generateWAMessageFromContent } = require('baileys');
+const { generateWAMessageFromContent, prepareWAMessageMedia } = require('baileys');
 
 // ════════ Helper Function (බාගන්න කෑල්ල) ════════
 async function processDownload(socket, msg, sender, animeId, epsToDownload, targetJid, meta) {
@@ -78,7 +78,7 @@ module.exports = {
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         
-        // 🛑 EPISODE REPLY CATCHER
+        // 🛑 EPISODE NUMBER REPLY CATCHER
         if (!global.hanimeListenerAttached) {
             global.hanimeCache = {};
             
@@ -109,7 +109,6 @@ module.exports = {
                     if (replyText === 'all') {
                         epsToDl = cache.episodes;
                     } else {
-                        // 1, 2, 3 වගේ ඉලක්කම් කෙලින්ම ගන්නවා
                         const num = parseInt(replyText);
                         if (isNaN(num) || num < 1 || num > cache.episodes.length) return;
                         epsToDl = [cache.episodes[num - 1]];
@@ -121,19 +120,17 @@ module.exports = {
                     console.error("Hanime Catcher Error:", e);
                 }
             });
-            
             global.hanimeListenerAttached = true;
         }
 
         const input = (args && args.length > 0) ? args.join(" ").trim() : "";
 
-        // ════════════ SEARCH ANIME (BUTTONS) ════════════
+        // ════════════ SEARCH ANIME (10 NORMAL BUTTONS) ════════════
         if (command === "hanime") {
             if (!input) return reply("❌ *කරුණාකර ඇනිමෙ නමක් දෙන්න!*\n💡 උදා: `.hanime naruto` හෝ `.hanime naruto 12036...`");
             
             let q = input;
             let targetJid = sender;
-            
             const jidMatch = input.match(/(\d+@[a-z.A-Z]+)/);
             if (jidMatch) {
                 targetJid = jidMatch[1];
@@ -152,40 +149,55 @@ module.exports = {
                 
                 if (matches.length === 0) return reply("🚫 *සමාවෙන්න, ප්‍රතිඵල කිසිවක් හමුවුණේ නෑ!*");
                 
-                let rows = [];
+                let buttons = [];
                 let seen = new Set();
+                let firstThumb = "";
                 
                 for (const m of matches) {
-                    if (rows.length >= 10) break; 
+                    if (buttons.length >= 10) break; 
                     const animeId = m[1].replace('anime.php?', '');
+                    let thumbUrl = m[2];
+                    if (thumbUrl && !thumbUrl.startsWith('http')) thumbUrl = 'https://animeheaven.me/' + thumbUrl;
                     const title = m[3].trim();
+                    
+                    if (buttons.length === 0) firstThumb = thumbUrl;
                     
                     if (!seen.has(animeId)) {
                         seen.add(animeId);
-                        rows.push({
-                            header: "",
-                            title: title,
-                            description: "Tap to view episodes",
-                            id: `.hdown ${animeId}|${targetJid}`
+                        // බොත්තමට දාන්න පුළුවන් අකුරු ගාණ ලිමිට් එකක් තියෙන නිසා කපනවා
+                        let shortTitle = title.length > 25 ? title.substring(0, 25) + '...' : title;
+                        
+                        buttons.push({
+                            name: "quick_reply",
+                            buttonParamsJson: JSON.stringify({
+                                display_text: shortTitle,
+                                id: `.hdown ${animeId}|${targetJid}`
+                            })
                         });
                     }
                 }
                 
-                const listMessage = {
-                    title: "🎬 𝐒𝐞𝐥𝐞𝐜𝐭 𝐀𝐧𝐢𝐦𝐞",
-                    sections: [{ title: "Search Results", rows: rows }]
-                };
+                // Thumbnail එක Upload කරලා මැසේජ් එකට අමුණනවා
+                let media = {};
+                if (firstThumb) {
+                    try {
+                        media = await prepareWAMessageMedia({ image: { url: firstThumb } }, { upload: socket.waUploadToServer });
+                    } catch (e) {
+                        console.log("Media Upload Error", e);
+                    }
+                }
                 
                 const msgContent = {
                     viewOnceMessage: {
                         message: {
                             interactiveMessage: {
-                                header: { hasMediaAttachment: false },
-                                body: { text: `🎯 *Search Results for :* _${q}_\n\n👇 පහළ Button එකෙන් Anime එක තෝරන්න.` },
+                                header: { 
+                                    hasMediaAttachment: !!firstThumb,
+                                    ...media
+                                },
+                                body: { text: `🎯 *Search Results for:* _${q}_\n\n👇 පහළ Buttons වලින් Anime එක තෝරන්න.` },
                                 footer: { text: "🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮" },
-                                nativeFlowMessage: {
-                                    buttons: [{ name: "single_select", buttonParamsJson: JSON.stringify(listMessage) }]
-                                }
+                                nativeFlowMessage: { buttons: buttons }
                             }
                         }
                     }
@@ -207,7 +219,7 @@ module.exports = {
             if (!input) return;
             
             const parts = input.split('|');
-            const animeId = parts[0];
+            const animeId = parts[0].trim();
             const targetJid = parts[1] || sender;
             
             await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
@@ -245,7 +257,10 @@ module.exports = {
                     }
                 }
                 
-                if (episodes.length === 0) return reply("🚫 *Episodes හොයාගන්න බැරි වුණා!*");
+                if (episodes.length === 0) {
+                    let snippet = html.replace(/<[^>]*>?/gm, '').trim().substring(0, 150);
+                    return socket.sendMessage(sender, { text: `🚫 *Episodes හොයාගන්න බැරි වුණා!*\n\n🛠 *Debug logs:*\nURL: ${seriesUrl}\nHTML: ${snippet}...` }, { quoted: msg });
+                }
                 episodes.sort((a, b) => a.num - b.num);
                 
                 const displayEps = episodes.slice(0, 30);
