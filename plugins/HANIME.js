@@ -1,5 +1,4 @@
 const axios = require('axios');
-const { generateWAMessageFromContent, prepareWAMessageMedia } = require('baileys');
 
 if (!global.hanimeContexts) global.hanimeContexts = {};
 
@@ -75,7 +74,7 @@ async function processDownload(socket, replyMsg, sender, animeId, epsToDownload,
 module.exports = {
     name: "hanime",
     category: "anime",
-    description: "Search (Buttons) and Download (Number Reply) Anime",
+    description: "Search (Buttons) and Download Anime",
     commands: ["hanime", "hdown"],
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -122,41 +121,25 @@ module.exports = {
                         seen.add(animeId);
                         let shortTitle = title.length > 25 ? title.substring(0, 25) + '...' : title;
                         
+                        // ඔයාගේ Cinesubz විදිහටම Button එක හදනවා!
                         buttons.push({
-                            name: "quick_reply",
-                            buttonParamsJson: JSON.stringify({
-                                display_text: shortTitle,
-                                id: `.hdown ${animeId}|${targetJid}`
-                            })
+                            buttonId: `.hdown ${animeId}|${targetJid}`,
+                            buttonText: { displayText: `🎬 ${shortTitle}` },
+                            type: 1
                         });
                     }
                 }
                 
-                let media = {};
-                if (firstThumb) {
-                    try {
-                        media = await prepareWAMessageMedia({ image: { url: firstThumb } }, { upload: socket.waUploadToServer });
-                    } catch (e) {}
-                }
-                
-                const msgContent = {
-                    viewOnceMessage: {
-                        message: {
-                            interactiveMessage: {
-                                header: { hasMediaAttachment: !!firstThumb, ...media },
-                                body: { text: `🎯 *Search Results for:* _${q}_\n\n👇 පහළ Buttons වලින් Anime එක තෝරන්න.` },
-                                footer: { text: "🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮" },
-                                nativeFlowMessage: { buttons: buttons }
-                            }
-                        }
-                    }
+                // ඔයාගේ Cinesubz විදිහටම මැසේජ් එක යවනවා
+                const msgOpts = {
+                    caption: `🎯 *Search Results for:* _${q}_\n\n> 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮`,
+                    footer: "👑 SADEW-MINI 👑",
+                    buttons: buttons,
+                    headerType: firstThumb ? 4 : 1
                 };
+                if (firstThumb) msgOpts.image = { url: firstThumb };
                 
-                let waMsg;
-                try { waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg }); } 
-                catch (e) { waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user?.id, quoted: msg }); }
-                
-                await socket.relayMessage(sender, waMsg.message, { messageId: waMsg.key.id });
+                await socket.sendMessage(sender, msgOpts, { quoted: msg });
                 
             } catch (err) {
                 reply(`❌ *Search Error:* ${err.message}`);
@@ -170,7 +153,6 @@ module.exports = {
             const parts = input.split('|');
             const animeId = parts[0].trim();
             
-            // JID එක සහ 'all' කමාන්ඩ් එක වෙන් කරගැනීම
             let action = 'list';
             let targetJid = sender;
             if (parts.length === 2) {
@@ -223,14 +205,12 @@ module.exports = {
                 episodes.sort((a, b) => a.num - b.num);
                 const meta = { videoname, desc, thumbnail, seriesUrl };
                 
-                // 1️⃣ 'Download All' බොත්තම එබුවම කෙලින්ම බානවා 
                 if (action === 'all') {
                     await processDownload(socket, msg, sender, animeId, episodes, targetJid, meta);
                     return;
                 }
                 
-                // 2️⃣ එහෙම නැත්තම් Episode List එක යවනවා (Download All Button එකත් එක්ක)
-                const displayEps = episodes.slice(0, 30); // උපරිම 30ක් පෙන්නනවා
+                const displayEps = episodes.slice(0, 30); 
                 
                 let menuText = `🎬 *${videoname}*\n\n📝 _${desc}_\n\n`;
                 menuText += `*Episodes ලැයිස්තුව:*\n\n`;
@@ -240,43 +220,26 @@ module.exports = {
                 }
                 menuText += `\n> 💡 *ඔයාට ඕනේ Episode එකේ අංකය (උදා: 1) මේ මැසේජ් එකට Reply කරන්න.* (ඔක්කොම බාන්න පහළ බොත්තම ඔබන්න)\n`;
                 
-                let media = {};
-                if (thumbnail) {
-                    try { media = await prepareWAMessageMedia({ image: { url: thumbnail } }, { upload: socket.waUploadToServer }); } catch (e) {}
-                }
+                // Cinesubz විදිහට 'Download All' බොත්තම
+                let dlButtons = [{
+                    buttonId: `.hdown ${animeId}|all|${targetJid}`,
+                    buttonText: { displayText: "📥 Download All" },
+                    type: 1
+                }];
                 
-                const msgContent = {
-                    viewOnceMessage: {
-                        message: {
-                            interactiveMessage: {
-                                header: { hasMediaAttachment: !!thumbnail, ...media },
-                                body: { text: menuText },
-                                footer: { text: "🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮" },
-                                nativeFlowMessage: {
-                                    buttons: [{
-                                        name: "quick_reply",
-                                        buttonParamsJson: JSON.stringify({
-                                            display_text: "📥 Download All",
-                                            id: `.hdown ${animeId}|all|${targetJid}`
-                                        })
-                                    }]
-                                }
-                            }
-                        }
-                    }
+                const msgOptsEp = {
+                    caption: menuText,
+                    footer: "👑 SADEW-MINI 👑",
+                    buttons: dlButtons,
+                    headerType: thumbnail ? 4 : 1
                 };
+                if (thumbnail) msgOptsEp.image = { url: thumbnail };
                 
-                let waMsg;
-                try { waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg }); } 
-                catch (e) { waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user?.id, quoted: msg }); }
-                
-                await socket.relayMessage(sender, waMsg.message, { messageId: waMsg.key.id });
+                let sentMsg = await socket.sendMessage(sender, msgOptsEp, { quoted: msg });
                 
                 // ==========================================
-                // 🔥 DYNAMIC EPISODE REPLY LISTENER (දැන් off වෙන්නේ නෑ!)
+                // 🔥 DYNAMIC EPISODE REPLY LISTENER 
                 // ==========================================
-                
-                // පරණ Listener එකක් තිබ්බොත් අයින් කරනවා (Memory Leak නොවෙන්න)
                 if (global.hanimeContexts[sender] && global.hanimeContexts[sender].listener) {
                     socket.ev.off('messages.upsert', global.hanimeContexts[sender].listener);
                 }
@@ -308,7 +271,6 @@ module.exports = {
                             if (isNaN(num) || num < 1 || num > context.episodes.length) return;
                             const epsToDl = [context.episodes[num - 1]];
 
-                            // 🛑 මෙතනින් Off වෙන කෑල්ල අයින් කරා! එතකොට ආයෙ ආයෙ Reply කරන්න පුළුවන්!
                             await processDownload(socket, replyMsg, sender, context.animeId, epsToDl, context.targetJid, context.meta);
                         }
                     } catch (listenerErr) {
@@ -316,9 +278,8 @@ module.exports = {
                     }
                 };
 
-                // අලුත් Listener එක සේව් කරනවා
                 global.hanimeContexts[sender] = {
-                    quotedId: waMsg.key.id,
+                    quotedId: sentMsg.key.id,
                     episodes: displayEps,
                     animeId: animeId,
                     targetJid: targetJid,
@@ -328,7 +289,6 @@ module.exports = {
 
                 socket.ev.on('messages.upsert', replyListener);
                 
-                // විනාඩි 3කින් Auto Off වෙනවා
                 setTimeout(() => {
                     if (global.hanimeContexts[sender] && global.hanimeContexts[sender].listener === replyListener) {
                         socket.ev.off('messages.upsert', replyListener);
