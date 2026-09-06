@@ -8,7 +8,6 @@ module.exports = {
     commands: ["hanime", "hdown"],
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
-        // 🛑 Error එන්නේ නැති වෙන්න ආරක්ෂිතව args ගන්නවා
         const q = (args && args.length > 0) ? args.join(" ").trim() : "";
 
         // ════════════ SEARCH ANIME (.hanime) ════════════
@@ -70,7 +69,6 @@ module.exports = {
                     }
                 };
                 
-                // 🛑 මෙතනයි Error එක හැදුවේ (Safe message generation)
                 let waMsg;
                 try {
                     waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg });
@@ -118,6 +116,28 @@ module.exports = {
                     episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
                 }
                 
+                // 🛑 අර මගහැරුණු Fallback එක මෙතන දාලා තියෙන්නේ
+                if (episodes.length === 0) {
+                    const fallbackEpRegex = /gatea\(['"]([^'"]+)['"]\)[\s\S]*?Episode\s*<\/div><div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
+                    let fMatch;
+                    while ((fMatch = fallbackEpRegex.exec(html)) !== null) {
+                        episodes.push({ hash: fMatch[1], num: parseInt(fMatch[2]) });
+                    }
+                }
+                
+                // 🛑 Movie වගේ ඒවට තවත් Fallback එකක්
+                if (episodes.length === 0) {
+                    const movieRegex = /gatea\(['"]([^'"]+)['"]\)/gi;
+                    let mMatch;
+                    let count = 1;
+                    while ((mMatch = movieRegex.exec(html)) !== null) {
+                        if (!episodes.find(e => e.hash === mMatch[1])) {
+                            episodes.push({ hash: mMatch[1], num: count });
+                            count++;
+                        }
+                    }
+                }
+                
                 if (episodes.length === 0) return reply("🚫 *Episodes හොයාගන්න බැරි වුණා!*");
                 episodes.sort((a, b) => a.num - b.num);
                 
@@ -152,7 +172,6 @@ module.exports = {
                         }
                     };
                     
-                    // 🛑 මෙතනත් Safe generation දැම්මා
                     let waMsg;
                     try {
                         waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg });
