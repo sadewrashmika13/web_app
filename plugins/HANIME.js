@@ -5,7 +5,7 @@ const { generateWAMessageFromContent } = require('baileys');
 async function processDownload(socket, msg, sender, animeId, epsToDownload, targetJid, meta) {
     await socket.sendMessage(sender, { react: { text: '📥', key: msg.key } });
     
-    // Group එකට (JID) Details Card එක යවනවා!
+    // Group එකට (JID) Details Card එක යවනවා
     if (targetJid !== sender) {
         let cardText = `🎬 *${meta.videoname}*\n\n📝 _${meta.desc}_\n\n> 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮`;
         if (meta.thumbnail) {
@@ -102,18 +102,17 @@ module.exports = {
                     const cache = global.hanimeCache[context.stanzaId];
                     if (!cache || cache.type !== 'episodes') return;
 
-                    let replyText = (extMsg.text || "").trim().toLowerCase().replace('.', '');
+                    let replyText = (extMsg.text || "").trim().toLowerCase();
                     const replySender = replyMsg.key.remoteJid;
 
                     let epsToDl = [];
                     if (replyText === 'all') {
                         epsToDl = cache.episodes;
-                    } else if (replyText.startsWith('e')) {
-                        const num = parseInt(replyText.replace('e', ''));
+                    } else {
+                        // 1, 2, 3 වගේ ඉලක්කම් කෙලින්ම ගන්නවා
+                        const num = parseInt(replyText);
                         if (isNaN(num) || num < 1 || num > cache.episodes.length) return;
                         epsToDl = [cache.episodes[num - 1]];
-                    } else {
-                        return;
                     }
                     
                     await processDownload(socket, replyMsg, replySender, cache.animeId, epsToDl, cache.targetJid, cache.meta);
@@ -174,7 +173,7 @@ module.exports = {
                 
                 const listMessage = {
                     title: "🎬 𝐒𝐞𝐥𝐞𝐜𝐭 𝐀𝐧𝐢𝐦𝐞",
-                    sections: [{ title: "Search Results (Top 10)", rows: rows }]
+                    sections: [{ title: "Search Results", rows: rows }]
                 };
                 
                 const msgContent = {
@@ -193,11 +192,8 @@ module.exports = {
                 };
                 
                 let waMsg;
-                try {
-                    waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg });
-                } catch (e) {
-                    waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user?.id, quoted: msg });
-                }
+                try { waMsg = generateWAMessageFromContent(sender, msgContent, { quoted: msg }); } 
+                catch (e) { waMsg = generateWAMessageFromContent(msgContent, { userJid: socket.user?.id, quoted: msg }); }
                 
                 await socket.relayMessage(sender, waMsg.message, { messageId: waMsg.key.id });
                 
@@ -235,9 +231,8 @@ module.exports = {
                 const epRegex = /onclick=['"]gatea\(['"]([^'"]+)['"]\)['"][^>]*>[\s\S]*?<div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
                 const episodes = [];
                 let epMatch;
-                while ((epMatch = epRegex.exec(html)) !== null) {
-                    episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
-                }
+                while ((epMatch = epRegex.exec(html)) !== null) episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
+                
                 if (episodes.length === 0) {
                     const fallbackEpRegex = /gatea\(['"]([^'"]+)['"]\)[\s\S]*?Episode\s*<\/div><div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
                     let fMatch; while ((fMatch = fallbackEpRegex.exec(html)) !== null) episodes.push({ hash: fMatch[1], num: parseInt(fMatch[2]) });
@@ -250,7 +245,7 @@ module.exports = {
                     }
                 }
                 
-                if (episodes.length === 0) return socket.sendMessage(sender, { text: "🚫 *Episodes හොයාගන්න බැරි වුණා!*" }, { quoted: msg });
+                if (episodes.length === 0) return reply("🚫 *Episodes හොයාගන්න බැරි වුණා!*");
                 episodes.sort((a, b) => a.num - b.num);
                 
                 const displayEps = episodes.slice(0, 30);
@@ -259,12 +254,13 @@ module.exports = {
                 menuText += `*Episodes ලැයිස්තුව:*\n\n`;
                 
                 for (let i = 0; i < displayEps.length; i++) {
-                    menuText += `*[ e${i + 1} ]* - Episode ${displayEps[i].num}\n`;
+                    menuText += `*[ ${i + 1} ]* - Episode ${displayEps[i].num}\n`;
                 }
                 menuText += `\n*[ all ]* - ඔක්කොම Download කරන්න\n\n`;
-                menuText += `> 💡 *ඔයාට ඕනේ Episode එකේ අංකය (උදා: e1) මේ මැසේජ් එකට Reply කරන්න.* (ඔක්කොම ඕනේ නම් 'all' දෙන්න)`;
+                menuText += `> 💡 *ඔයාට ඕනේ Episode එකේ අංකය (උදා: 1) මේ මැසේජ් එකට Reply කරන්න.* (ඔක්කොම ඕනේ නම් 'all' දෙන්න)`;
                 
                 const meta = { videoname, desc, thumbnail, seriesUrl };
+                
                 let sentMsg;
                 if (thumbnail) {
                     sentMsg = await socket.sendMessage(sender, { image: { url: thumbnail }, caption: menuText }, { quoted: msg });
@@ -272,6 +268,7 @@ module.exports = {
                     sentMsg = await socket.sendMessage(sender, { text: menuText }, { quoted: msg });
                 }
                 
+                // Catcher එකට දත්ත සේව් කරනවා
                 global.hanimeCache[sentMsg.key.id] = { type: 'episodes', episodes: displayEps, animeId, targetJid, meta };
                 
             } catch (err) {
