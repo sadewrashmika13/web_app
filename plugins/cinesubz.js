@@ -68,12 +68,12 @@ module.exports = {
     name: "cinesubz-downloader",
     category: 0,
     description: "Search and download Sinhala Subbed movies from Cinesubz (Inbox/Groups)",
-    commands: ["cz", "cinesubz", "cinesend", "cs_sel", "cs_dl"],
+    
+    // 🔴 Menu එකේ පෙන්නන්න ඕනේ ප්‍රධාන කමාන්ඩ් විතරක් මෙතන දාලා තියෙනවා (Hide Buttons Commands)
+    commands: ["cz", "cinesubz", "cinesend"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const botName = "👑 SADEW-MINI 👑";
-        
-        // 🔥 අලුත්ම WhiteShadow Cinesubz API එක
         const NEW_API = "https://cinesubz-api-cnw.vercel.app/api";
         
         const metaQuote = {
@@ -81,10 +81,268 @@ module.exports = {
             message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Cinesubz\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
         };
 
+        const subCmd = args[0]; // Button වලින් එන රහස් කමාන්ඩ් එක (--sel, --dl, --dlall)
+        const subId = args[1];  // Button එකේ ID එක
+
         // ════════════════════════════════════════════════════════
-        // 1. SEARCH (.cz / .cinesubz / .cinesend)
+        // 1. MOVIE / TV SHOW SELECT (--sel) 
         // ════════════════════════════════════════════════════════
-        if (command === "cz" || command === "cinesubz" || command === "cinesend") {
+        if (subCmd === "--sel") {
+            const id = subId;
+            const movie = global.czStore[id];
+            if (!movie) return reply("❌ *Link expired. නැවත search කරන්න.*");
+
+            try {
+                await socket.sendMessage(sender, { react: { text: "⏳", key: msg.key } });
+                await reply(`📥 *${movie.title}* සඳහා දත්ත ලබා ගනිමින්...`);
+
+                const dlApiUrl = `${NEW_API}/dl-links?url=${encodeURIComponent(movie.url)}`;
+                const dlRes = await axios.get(dlApiUrl, { timeout: 25000 });
+                const dlData = dlRes.data || {};
+
+                // 📺 [ TV SHOW MODE ] - Episodes ලිස්ට් එකක් ආවොත්
+                if (dlData.allEpisodes && dlData.allEpisodes.length > 0) {
+                    const buttons = [];
+                    let capText = `*↳ ❝ [📺 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 - TV Series] ¡! ❞*\n\n`;
+                    capText += `🎬 *Title:* ${movie.title}\n`;
+                    capText += `📺 *Total Episodes:* ${dlData.totalEpisodes || dlData.allEpisodes.length}\n`;
+                    if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
+                    capText += `\n> *ඔබට අවශ්‍ය Episode එක තෝරන්න හෝ සියල්ලම එකවර ඩවුන්ලෝඩ් කරන්න* ⬇️`;
+
+                    const eps = dlData.allEpisodes.slice(0, 50);
+
+                    // 📥 DOWNLOAD ALL බට්න් එක (ID එක පැයක් Store එකේ තියාගන්නවා)
+                    const dlAllId = storeData({
+                        title: movie.title, episodes: eps, targetJid: movie.targetJid,
+                        img: movie.img, date: movie.date
+                    }, 60 * 60 * 1000); 
+
+                    buttons.push({
+                        buttonId: `.cz --dlall ${dlAllId}`,
+                        buttonText: { displayText: `📥 DOWNLOAD ALL EPISODES` },
+                        type: 1
+                    });
+
+                    // Episodes බට්න්ස්
+                    eps.forEach(ep => {
+                        const epId = storeData({
+                            title: `${movie.title} - ${ep.title || 'Ep ' + ep.episode}`, url: ep.url,
+                            targetJid: movie.targetJid, img: movie.img, date: movie.date
+                        });
+                        buttons.push({
+                            buttonId: `.cz --sel ${epId}`,
+                            buttonText: { displayText: `🎬 Ep ${ep.episode}: ${ep.title || ''}`.substring(0, 20) },
+                            type: 1
+                        });
+                    });
+
+                    const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
+                    if (movie.img) msgOpts.image = { url: movie.img };
+
+                    await socket.sendMessage(sender, msgOpts, { quoted: msg });
+                    await socket.sendMessage(sender, { react: { text: "📺", key: msg.key } });
+                    delete global.czStore[id];
+                    return; 
+                }
+
+                // 🎬 [ MOVIE / SINGLE EP MODE ] - Download Links ආවොත්
+                let downloads = [];
+                const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
+
+                arr.forEach(item => {
+                    const resolvedUrl = item.direct_mp4_url || item.url || item.link;
+                    // iframe මඟහැර නියම http mp4 links විතරක් ගන්නවා
+                    if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
+                        let q = item.quality || item.resolution || item.name || '';
+                        if (!q) {
+                            if (resolvedUrl.includes('480p')) q = '480p';
+                            else if (resolvedUrl.includes('720p')) q = '720p';
+                            else if (resolvedUrl.includes('1080p')) q = '1080p';
+                            else q = 'HD';
+                        }
+                        downloads.push({
+                            meta: q, size: item.fileSize || item.size || 'Unknown', resolvedUrl: resolvedUrl
+                        });
+                    }
+                });
+
+                if (!downloads.length) {
+                    delete global.czStore[id];
+                    return reply("❌ *මෙම වීඩියෝව සඳහා Download Links හමු නොවිණි.*");
+                }
+
+                const buttons = [];
+                let capText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 ] ¡! ❞*\n\n`;
+                capText += `🎬 *Title:* ${movie.title}\n📅 *Year:* ${movie.date || 'N/A'}\n`;
+                if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
+                capText += `\n> *ඔබට අවශ්‍ය Quality එක පහලින් තෝරන්න* ⬇️`;
+
+                downloads.forEach((dl) => {
+                    const dlId = storeData({
+                        title: movie.title, quality: dl.meta, size: dl.size, url: dl.resolvedUrl,
+                        targetJid: movie.targetJid, img: movie.img, date: movie.date
+                    });
+                    buttons.push({
+                        buttonId: `.cz --dl ${dlId}`,
+                        buttonText: { displayText: `🎥 ${dl.meta} ${dl.size && dl.size !== 'Unknown' ? `(${dl.size})` : ''}`.trim() },
+                        type: 1
+                    });
+                });
+
+                const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
+                if (movie.img) msgOpts.image = { url: movie.img };
+
+                await socket.sendMessage(sender, msgOpts, { quoted: msg });
+                await socket.sendMessage(sender, { react: { text: "🎬", key: msg.key } });
+                delete global.czStore[id];
+
+            } catch (e) {
+                console.error("[CZ] Select Error:", e.message);
+                reply("❌ *දත්ත ලබා ගැනීමේ දෝෂයක්.*");
+            }
+        }
+
+        // ════════════════════════════════════════════════════════
+        // 2. DOWNLOAD SINGLE ITEM (--dl)
+        // ════════════════════════════════════════════════════════
+        else if (subCmd === "--dl") {
+            const id = subId;
+            const dl = global.czStore[id];
+            if (!dl) return reply("❌ *Link expired. නැවත search කරන්න.*");
+
+            const destJid = dl.targetJid || sender;
+
+            try {
+                await socket.sendMessage(sender, { react: { text: "⬇️", key: msg.key } });
+                
+                if (dl.targetJid) {
+                    await reply(`🚀 *[CineSend]* \`${dl.title}\` (${dl.quality}) ඩවුන්ලෝඩ් කර \`${dl.targetJid}\` වෙත යවමින් පවතී...`);
+                } else {
+                    await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*\n_Direct Link සම්බන්ධ වෙමින් පවතී..._`);
+                }
+
+                const captionBase = `🎬 *Movie Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📦 *Size:* ${dl.size || 'Unknown'}\n📅 *Year:* ${dl.date || 'N/A'}`;
+                
+                const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n` +
+                    `🎬 *Title:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📅 *Year:* ${dl.date || 'N/A'}\n\n` +
+                    `🍿 *චිත්‍රපටය පහතින් ලබාගන්න.* \n\n> 👑 *SADEW-MINI* 👑`;
+
+                const fileName = `${(dl.title || 'Movie').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dl.quality}.mp4`;
+
+                if (dl.targetJid) {
+                    try {
+                        if (dl.img) await socket.sendMessage(destJid, { image: { url: dl.img }, caption: targetCardText }, { quoted: metaQuote });
+                        else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: metaQuote });
+                    } catch (cardErr) {}
+                }
+
+                const streamRes = await axios({
+                    method: 'GET', url: dl.url, responseType: 'stream', timeout: 300000,
+                    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://cinesubz.net/' }, maxRedirects: 10
+                });
+
+                let actualSize = dl.size && dl.size !== 'Unknown' ? dl.size : 'Unknown';
+                const cl = parseInt(streamRes.headers['content-length'] || '0');
+                if (cl && actualSize === 'Unknown') actualSize = (cl / 1024 / 1024).toFixed(1) + ' MB';
+
+                const finalCap = `${captionBase.replace('Unknown', actualSize)}\n\n> 👑 *SADEW-MINI* 👑`;
+
+                await socket.sendMessage(destJid, {
+                    document: { stream: streamRes.data },
+                    mimetype: "video/mp4", fileName: fileName, caption: finalCap
+                }, { quoted: metaQuote });
+
+                await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
+
+                try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (err) {}
+                setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
+
+            } catch (e2) {
+                console.log("[CZ] Stream failed:", e2.message);
+                await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
+                await reply("❌ *Download Failed!* සර්වර් එකෙන් වීඩියෝව ලබාගත නොහැකි විය.");
+            }
+            delete global.czStore[id];
+        }
+
+        // ════════════════════════════════════════════════════════
+        // 3. DOWNLOAD ALL EPISODES (--dlall) — Bulk
+        // ════════════════════════════════════════════════════════
+        else if (subCmd === "--dlall") {
+            const id = subId;
+            const show = global.czStore[id];
+            if (!show || !show.episodes) return reply("❌ *Link expired. නැවත search කරන්න.*");
+
+            const destJid = show.targetJid || sender;
+            const eps = show.episodes;
+
+            try {
+                await socket.sendMessage(sender, { react: { text: "🚀", key: msg.key } });
+                await reply(`🚀 *[CineSend Bulk]* \`${show.title}\` හි Episodes ${eps.length} ක් ඔටෝමැටික් ඩවුන්ලෝඩ් වීම ආරම්භ විය.\n_කරුණාකර රැඳී සිටින්න... (මෙයට වැඩි වේලාවක් ගත විය හැක)_`);
+
+                for (let i = 0; i < eps.length; i++) {
+                    const ep = eps[i];
+                    try {
+                        const epApiUrl = `${NEW_API}/dl-links?url=${encodeURIComponent(ep.url)}`;
+                        const dlRes = await axios.get(epApiUrl, { timeout: 25000 });
+                        const arr = dlRes.data?.downloadLinks || dlRes.data?.result || dlRes.data?.data || [];
+                        
+                        let vidUrl = null;
+                        let qualityStr = "480p"; 
+                        for (let item of arr) {
+                            let u = item.direct_mp4_url || item.url || item.link;
+                            if (u && typeof u === 'string' && u.startsWith('http')) {
+                                vidUrl = u;
+                                qualityStr = item.quality || '480p';
+                                break; 
+                            }
+                        }
+
+                        if (!vidUrl) {
+                            await socket.sendMessage(destJid, { text: `❌ *Ep ${ep.episode}* සඳහා Direct MP4 Link එකක් API එකෙන් හමු නොවීය.` });
+                            continue; 
+                        }
+
+                        const fileName = `${(show.title || 'TVShow').substring(0, 20)} - Ep ${ep.episode}.mp4`.replace(/[^a-zA-Z0-9 .\-]/g, '');
+                        const cap = `🎬 *${show.title}*\n📺 *Episode:* ${ep.episode} - ${ep.title || ''}\n📽 *Quality:* ${qualityStr}\n\n> 👑 *SADEW-MINI* 👑`;
+                        
+                        const streamRes = await axios({
+                            method: 'GET', url: vidUrl, responseType: 'stream', timeout: 300000,
+                            headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://cinesubz.net/' }, maxRedirects: 10
+                        });
+
+                        await socket.sendMessage(destJid, {
+                            document: { stream: streamRes.data },
+                            mimetype: "video/mp4", fileName: fileName, caption: cap
+                        }, { quoted: metaQuote });
+
+                        try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch(e){}
+
+                        if (i < eps.length - 1) {
+                            await new Promise(r => setTimeout(r, 5000));
+                        }
+                        try { if (global.gc) global.gc(); } catch (e) {}
+
+                    } catch (err) {
+                        console.error(`[CZ Bulk] Ep ${ep.episode} Failed:`, err.message);
+                        await socket.sendMessage(destJid, { text: `❌ *Ep ${ep.episode}* ඩවුන්ලෝඩ් කිරීම අසාර්ථක විය.` });
+                    }
+                }
+
+                await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
+                await reply(`✅ *[CineSend Bulk]* \`${show.title}\` හි සියලුම Episodes යවා අවසන්!`);
+                delete global.czStore[id];
+
+            } catch (e) {
+                console.error("[CZ Bulk Error]:", e.message);
+                reply("❌ *Bulk Download ක්‍රියාවලිය අතරමග නැවතුණි.*");
+            }
+        }
+
+        // ════════════════════════════════════════════════════════
+        // 4. NORMAL SEARCH (Main Command)
+        // ════════════════════════════════════════════════════════
+        else {
             const fullText = args.join(" ").trim();
             if (!fullText) return reply("🎬 *කරුණාකර Movie එකේ නම ලබා දෙන්න!*\n_උදා: .cz batman_");
 
@@ -102,8 +360,6 @@ module.exports = {
 
                 const res = await axios.get(`${NEW_API}/search?q=${encodeURIComponent(query)}`, { timeout: 15000 });
                 const data = res.data;
-
-                // API Result Array එක හඳුනාගැනීම
                 const results = data.result || data.data || [];
 
                 if (!results || !results.length) {
@@ -112,7 +368,6 @@ module.exports = {
                 }
 
                 const topResults = results.slice(0, 10);
-
                 let listText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝘀𝘂𝗯𝘇 𝗦𝗲𝗮𝗿𝗰𝗵 🎬] ¡! ❞*\n\n🔍 *සෙව්වේ:* ${query}\n📊 *Results:* ${topResults.length}\n`;
                 if (targetJid) listText += `🎯 *Target Send To:* \`${targetJid}\`\n\n`;
                 else listText += `\n`;
@@ -131,8 +386,9 @@ module.exports = {
                         runtime: mv.runtime, id: mv.id || mv.post_id, targetJid: targetJid
                     });
 
+                    // Button ID එක දැන් .cz --sel විදිහට යන්නේ (Hide කරපු කමාන්ඩ් එක)
                     buttons.push({
-                        buttonId: `.cs_sel ${id}`,
+                        buttonId: `.cz --sel ${id}`,
                         buttonText: { displayText: `🎬 ${i + 1}. ${title.slice(0, 20)}` },
                         type: 1
                     });
@@ -141,10 +397,7 @@ module.exports = {
                 listText += `> *📩 පහලින් Movie එක තෝරන්න*\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
 
                 await socket.sendMessage(sender, {
-                    text: listText,
-                    footer: botName,
-                    buttons: buttons,
-                    headerType: 1
+                    text: listText, footer: botName, buttons: buttons, headerType: 1
                 }, { quoted: metaQuote });
 
                 await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
@@ -153,213 +406,6 @@ module.exports = {
                 console.error("[CZ] Search Error:", e.message);
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
                 reply("❌ *සෙවීමේදී දෝෂයක් ඇතිවිය.* API එක down වී තිබිය හැක.");
-            }
-        }
-
-           // ════════════════════════════════════════════════════════
-        // 2. MOVIE / TV SHOW SELECT (.cs_sel) 
-        // ════════════════════════════════════════════════════════
-        else if (command === "cs_sel") {
-            const id = args[0];
-            const movie = global.czStore[id];
-            if (!movie) return reply("❌ *Link expired. නැවත .cinesend search කරන්න.*");
-
-            try {
-                await socket.sendMessage(sender, { react: { text: "⏳", key: msg.key } });
-                await reply(`📥 *${movie.title}* සඳහා දත්ත ලබා ගනිමින්...`);
-
-                const dlApiUrl = `${NEW_API}/dl-links?url=${encodeURIComponent(movie.url)}`;
-                const dlRes = await axios.get(dlApiUrl, { timeout: 25000 });
-                const dlData = dlRes.data || {};
-
-                // 📺 [ TV SHOW MODE ] - Episodes ලිස්ට් එකක් ආවොත්
-                if (dlData.allEpisodes && dlData.allEpisodes.length > 0) {
-                    const buttons = [];
-                    let capText = `*↳ ❝ [📺 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 - TV Series] ¡! ❞*\n\n`;
-                    capText += `🎬 *Title:* ${movie.title}\n`;
-                    capText += `📺 *Total Episodes:* ${dlData.totalEpisodes || dlData.allEpisodes.length}\n`;
-                    if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
-                    capText += `\n> *ඔබට අවශ්‍ය Episode එක පහලින් තෝරන්න* ⬇️`;
-
-                    // Episodes ටික බට්න් විදිහට හදනවා (උපරිම 50ක්)
-                    const eps = dlData.allEpisodes.slice(0, 50);
-                    eps.forEach(ep => {
-                        const epId = storeData({
-                            title: `${movie.title} - ${ep.title || 'Ep ' + ep.episode}`,
-                            url: ep.url,
-                            targetJid: movie.targetJid,
-                            img: movie.img, date: movie.date, genres: movie.genres, imdb: movie.imdb
-                        });
-
-                        buttons.push({
-                            buttonId: `.cs_sel ${epId}`,
-                            buttonText: { displayText: `🎬 Ep ${ep.episode}: ${ep.title || ''}`.substring(0, 20) },
-                            type: 1
-                        });
-                    });
-
-                    const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
-                    if (movie.img) msgOpts.image = { url: movie.img };
-
-                    await socket.sendMessage(sender, msgOpts, { quoted: msg });
-                    await socket.sendMessage(sender, { react: { text: "📺", key: msg.key } });
-                    delete global.czStore[id];
-                    return; // මෙතනින් නවතිනවා, ඊලඟට යන්නේ නෑ
-                }
-
-                // 🎬 [ MOVIE / SINGLE EPISODE MODE ] - Download Links ආවොත්
-                let downloads = [];
-                const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
-
-                arr.forEach(item => {
-                    const resolvedUrl = item.direct_mp4_url || item.url || item.link;
-                    
-                    // iframe මඟහැර නියම http mp4 links විතරක් ගන්නවා
-                    if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
-                        // Quality එක API එකෙන් එව්වේ නැත්නම් ලින්ක් එකෙන් හොයනවා
-                        let q = item.quality || item.resolution || item.name || '';
-                        if (!q) {
-                            if (resolvedUrl.includes('480p')) q = '480p';
-                            else if (resolvedUrl.includes('720p')) q = '720p';
-                            else if (resolvedUrl.includes('1080p')) q = '1080p';
-                            else q = 'HD';
-                        }
-
-                        downloads.push({
-                            meta: q,
-                            size: item.fileSize || item.size || 'Unknown',
-                            resolvedUrl: resolvedUrl
-                        });
-                    }
-                });
-
-                if (!downloads.length) {
-                    delete global.czStore[id];
-                    return reply("❌ *මෙම වීඩියෝව සඳහා Download Links හමු නොවිණි.*");
-                }
-
-                const buttons = [];
-                let capText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 ] ¡! ❞*\n\n`;
-                capText += `🎬 *Title:* ${movie.title}\n📅 *Year:* ${movie.date || 'N/A'}\n⭐ *IMDB:* ${movie.imdb || 'N/A'}\n`;
-                if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
-                capText += `\n> *ඔබට අවශ්‍ය Quality එක පහලින් තෝරන්න* ⬇️`;
-
-                downloads.forEach((dl) => {
-                    const dlId = storeData({
-                        title: movie.title, quality: dl.meta, size: dl.size, url: dl.resolvedUrl,
-                        targetJid: movie.targetJid, img: movie.img, date: movie.date
-                    });
-
-                    buttons.push({
-                        buttonId: `.cs_dl ${dlId}`,
-                        buttonText: { displayText: `🎥 ${dl.meta} ${dl.size && dl.size !== 'Unknown' ? `(${dl.size})` : ''}`.trim() },
-                        type: 1
-                    });
-                });
-
-                const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
-                if (movie.img) msgOpts.image = { url: movie.img };
-
-                await socket.sendMessage(sender, msgOpts, { quoted: msg });
-                await socket.sendMessage(sender, { react: { text: "🎬", key: msg.key } });
-                delete global.czStore[id];
-
-            } catch (e) {
-                console.error("[CZ] Select Error:", e.message);
-                reply("❌ *දත්ත ලබා ගැනීමේ දෝෂයක්.*");
-            }
-        }
-        // ════════════════════════════════════════════════════════
-        // 3. DOWNLOAD (.cs_dl) — Direct Pipe
-        // ════════════════════════════════════════════════════════
-        else if (command === "cs_dl") {
-            const id = args[0];
-            const dl = global.czStore[id];
-            if (!dl) return reply("❌ *Link expired. නැවත search කරන්න.*");
-
-            const destJid = dl.targetJid || sender;
-
-            try {
-                await socket.sendMessage(sender, { react: { text: "⬇️", key: msg.key } });
-                
-                if (dl.targetJid) {
-                    await reply(`🚀 *[CineSend]* \`${dl.title}\` (${dl.quality}) ඩවුන්ලෝඩ් කර \`${dl.targetJid}\` වෙත යවමින් පවතී...`);
-                } else {
-                    await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*\n_Direct Link සම්බන්ධ වෙමින් පවතී..._`);
-                }
-
-                const captionBase = `🎬 *Movie Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📦 *Size:* ${dl.size || 'Unknown'}\n📅 *Release Year:* ${dl.date || 'N/A'}`;
-                
-                const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n` +
-                    `🎬 *Title:* ${dl.title}\n` +
-                    `📽 *Quality:* ${dl.quality}\n` +
-                    `📅 *Year:* ${dl.date || 'N/A'}\n` +
-                    `🎭 *Genres:* ${dl.genres || 'N/A'}\n` +
-                    `⭐ *IMDb:* ${dl.imdb || 'N/A'}\n\n` +
-                    `🍿 *චිත්‍රපටය පහතින් ලබාගන්න.* \n\n` +
-                    `> 👑 *SADEW-MINI* 👑`;
-
-                const fileName = `${(dl.title || 'Movie').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dl.quality}.mp4`;
-
-                if (dl.targetJid) {
-                    try {
-                        if (dl.img) await socket.sendMessage(destJid, { image: { url: dl.img }, caption: targetCardText }, { quoted: metaQuote });
-                        else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: metaQuote });
-                    } catch (cardErr) {}
-                }
-
-                const vidUrl = dl.url;
-
-                try {
-                    const streamRes = await axios({
-                        method: 'GET', 
-                        url: vidUrl,
-                        responseType: 'stream', 
-                        timeout: 300000,
-                        headers: { 
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                            'Referer': 'https://cinesubz.net/' 
-                        },
-                        maxRedirects: 10
-                    });
-
-                    let actualSize = dl.size && dl.size !== 'Unknown' ? dl.size : 'Unknown';
-                    const cl = parseInt(streamRes.headers['content-length'] || '0');
-                    if (cl && actualSize === 'Unknown') {
-                        actualSize = (cl / 1024 / 1024).toFixed(1) + ' MB';
-                    }
-
-                    const finalCap = `${captionBase.replace('Unknown', actualSize)}\n\n> 👑 *SADEW-MINI* 👑`;
-
-                    await socket.sendMessage(destJid, {
-                        document: { stream: streamRes.data },
-                        mimetype: "video/mp4", 
-                        fileName: fileName, 
-                        caption: finalCap
-                    }, { quoted: metaQuote });
-
-                    await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
-
-                    try {
-                        if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy();
-                    } catch (err) {}
-
-                    setTimeout(() => {
-                        try { if (global.gc) global.gc(); } catch (e) {}
-                    }, 5000);
-
-                } catch (e2) {
-                    console.log("[CZ] Stream failed:", e2.message);
-                    await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                    await reply("❌ *Download Failed!* සර්වර් එකෙන් වීඩියෝව ලබාගත නොහැකි විය.");
-                }
-
-                delete global.czStore[id];
-
-            } catch (e) {
-                console.error("[CZ] DL Error:", e.message);
-                await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                reply("❌ *Download Error.*");
             }
         }
     }
