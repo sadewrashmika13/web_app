@@ -15,7 +15,7 @@ function storeData(data, ttlMs = 15 * 60 * 1000) {
     return id;
 }
 
-// 🎯 ULTRA SMART PARSER — කොමාවක් තිබ්බත් නැතත් අනිවාර්යයෙන්ම JID එක වෙන් කරගන්නා ක්‍රමය!
+// 🎯 ULTRA SMART PARSER
 function parseCineSend(fullText) {
     if (!fullText) return { query: "", targetJid: null };
 
@@ -73,7 +73,7 @@ module.exports = {
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const botName = "👑 SADEW-MINI 👑";
         
-        // 🔥 අලුත්ම WhiteShadow Cinesubz API එක 🔥
+        // 🔥 අලුත්ම WhiteShadow Cinesubz API එක
         const NEW_API = "https://cinesubz-api-cnw.vercel.app/api";
         
         const metaQuote = {
@@ -99,12 +99,11 @@ module.exports = {
 
             try {
                 await socket.sendMessage(sender, { react: { text: "🔍", key: msg.key } });
-                console.log(`[CZ SEARCH] Query: "${query}" | TargetJID: "${targetJid || 'None'}"`);
 
-                // ⚡ නව API එක හරහා Search කිරීම
                 const res = await axios.get(`${NEW_API}/search?q=${encodeURIComponent(query)}`, { timeout: 15000 });
                 const data = res.data;
 
+                // API Result Array එක හඳුනාගැනීම
                 const results = data.result || data.data || [];
 
                 if (!results || !results.length) {
@@ -171,30 +170,26 @@ module.exports = {
 
                 let downloads = [];
 
-                // ⚡ නව API එකෙන් DL Links ගැනීම (`/api/dl-links?url=...`)
                 try {
                     const dlApiUrl = `${NEW_API}/dl-links?url=${encodeURIComponent(movie.url)}`;
-                    console.log(`[CZ] Fetching links: ${dlApiUrl}`);
-                    
                     const dlRes = await axios.get(dlApiUrl, { timeout: 25000 });
-                    const dlData = dlRes.data.result || dlRes.data.data || dlRes.data || [];
                     
-                    // Array එකක් විදිහට Normalize කිරීම
-                    const arr = Array.isArray(dlData) ? dlData : (dlData.downloads || dlData.links || []);
+                    const dlData = dlRes.data || {};
+                    // අලුත් API එකේ Array එක එන්නේ downloadLinks කියන නමින්!
+                    const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
 
                     arr.forEach(item => {
-                        // API සපයන direct_mp4_url එක ලබාගැනීම
-                        const resolvedUrl = item.direct_mp4_url || item.direct_link || item.url || item.link;
-                        if (resolvedUrl) {
+                        const resolvedUrl = item.direct_mp4_url || item.url || item.link;
+                        
+                        // iframe වගේ ඒවා මඟහැර නියම http mp4 links විතරක් ගන්නවා
+                        if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
                             downloads.push({
                                 meta: item.quality || item.resolution || item.name || 'HD',
-                                size: item.size || 'Unknown',
+                                size: item.fileSize || item.size || 'Unknown',
                                 resolvedUrl: resolvedUrl
                             });
                         }
                     });
-
-                    console.log("[CZ] Extracted DL Links:", downloads.length);
 
                 } catch (dlErr) {
                     console.log("[CZ] dl-links Error:", dlErr.message);
@@ -216,7 +211,7 @@ module.exports = {
                         title: movie.title,
                         quality: dl.meta,
                         size: dl.size,
-                        url: dl.resolvedUrl, // 👈 මෙය direct .mp4 එකයි!
+                        url: dl.resolvedUrl,
                         targetJid: movie.targetJid,
                         img: movie.img, date: movie.date, genres: movie.genres, imdb: movie.imdb, runtime: movie.runtime
                     });
@@ -247,7 +242,7 @@ module.exports = {
         }
 
         // ════════════════════════════════════════════════════════
-        // 3. DOWNLOAD (.cs_dl) — Direct Pipe (Smooth RAM Usage)
+        // 3. DOWNLOAD (.cs_dl) — Direct Pipe
         // ════════════════════════════════════════════════════════
         else if (command === "cs_dl") {
             const id = args[0];
@@ -278,35 +273,28 @@ module.exports = {
 
                 const fileName = `${(dl.title || 'Movie').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dl.quality}.mp4`;
 
-                // 🎯 Send Card to Target JID first (if applicable)
                 if (dl.targetJid) {
                     try {
                         if (dl.img) await socket.sendMessage(destJid, { image: { url: dl.img }, caption: targetCardText }, { quoted: metaQuote });
                         else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: metaQuote });
-                    } catch (cardErr) {
-                        console.log("[CZ] Card send error:", cardErr.message);
-                    }
+                    } catch (cardErr) {}
                 }
 
-                // ⚡ අලුත් API එකේ URL එක කෙලින්ම Direct MP4 එකක් (Avatarzone.online CDN)
-                // ඒ නිසා අපි කෙලින්ම Axios Stream එකකින් ඒක WhatsApp එකට යවනවා
                 const vidUrl = dl.url;
-                console.log(`[CZ] Starting Direct Stream Download: ${vidUrl}`);
 
                 try {
                     const streamRes = await axios({
                         method: 'GET', 
                         url: vidUrl,
                         responseType: 'stream', 
-                        timeout: 300000, // 5 min timeout
+                        timeout: 300000,
                         headers: { 
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                             'Referer': 'https://cinesubz.net/' 
                         },
                         maxRedirects: 10
                     });
 
-                    // Check Content-Length to update the Size display dynamically if missing
                     let actualSize = dl.size && dl.size !== 'Unknown' ? dl.size : 'Unknown';
                     const cl = parseInt(streamRes.headers['content-length'] || '0');
                     if (cl && actualSize === 'Unknown') {
@@ -315,7 +303,6 @@ module.exports = {
 
                     const finalCap = `${captionBase.replace('Unknown', actualSize)}\n\n> 👑 *SADEW-MINI* 👑`;
 
-                    console.log(`[CZ] Uploading stream to WhatsApp (${actualSize})...`);
                     await socket.sendMessage(destJid, {
                         document: { stream: streamRes.data },
                         mimetype: "video/mp4", 
@@ -323,14 +310,10 @@ module.exports = {
                         caption: finalCap
                     }, { quoted: metaQuote });
 
-                    console.log("[CZ] Stream SUCCESS ✅");
                     await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
 
-                    // 🧹 RAM Cleanup
                     try {
-                        if (streamRes.data && typeof streamRes.data.destroy === 'function') {
-                            streamRes.data.destroy();
-                        }
+                        if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy();
                     } catch (err) {}
 
                     setTimeout(() => {
