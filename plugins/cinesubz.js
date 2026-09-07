@@ -156,8 +156,8 @@ module.exports = {
             }
         }
 
-        // ════════════════════════════════════════════════════════
-        // 2. MOVIE SELECT (.cs_sel) — Get Details & direct_mp4_url
+           // ════════════════════════════════════════════════════════
+        // 2. MOVIE / TV SHOW SELECT (.cs_sel) 
         // ════════════════════════════════════════════════════════
         else if (command === "cs_sel") {
             const id = args[0];
@@ -166,54 +166,88 @@ module.exports = {
 
             try {
                 await socket.sendMessage(sender, { react: { text: "⏳", key: msg.key } });
-                await reply(`📥 *${movie.title}* සඳහා Download Links සකසමින්...`);
+                await reply(`📥 *${movie.title}* සඳහා දත්ත ලබා ගනිමින්...`);
 
-                let downloads = [];
+                const dlApiUrl = `${NEW_API}/dl-links?url=${encodeURIComponent(movie.url)}`;
+                const dlRes = await axios.get(dlApiUrl, { timeout: 25000 });
+                const dlData = dlRes.data || {};
 
-                try {
-                    const dlApiUrl = `${NEW_API}/dl-links?url=${encodeURIComponent(movie.url)}`;
-                    const dlRes = await axios.get(dlApiUrl, { timeout: 25000 });
-                    
-                    const dlData = dlRes.data || {};
-                    // අලුත් API එකේ Array එක එන්නේ downloadLinks කියන නමින්!
-                    const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
+                // 📺 [ TV SHOW MODE ] - Episodes ලිස්ට් එකක් ආවොත්
+                if (dlData.allEpisodes && dlData.allEpisodes.length > 0) {
+                    const buttons = [];
+                    let capText = `*↳ ❝ [📺 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 - TV Series] ¡! ❞*\n\n`;
+                    capText += `🎬 *Title:* ${movie.title}\n`;
+                    capText += `📺 *Total Episodes:* ${dlData.totalEpisodes || dlData.allEpisodes.length}\n`;
+                    if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
+                    capText += `\n> *ඔබට අවශ්‍ය Episode එක පහලින් තෝරන්න* ⬇️`;
 
-                    arr.forEach(item => {
-                        const resolvedUrl = item.direct_mp4_url || item.url || item.link;
-                        
-                        // iframe වගේ ඒවා මඟහැර නියම http mp4 links විතරක් ගන්නවා
-                        if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
-                            downloads.push({
-                                meta: item.quality || item.resolution || item.name || 'HD',
-                                size: item.fileSize || item.size || 'Unknown',
-                                resolvedUrl: resolvedUrl
-                            });
-                        }
+                    // Episodes ටික බට්න් විදිහට හදනවා (උපරිම 50ක්)
+                    const eps = dlData.allEpisodes.slice(0, 50);
+                    eps.forEach(ep => {
+                        const epId = storeData({
+                            title: `${movie.title} - ${ep.title || 'Ep ' + ep.episode}`,
+                            url: ep.url,
+                            targetJid: movie.targetJid,
+                            img: movie.img, date: movie.date, genres: movie.genres, imdb: movie.imdb
+                        });
+
+                        buttons.push({
+                            buttonId: `.cs_sel ${epId}`,
+                            buttonText: { displayText: `🎬 Ep ${ep.episode}: ${ep.title || ''}`.substring(0, 20) },
+                            type: 1
+                        });
                     });
 
-                } catch (dlErr) {
-                    console.log("[CZ] dl-links Error:", dlErr.message);
+                    const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
+                    if (movie.img) msgOpts.image = { url: movie.img };
+
+                    await socket.sendMessage(sender, msgOpts, { quoted: msg });
+                    await socket.sendMessage(sender, { react: { text: "📺", key: msg.key } });
+                    delete global.czStore[id];
+                    return; // මෙතනින් නවතිනවා, ඊලඟට යන්නේ නෑ
                 }
+
+                // 🎬 [ MOVIE / SINGLE EPISODE MODE ] - Download Links ආවොත්
+                let downloads = [];
+                const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
+
+                arr.forEach(item => {
+                    const resolvedUrl = item.direct_mp4_url || item.url || item.link;
+                    
+                    // iframe මඟහැර නියම http mp4 links විතරක් ගන්නවා
+                    if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
+                        // Quality එක API එකෙන් එව්වේ නැත්නම් ලින්ක් එකෙන් හොයනවා
+                        let q = item.quality || item.resolution || item.name || '';
+                        if (!q) {
+                            if (resolvedUrl.includes('480p')) q = '480p';
+                            else if (resolvedUrl.includes('720p')) q = '720p';
+                            else if (resolvedUrl.includes('1080p')) q = '1080p';
+                            else q = 'HD';
+                        }
+
+                        downloads.push({
+                            meta: q,
+                            size: item.fileSize || item.size || 'Unknown',
+                            resolvedUrl: resolvedUrl
+                        });
+                    }
+                });
 
                 if (!downloads.length) {
                     delete global.czStore[id];
-                    return reply("❌ *මෙම චිත්‍රපටය සඳහා Download Links හමු නොවිණි.* API එකෙන් direct links ලබාදුන්නේ නැත.");
+                    return reply("❌ *මෙම වීඩියෝව සඳහා Download Links හමු නොවිණි.*");
                 }
 
                 const buttons = [];
-                let capText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 🎬] ¡! ❞*\n\n`;
-                capText += `🎬 *Title:* ${movie.title}\n📅 *Year:* ${movie.date || 'N/A'}\n🎭 *Genres:* ${movie.genres || 'N/A'}\n⭐ *IMDB:* ${movie.imdb || 'N/A'}\n⏱ *Runtime:* ${movie.runtime || 'N/A'}\n`;
+                let capText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 ] ¡! ❞*\n\n`;
+                capText += `🎬 *Title:* ${movie.title}\n📅 *Year:* ${movie.date || 'N/A'}\n⭐ *IMDB:* ${movie.imdb || 'N/A'}\n`;
                 if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
                 capText += `\n> *ඔබට අවශ්‍ය Quality එක පහලින් තෝරන්න* ⬇️`;
 
                 downloads.forEach((dl) => {
                     const dlId = storeData({
-                        title: movie.title,
-                        quality: dl.meta,
-                        size: dl.size,
-                        url: dl.resolvedUrl,
-                        targetJid: movie.targetJid,
-                        img: movie.img, date: movie.date, genres: movie.genres, imdb: movie.imdb, runtime: movie.runtime
+                        title: movie.title, quality: dl.meta, size: dl.size, url: dl.resolvedUrl,
+                        targetJid: movie.targetJid, img: movie.img, date: movie.date
                     });
 
                     buttons.push({
@@ -223,12 +257,7 @@ module.exports = {
                     });
                 });
 
-                const msgOpts = {
-                    caption: capText,
-                    footer: botName,
-                    buttons: buttons,
-                    headerType: movie.img ? 4 : 1
-                };
+                const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
                 if (movie.img) msgOpts.image = { url: movie.img };
 
                 await socket.sendMessage(sender, msgOpts, { quoted: msg });
@@ -237,10 +266,9 @@ module.exports = {
 
             } catch (e) {
                 console.error("[CZ] Select Error:", e.message);
-                reply("❌ *Movie details error.*");
+                reply("❌ *දත්ත ලබා ගැනීමේ දෝෂයක්.*");
             }
         }
-
         // ════════════════════════════════════════════════════════
         // 3. DOWNLOAD (.cs_dl) — Direct Pipe
         // ════════════════════════════════════════════════════════
