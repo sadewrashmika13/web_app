@@ -67,9 +67,9 @@ function parseCineSend(fullText) {
 module.exports = {
     name: "cinesubz-downloader",
     category: 0,
-    description: "Search and download Sinhala Subbed movies from Cinesubz (Inbox/Groups)",
+    description: "Search and download Sinhala Subbed movies/tv shows from Cinesubz (Inbox/Groups)",
     
-    // 🔴 Menu එකේ පෙන්නන්න ඕනේ ප්‍රධාන කමාන්ඩ් විතරක් මෙතන දාලා තියෙනවා (Hide Buttons Commands)
+    // Menu එකේ පෙන්නන්න ඕනේ ප්‍රධාන කමාන්ඩ් විතරයි
     commands: ["cz", "cinesubz", "cinesend"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -81,7 +81,7 @@ module.exports = {
             message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Cinesubz\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
         };
 
-        const subCmd = args[0]; // Button වලින් එන රහස් කමාන්ඩ් එක (--sel, --dl, --dlall)
+        const subCmd = args[0]; // Button වලින් එන රහස් කමාන්ඩ් එක
         const subId = args[1];  // Button එකේ ID එක
 
         // ════════════════════════════════════════════════════════
@@ -221,13 +221,13 @@ module.exports = {
                     await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*\n_Direct Link සම්බන්ධ වෙමින් පවතී..._`);
                 }
 
-                const captionBase = `🎬 *Movie Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📦 *Size:* ${dl.size || 'Unknown'}\n📅 *Year:* ${dl.date || 'N/A'}`;
+                const captionBase = `🎬 *Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📦 *Size:* ${dl.size || 'Unknown'}\n📅 *Year:* ${dl.date || 'N/A'}`;
                 
-                const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n` +
+                const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗩𝗜𝗗𝗘𝗢 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n` +
                     `🎬 *Title:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📅 *Year:* ${dl.date || 'N/A'}\n\n` +
-                    `🍿 *චිත්‍රපටය පහතින් ලබාගන්න.* \n\n> 👑 *SADEW-MINI* 👑`;
+                    `🍿 *වීඩියෝව පහතින් ලබාගන්න.* \n\n> 👑 *SADEW-MINI* 👑`;
 
-                const fileName = `${(dl.title || 'Movie').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dl.quality}.mp4`;
+                const fileName = `${(dl.title || 'Video').substring(0, 40).replace(/[^a-zA-Z0-9 .\-]/g, '').trim()} - ${dl.quality}.mp4`;
 
                 if (dl.targetJid) {
                     try {
@@ -258,7 +258,7 @@ module.exports = {
                 setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
 
             } catch (e2) {
-                console.log("[CZ] Stream failed:", e2.message);
+                console.error("[CZ] Stream failed:", e2.message);
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
                 await reply("❌ *Download Failed!* සර්වර් එකෙන් වීඩියෝව ලබාගත නොහැකි විය.");
             }
@@ -280,6 +280,22 @@ module.exports = {
                 await socket.sendMessage(sender, { react: { text: "🚀", key: msg.key } });
                 await reply(`🚀 *[CineSend Bulk]* \`${show.title}\` හි Episodes ${eps.length} ක් ඔටෝමැටික් ඩවුන්ලෝඩ් වීම ආරම්භ විය.\n_කරුණාකර රැඳී සිටින්න... (මෙයට වැඩි වේලාවක් ගත විය හැක)_`);
 
+                // 🌟 GROUP CARD එක මෙතනින් යවනවා (TV Series Details Card)
+                const targetCardText = `*↳ ❝ [📺 𝗡𝗘𝗪 𝗧𝗩 𝗦𝗘𝗥𝗜𝗘𝗦 𝗔𝗥𝗥𝗜𝗩𝗔𝗟] ¡! ❞*\n\n` +
+                    `🎬 *Title:* ${show.title}\n` +
+                    `📺 *Total Episodes:* ${eps.length}\n` +
+                    `📅 *Year:* ${show.date || 'N/A'}\n\n` +
+                    `🍿 *මෙම TV Series එකෙහි සියලුම කොටස් පහතින් ඩවුන්ලෝඩ් වෙමින් පවතී.* \n\n` +
+                    `> 👑 *SADEW-MINI* 👑`;
+
+                if (show.targetJid) {
+                    try {
+                        if (show.img) await socket.sendMessage(destJid, { image: { url: show.img }, caption: targetCardText }, { quoted: metaQuote });
+                        else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: metaQuote });
+                    } catch (cardErr) {}
+                }
+
+                // එකින් එක (Sequentially) ඩවුන්ලෝඩ් කරන Loop එක
                 for (let i = 0; i < eps.length; i++) {
                     const ep = eps[i];
                     try {
@@ -303,7 +319,7 @@ module.exports = {
                             continue; 
                         }
 
-                        const fileName = `${(show.title || 'TVShow').substring(0, 20)} - Ep ${ep.episode}.mp4`.replace(/[^a-zA-Z0-9 .\-]/g, '');
+                        const fileName = `${(show.title || 'TVShow').substring(0, 30)} - Ep ${ep.episode}.mp4`.replace(/[^a-zA-Z0-9 .\-]/g, '');
                         const cap = `🎬 *${show.title}*\n📺 *Episode:* ${ep.episode} - ${ep.title || ''}\n📽 *Quality:* ${qualityStr}\n\n> 👑 *SADEW-MINI* 👑`;
                         
                         const streamRes = await axios({
