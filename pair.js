@@ -1,7 +1,7 @@
 /*  ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡  - MULTI SESSION SUPPORT
   DEVELOPED BY🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮
   FULLY ENC AND PRIVET SOURCE CODE    
-  Code Ussai #akak - Thawa #akada balanne                                                                                                      
+                                                                                                   
 
   ────────────────────────────────────────────────────────
   🔧 LOGOUT-ISSUE FIX (only this was changed, nothing else):
@@ -3022,7 +3022,6 @@ case 'tt': {
         const https = require("https");
         const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-        // ⚡ FIX: මෙතන &hd=1 අනිවාර්යයෙන්ම තියෙන්න ඕනේ TikWM එකෙන් HD එක එවන්න!
         const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
         const response = await axios.get(apiUrl, { 
             httpsAgent, 
@@ -3038,11 +3037,13 @@ case 'tt': {
 
         const videoData = response.data.data;
         const normalSpeedUrl = videoData.play;
-        const hdVideoUrl = videoData.hdplay;
+        
+        // සමහර වෙලාවට hdplay නැති නිසා, නැත්නම් සාමාන්‍ය play url එක ගන්නවා
+        const hdVideoUrl = videoData.hdplay || videoData.play;
 
         try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
 
-        // 1. මුලින්ම High Speed එකෙන් (Normal Quality) Video එක යවනවා
+        // 1. මුලින්ම Normal Quality Video එක යවනවා
         await socket.sendMessage(sender, {
             video: { url: normalSpeedUrl },
             caption: `*🎬 TIKTOK DOWNLOADER*\n\n*📝 Title:* ${videoData.title || 'No Title'}\n\n*© Akira Sadew*`
@@ -3050,20 +3051,17 @@ case 'tt': {
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
-        // 2. ඊට පස්සේ Button එකක් තියෙන Text Message එක යවනවා (පරණ Baileys Button විදියට)
-        if (hdVideoUrl) {
-            const buttonMessage = {
-                text: `*✅ Video Downloaded Successfully!*\n\nඔයාට මේ Video එක WhatsApp එකේ HD Badge එකත් එක්කම (True HD Quality) ඕනෙ නම් පහළ තියෙන Button එක click කරන්න! 👇\n\n*© Akira Sadew*`,
-                footer: "Akira Sadew",
-                buttons: [
-                    { buttonId: `.tthd ${hdVideoUrl}`, buttonText: { displayText: '🎬 Download TikTok HD' }, type: 1 }
-                ],
-                headerType: 1 // 👈 Text message එකට යටින් button එක එන්න ඕනේ නිසා 1 දැම්මා
-            };
-            
-            // Video එකට පස්සේ button message එක යවනවා
-            await socket.sendMessage(sender, buttonMessage, { quoted: msg });
-        }
+        // 2. ඊට පස්සේ අනිවාර්යයෙන්ම Text Message එක යවනවා (ඔයා කියපු නමත් එක්ක)
+        const buttonMessage = {
+            text: `*SADEW X MINI HD DOWNLOADER*\n\nඔයාට මේ Video එක True HD Quality එකෙන් ඕනෙ නම් පහළ තියෙන Button එක click කරන්න! 👇\n\n*© Akira Sadew*`,
+            footer: "Akira Sadew",
+            buttons: [
+                { buttonId: `.tthd ${hdVideoUrl}`, buttonText: { displayText: '🎬 DOWNLOAD HD' }, type: 1 }
+            ],
+            headerType: 1 // Text message + Button
+        };
+        
+        await socket.sendMessage(sender, buttonMessage, { quoted: msg });
 
     } catch (e) {
         console.error(e);
@@ -3090,13 +3088,12 @@ case 'tthd': {
 
         const outputPath = path.join(os.tmpdir(), `tiktok_hd_${Date.now()}.mp4`);
 
-        // Convert වෙන වෙලාවට පොඩි text එකක් දානවා
-        reply("⏳ *Converting to WhatsApp HD Format... Please wait a few seconds!*");
+        reply("⏳ *Converting to WhatsApp HD Format... Please wait!*");
 
         ffmpeg(targetUrl)
             .outputOptions([
                 '-c:v libx264',
-                '-preset ultrafast', // ⚡ උපරිම Speed එකෙන් Convert වෙන්න
+                '-preset ultrafast',
                 '-crf 23',
                 '-c:a copy'
             ])
@@ -3104,16 +3101,15 @@ case 'tthd': {
             .on('end', async () => {
                 try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
                 
-                // HD එක විදියට වීඩියෝ එක යවනවා
                 await socket.sendMessage(sender, {
                     video: fs.readFileSync(outputPath),
-                    caption: `*🎬 TIKTOK HD VIDEO*\n\n> ✅ WhatsApp True HD Format\n\n*© Akira Sadew*`
+                    caption: `*SADEW X MINI HD DOWNLOADER*\n\n> ✅ WhatsApp True HD Format\n\n*© Akira Sadew*`
                 }, { quoted: msg });
 
                 try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
                 
                 if (fs.existsSync(outputPath)) {
-                    fs.unlinkSync(outputPath); // Phone memory එක පිරෙන්නේ නැති වෙන්න file එක මකනවා
+                    fs.unlinkSync(outputPath);
                 }
             })
             .on('error', (err) => {
