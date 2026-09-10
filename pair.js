@@ -3005,11 +3005,10 @@ case 'facebook': {
     break;
 }
 // ════════════ TIKTOK (FULL HD DOWNLOADER) ════════════
-
 case 'tiktok':
 case 'tt': {
     try {
-        const query = args[0]; // අනිවාර්යයෙන්ම මුල් ලින්ක් එක විතරක් ගන්නවා
+        const query = args[0];
         if (!query) return reply("🔗 *Send me a tiktok link !*");
 
         const tiktokRegex = /(tiktok\.com|vt\.tiktok\.com)/;
@@ -3019,57 +3018,49 @@ case 'tt': {
 
         try { await socket.sendMessage(sender, { react: { text: '📥', key: msg.key } }); } catch (_) {}
 
-        let videoUrl = "";
-        let isHD = false;
-        let channelName = "Unknown Channel";
-        let title = "TikTok Video";
-        let views = 0;
-        let likes = 0;
-        let coverUrl = "https://i.imgur.com/B10J784.jpeg";
+        const axios = require("axios");
 
+        // 🔥 ඔයාගේ ttp එකේ තියෙන විදිහටම (www.tikwm.com) දැම්මා. (403 එන්නේ නෑ!)
+        const fetchTikwmData = async (url) => {
+            for (let i = 1; i <= 3; i++) {
+                try {
+                    const res = await axios.get("https://www.tikwm.com/api/", { 
+                        params: { url, hd: 1 }, 
+                        headers: { "User-Agent": "Mozilla/5.0" }
+                    });
+                    if (res.data?.code === 0) return res.data;
+                } catch (e) { 
+                    if (i < 3) await new Promise(r => setTimeout(r, 2000)); 
+                }
+            }
+            throw new Error("API Blocked");
+        };
+
+        let data;
         try {
-            // 🟢 පළමු උත්සාහය: TikWM API (POST Method එකෙන් Cloudflare 403 එක Bypass කරනවා)
-            const apiUrl = `https://tikwm.com/api/`;
-            const response = await axios.post(apiUrl, `url=${encodeURIComponent(query)}&count=12&cursor=0&web=1&hd=1`, { 
-                headers: { 
-                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-                    "Accept": "application/json, text/javascript, */*; q=0.01"
-                },
-                timeout: 15000 
-            });
-            const data = response.data;
-
-            if (data && data.data) {
-                videoUrl = data.data.hdplay || data.data.play;
-                if (!videoUrl.startsWith('http')) videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
-                isHD = !!data.data.hdplay;
-                channelName = data.data.author && data.data.author.nickname ? data.data.author.nickname : channelName;
-                title = data.data.title || title;
-                views = data.data.play_count || 0;
-                likes = data.data.digg_count || 0;
-                coverUrl = data.data.cover || coverUrl;
-            } else {
-                throw new Error("TikWM API Invalid Data");
-            }
-        } catch (tikwmErr) {
-            console.log("TikWM API 403 Blocked! Switching to Zanta API...");
-            // 🟠 දෙවැනි උත්සාහය: Backup API (Zanta Mini) 
-            const zantaUrl = `https://api.zanta-mini.store/api/tiktok?apiKey=zan_FIAO7Ayh_eo1vllkep6&url=${encodeURIComponent(query)}`;
-            const zantaRes = await axios.get(zantaUrl, { timeout: 15000 });
-            
-            if (zantaRes.data && zantaRes.data.result) {
-                const resData = zantaRes.data.result;
-                videoUrl = resData.links?.no_watermark || resData.links?.watermark;
-                title = resData.title || title;
-                channelName = resData.meta?.author || channelName;
-                isHD = false; // Backup API එකේ HD confirm කරන්න බෑ
-            } else {
-                return reply("❌ *Error: වීඩියෝව ලබාගැනීමට නොහැක! API සේවාදායකයන් දෙකම කාර්යබහුලයි.*");
-            }
+            data = await fetchTikwmData(query);
+        } catch (err) {
+            return reply("❌ *Error: 403 Forbidden! TikWM සර්වර් එකෙන් මේ වෙලාවේ රික්වෙස්ට් එක ප්‍රතික්ෂේප කළා.*");
         }
 
+        let videoUrl = data.data.hdplay || data.data.play;
         if (!videoUrl) return reply("❌ *Error: Video link not found!*");
+
+        if (!videoUrl.startsWith('http')) {
+            videoUrl = `https://www.tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
+        }
+
+        const isHD = !!data.data.hdplay;
+        const channelName = data.data.author && data.data.author.nickname ? data.data.author.nickname : "Unknown Channel";
+        const title = data.data.title || "TikTok Video";
+        const views = data.data.play_count || 0;
+        const likes = data.data.digg_count || 0;
+
+        let fileSizeMB = 'Unknown';
+        let fileSizeBytes = data.data.hd_size || data.data.size || 0;
+        if (fileSizeBytes) {
+            fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+        }
 
         const hdStatusText = isHD ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
 
@@ -3085,6 +3076,7 @@ case 'tt': {
                         `👤 *CHANNEL :* ${channelName}\n` +
                         `🎬 *TITLE :* ${title}\n` +
                         `✨ *QUALITY :* ${hdStatusText}\n` +
+                        `⚖️ *SIZE :* ${fileSizeMB} MB\n` +
                         `👁️ *VIEWS :* ${views}\n` +
                         `❤️ *LIKES :* ${likes}\n` +
                         `__________________________\n\n` +
@@ -3093,13 +3085,41 @@ case 'tt': {
 
         try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
 
-        // 1. වීඩියෝ එක යවනවා
-        await socket.sendMessage(sender, {
-            video: { url: videoUrl },
-            mimetype: 'video/mp4',
-            caption: caption,
-            fileName: `TikTok_HD_${Date.now()}.mp4`
-        }, { quoted: msg });
+        // 1. වීඩියෝ එක යවනවා (403 Block වීම වළක්වන්න කෙලින්ම Axios වලින් ඩවුන්ලෝඩ් කරනවා)
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+        const tempVideoPath = path.join(os.tmpdir(), `tiktok_main_${Date.now()}.mp4`);
+        
+        try {
+            const responseStream = await axios({
+                method: 'GET',
+                url: videoUrl,
+                responseType: 'stream',
+                headers: { "User-Agent": "Mozilla/5.0" }
+            });
+
+            const writer = fs.createWriteStream(tempVideoPath);
+            responseStream.data.pipe(writer);
+
+            await new Promise((resolve, reject) => {
+                writer.on('finish', resolve);
+                writer.on('error', reject);
+            });
+
+            await socket.sendMessage(sender, {
+                video: fs.readFileSync(tempVideoPath),
+                mimetype: 'video/mp4',
+                caption: caption,
+                fileName: `TikTok_HD_${Date.now()}.mp4`
+            }, { quoted: msg });
+
+            if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath);
+        } catch (downloadErr) {
+            console.error("Video Download Error:", downloadErr);
+            if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath);
+            throw new Error("Failed to download video from TikWM");
+        }
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
@@ -3125,116 +3145,6 @@ case 'tt': {
     }
     break;
 }
-
-// ════════════ TIKTOK HD CONVERTER ════════════
-case 'tthd': {
-    try {
-        const query = args[0]; 
-        if (!query) return reply("❌ *No URL provided for HD conversion!*");
-
-        try { await socket.sendMessage(sender, { react: { text: '🔄', key: msg.key } }); } catch (_) {}
-
-        const axios = require("axios");
-        
-        reply("⏳ *Fetching HD Video Link...*");
-
-        // 🔥 ඔයාගේ ttp එකේ තියෙන විදිහටම (www.tikwm.com) දැම්මා. (403 එන්නේ නෑ!)
-        const fetchTikwmData = async (url) => {
-            for (let i = 1; i <= 3; i++) {
-                try {
-                    const res = await axios.get("https://www.tikwm.com/api/", { 
-                        params: { url, hd: 1 }, 
-                        headers: { "User-Agent": "Mozilla/5.0" }
-                    });
-                    if (res.data?.code === 0) return res.data;
-                } catch (e) { 
-                    if (i < 3) await new Promise(r => setTimeout(r, 2000)); 
-                }
-            }
-            throw new Error("API Blocked");
-        };
-
-        let targetUrl = "";
-        try {
-            const result = await fetchTikwmData(query);
-            targetUrl = result.data.hdplay || result.data.play;
-            if (!targetUrl.startsWith('http')) {
-                targetUrl = `https://www.tikwm.com${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
-            }
-        } catch (err) {
-            return reply("❌ *Error: 403 Forbidden! TikWM සර්වර් එකෙන් මේ වෙලාවේ රික්වෙස්ට් එක ප්‍රතික්ෂේප කළා.*");
-        }
-
-        if (!targetUrl) return reply("❌ *Error: Video link not found!*");
-
-        const os = require('os');
-        const path = require('path');
-        const fs = require('fs');
-        const ffmpeg = require('fluent-ffmpeg');
-        const ffmpegPath = require('ffmpeg-static');
-        
-        ffmpeg.setFfmpegPath(ffmpegPath);
-
-        const inputPath = path.join(os.tmpdir(), `tiktok_in_${Date.now()}.mp4`);
-        const outputPath = path.join(os.tmpdir(), `tiktok_out_${Date.now()}.mp4`);
-
-        reply("⏳ *Downloading True HD Video...*");
-
-        // 🔥 Download වෙද්දිත් 403 නොඑන්න ඔයාගේ ttp එකේ වගේම 'Mozilla/5.0' දානවා
-        const responseStream = await axios({
-            method: 'GET',
-            url: targetUrl,
-            responseType: 'stream',
-            headers: {
-                "User-Agent": "Mozilla/5.0"
-            }
-        });
-
-        const writer = fs.createWriteStream(inputPath);
-        responseStream.data.pipe(writer);
-
-        await new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
-        });
-
-        reply("⚙️ *Converting to WhatsApp True HD Format... Please wait!*");
-
-        ffmpeg(inputPath)
-            .outputOptions([
-                '-c:v libx264',
-                '-preset ultrafast',
-                '-crf 23',
-                '-c:a copy'
-            ])
-            .toFormat('mp4')
-            .on('end', async () => {
-                try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
-                
-                await socket.sendMessage(sender, {
-                    video: fs.readFileSync(outputPath),
-                    caption: `*SADEW-MINI HD DOWNLOADER*\n\n> ✅ WhatsApp True HD Format\n\n*© SADEW-MINI*`
-                }, { quoted: msg });
-
-                try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
-                
-                if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-            })
-            .on('error', (err) => {
-                console.error("FFmpeg Error:", err);
-                reply("❌ *Error converting to HD!*");
-                if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-            })
-            .save(outputPath);
-
-    } catch (e) {
-        console.error(e);
-        reply("❌ *An error occurred in HD Converter!*");
-    }
-}
-break;
 
 break;// ════════════ cuty AI ════════════
 
