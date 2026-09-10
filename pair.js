@@ -3043,6 +3043,10 @@ case 'tt': {
             videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
         }
 
+        // .tthd command එකෙන් convert කිරීමට URL එක memory එකේ තබා ගැනීම
+        global.lastTikTokUrl = global.lastTikTokUrl || {};
+        global.lastTikTokUrl[sender] = videoUrl;
+
         const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
         const title = data.data.title || "TikTok Video";
 
@@ -3074,9 +3078,10 @@ case 'tt': {
                         `🚫 *WATERMARK :* No\n` +
                         `__________________________\n\n` +
                         `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
+                        `💡 *WhatsApp "HD" Badge එක සහිතව අවශ්‍ය නම් මෙම වීඩියෝවට \`.tthd\` ලෙස Reply කරන්න!*\n\n` +
                         `> 👑 *SADEW-MINI* 👑`;
 
-        // 1. High Speed එකෙන් Video එක Send කිරීම (කිසිම Button එකක් නැත)
+        // 🔧 High Speed Send (කිසිම Button එකක් නැත - කෙලින්ම Video එක යවයි)
         await socket.sendMessage(sender, {
             video: { url: videoUrl },
             mimetype: 'video/mp4',
@@ -3085,18 +3090,6 @@ case 'tt': {
         }, { quoted: msg });
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
-
-        // 2. Video එක ගියාට පස්සේ වෙනම Text Message එකක් විදියට Button එක යැවීම
-        const buttons = [
-            { buttonId: `.tthd ${videoUrl}`, buttonText: { displayText: '✨ Convert to WhatsApp HD ✨' }, type: 1 }
-        ];
-
-        await socket.sendMessage(sender, {
-            text: `⚡ *WhatsApp "HD" Badge එක සහිතව මෙම වීඩියෝව අවශ්‍ය නම් පහත Button එක ඔබන්න:*`,
-            footer: '👑 SADEW-MINI 👑',
-            buttons: buttons,
-            headerType: 1
-        }, { quoted: msg });
 
     } catch (e) {
         console.log("TIKTOK CMD ERROR:", e);
@@ -3110,13 +3103,25 @@ case 'tt': {
 }
 
 
-// ════════════ TIKTOK (REAL HD CONVERTER) ════════════
+// ════════════ TIKTOK (REPLY HD CONVERTER) ════════════
 
 case 'tthd': {
     try {
-        const videoUrl = args.join(' ').trim();
-        if (!videoUrl || !videoUrl.startsWith('http')) {
-            return reply("❌ *වීඩියෝ ලින්ක් එක හමු නොවීය!*");
+        let videoUrl = args.join(' ').trim();
+
+        // 1. Link එක direct දී නොමැති නම්, Quoted Video එකෙන් හෝ Memory එකෙන් URL එක ලබා ගැනීම
+        if (!videoUrl) {
+            if (global.lastTikTokUrl && global.lastTikTokUrl[sender]) {
+                videoUrl = global.lastTikTokUrl[sender];
+            }
+        }
+
+        if (!videoUrl) {
+            return reply("❌ *කරුණාකර TikTok වීඩියෝවට `.tthd` ලෙස Reply කරන්න, නැතහොත් `.tthd <tiktok_link>` ලෙස යොදන්න!*");
+        }
+
+        if (!videoUrl.startsWith('http')) {
+            videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
         }
 
         try { await socket.sendMessage(sender, { react: { text: '⚙️', key: msg.key } }); } catch (_) {}
@@ -3147,7 +3152,7 @@ case 'tthd': {
 
                 const timer = setTimeout(() => {
                     child.kill('SIGKILL');
-                    reject(new Error("FFmpeg Conversion Timeout!"));
+                    reject(new Error("FFmpeg Timeout!"));
                 }, 60000);
 
                 child.on("close", (code) => {
@@ -3167,7 +3172,7 @@ case 'tthd': {
                             `📺 *CODEC :* H.264 (720p Real HD)\n\n` +
                             `> 👑 *SADEW-MINI* 👑`;
 
-            // Convert වූ H.264 Video එක යැවීම (WhatsApp එකෙන් Auto "HD" Badge එක දමයි)
+            // Convert වූ Video එක Send කිරීම (WhatsApp එකෙන් Auto "HD" Badge එක දමයි)
             await socket.sendMessage(sender, {
                 video: { url: outPath },
                 mimetype: 'video/mp4',
@@ -3178,7 +3183,7 @@ case 'tthd': {
             try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
         } finally {
-            // RAM සහ Disk Storage ඉතිරි කිරීමට Temp files මකා දැමීම
+            // RAM සහ Storage ඉතිරි කිරීමට Temp files මකා දැමීම
             await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
         }
 
@@ -3188,7 +3193,8 @@ case 'tthd': {
         try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
     }
     break;
-}//TIKTOK (photo to video DOWNLOADER)
+}           
+                //tiktok photo to video converter 
 case 'ttp': {
     try {
         const axios = require("axios");
