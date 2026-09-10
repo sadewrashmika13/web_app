@@ -3134,6 +3134,7 @@ case 'tthd': {
 
         try { await socket.sendMessage(sender, { react: { text: '🔄', key: msg.key } }); } catch (_) {}
 
+        const axios = require('axios');
         // ⚡ TikWM POST ක්‍රමය
         const apiUrl = `https://tikwm.com/api/`;
         let targetUrl = "";
@@ -3163,7 +3164,7 @@ case 'tthd': {
             if (zantaRes.data && zantaRes.data.result) {
                 targetUrl = zantaRes.data.result.links?.no_watermark || zantaRes.data.result.links?.watermark;
             } else {
-                return reply("❌ *Error: වීඩියෝව ලබාගැනීමට නොහැක! API සේවාදායකයන් දෙකම කාර්යබහුලයි.*");
+                return reply("❌ *Error: වීඩියෝව ලබාගැනීමට නොහැක! API සේවාදායකයන් කාර්යබහුලයි.*");
             }
         }
 
@@ -3177,11 +3178,32 @@ case 'tthd': {
         
         ffmpeg.setFfmpegPath(ffmpegPath);
 
-        const outputPath = path.join(os.tmpdir(), `tiktok_hd_${Date.now()}.mp4`);
+        const inputPath = path.join(os.tmpdir(), `tiktok_in_${Date.now()}.mp4`);
+        const outputPath = path.join(os.tmpdir(), `tiktok_out_${Date.now()}.mp4`);
 
-        reply("⏳ *Converting to WhatsApp True HD Format... Please wait!*");
+        reply("⏳ *Downloading Video for HD Conversion...*");
 
-        ffmpeg(targetUrl)
+        // 🔥 FFmpeg එක Block වෙන එක නවත්වන්න මුලින්ම Download කරගන්නවා
+        const responseStream = await axios({
+            method: 'GET',
+            url: targetUrl,
+            responseType: 'stream',
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+            }
+        });
+
+        const writer = fs.createWriteStream(inputPath);
+        responseStream.data.pipe(writer);
+
+        await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+
+        reply("⚙️ *Converting to WhatsApp True HD Format... Please wait!*");
+
+        ffmpeg(inputPath)
             .outputOptions([
                 '-c:v libx264',
                 '-preset ultrafast',
@@ -3199,13 +3221,14 @@ case 'tthd': {
 
                 try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
                 
-                if (fs.existsSync(outputPath)) {
-                    fs.unlinkSync(outputPath);
-                }
+                if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
             })
             .on('error', (err) => {
                 console.error("FFmpeg Error:", err);
                 reply("❌ *Error converting to HD!*");
+                if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
             })
             .save(outputPath);
 
