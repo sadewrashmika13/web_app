@@ -3004,7 +3004,7 @@ case 'facebook': {
     }
     break;
 }
-// ════════════ TIKTOK (HIGH SPEED + HD CONVERTER BUTTON) ════════════
+// ════════════ TIKTOK (FULL HD DOWNLOADER) ════════════
 
 case 'tiktok':
 case 'tt': {
@@ -3022,182 +3022,112 @@ case 'tt': {
         const https = require("https");
         const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-        // ⚡ TikWM එකෙන් HD ලින්ක් එක ලබා ගැනීම
+        // ⚡ FIX: මෙතන &hd=1 අනිවාර්යයෙන්ම තියෙන්න ඕනේ TikWM එකෙන් HD එක එවන්න!
         const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
         const response = await axios.get(apiUrl, { 
             httpsAgent, 
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-            timeout: 15000 
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "application/json"
+            }
         });
-        const data = response.data;
 
-        if (!data || !data.data) {
-            return reply("❌ *I cant get video !*");
+        if (!response.data || response.data.code !== 0) {
+            return reply("❌ *I can't get video link !*");
         }
 
-        // ⚡ HD ලින්ක් එක තිබුණොත් ඒක ගන්නවා, නැත්නම් Normal එක
-        let videoUrl = data.data.hdplay || data.data.play;
-        if (!videoUrl) throw new Error("No video URL found.");
+        const videoData = response.data.data;
+        const normalSpeedUrl = videoData.play;
+        const hdVideoUrl = videoData.hdplay;
 
-        if (!videoUrl.startsWith('http')) {
-            videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
-        }
+        try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
 
-        // Memory එකේ තබා ගැනීම
-        global.lastTikTokUrl = global.lastTikTokUrl || {};
-        global.lastTikTokUrl[sender] = videoUrl;
-
-        const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
-        const title = data.data.title || "TikTok Video";
-
-        let fileSizeMB = 'Unknown';
-        let fileSizeBytes = data.data.hd_size || data.data.size || 0;
-
-        if (!fileSizeBytes) {
-            try {
-                const headRes = await axios.head(videoUrl, {
-                    httpsAgent,
-                    headers: { 'User-Agent': 'Mozilla/5.0' },
-                    timeout: 10000
-                });
-                fileSizeBytes = parseInt(headRes.headers['content-length'] || '0', 10);
-            } catch (_) {}
-        }
-
-        if (fileSizeBytes) {
-            fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
-        }
-
-        const slDate = moment().tz('Asia/Colombo').format('YYYY-MM-DD');
-        const slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
-
-        const caption = `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ 𝗧𝗶𝗸𝗧𝗼𝗸 ] ¡! ❞*\n\n` +
-                        `🎬 *TITLE :* ${title}\n` +
-                        `✨ *QUALITY :* ${isHD}\n` +
-                        `⚖️ *SIZE :* ${fileSizeMB} MB\n` +
-                        `🚫 *WATERMARK :* No\n` +
-                        `__________________________\n\n` +
-                        `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
-                        `> 👑 *SADEW-MINI* 👑`;
-
-        // 1. High Speed එකෙන් Video එක Send කිරීම
+        // 1. මුලින්ම High Speed එකෙන් (Normal Quality) Video එක යවනවා
         await socket.sendMessage(sender, {
-            video: { url: videoUrl },
-            mimetype: 'video/mp4',
-            caption: caption,
-            fileName: `TikTok_HD_${Date.now()}.mp4`
+            video: { url: normalSpeedUrl },
+            caption: `*🎬 TIKTOK DOWNLOADER*\n\n*📝 Title:* ${videoData.title || 'No Title'}\n\n*© Akira Sadew*`
         }, { quoted: msg });
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
-        // 2. Video එක ගියාට පස්සේ වෙනම Button Message එකක් යැවීම
-        const buttons = [
-            { buttonId: `.tthd ${videoUrl}`, buttonText: { displayText: '✨ Convert to WhatsApp HD ✨' }, type: 1 }
-        ];
-
-        await socket.sendMessage(sender, {
-            text: `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ  𝗛𝗗  𝗖𝗢𝗡𝗩𝗘𝗥𝗧𝗘𝗥 ⟡ ] ❞*\n\n⚡ *WhatsApp "HD" Badge එක සහිතව මෙම වීඩියෝව අවශ්‍ය නම් පහත Button එක ඔබන්න:*`,
-            footer: '👑 SADEW-MINI 👑',
-            buttons: buttons,
-            headerType: 1
-        }, { quoted: msg });
+        // 2. ඊට පස්සේ Button එකක් තියෙන Text Message එක යවනවා (පරණ Baileys Button විදියට)
+        if (hdVideoUrl) {
+            const buttonMessage = {
+                text: `*✅ Video Downloaded Successfully!*\n\nඔයාට මේ Video එක WhatsApp එකේ HD Badge එකත් එක්කම (True HD Quality) ඕනෙ නම් පහළ තියෙන Button එක click කරන්න! 👇\n\n*© Akira Sadew*`,
+                footer: "Akira Sadew",
+                buttons: [
+                    { buttonId: `.tthd ${hdVideoUrl}`, buttonText: { displayText: '🎬 Download TikTok HD' }, type: 1 }
+                ],
+                headerType: 1 // 👈 Text message එකට යටින් button එක එන්න ඕනේ නිසා 1 දැම්මා
+            };
+            
+            // Video එකට පස්සේ button message එක යවනවා
+            await socket.sendMessage(sender, buttonMessage, { quoted: msg });
+        }
 
     } catch (e) {
-        console.log("TIKTOK CMD ERROR:", e);
-        let errorMsg = e.message.includes("timeout")
-            ? "❌ *Timeout:* Server took too long."
-            : "❌ *Video එක ලබාගත නොහැකි විය.*";
-        reply(errorMsg);
-        try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
+        console.error(e);
+        reply("❌ *Error fetching TikTok video!*");
     }
-    break;
 }
+break;
 
-
-// ════════════ TIKTOK (BUTTON HD CONVERTER) ════════════
-
+// ════════════ TIKTOK HD CONVERTER ════════════
 case 'tthd': {
     try {
-        let videoUrl = args.join(' ').trim();
+        const targetUrl = args.join(' ');
+        if (!targetUrl) return reply("❌ *No URL provided for HD conversion!*");
 
-        if (!videoUrl) {
-            if (global.lastTikTokUrl && global.lastTikTokUrl[sender]) {
-                videoUrl = global.lastTikTokUrl[sender];
-            }
-        }
+        try { await socket.sendMessage(sender, { react: { text: '🔄', key: msg.key } }); } catch (_) {}
 
-        if (!videoUrl || !videoUrl.startsWith('http')) {
-            return reply("❌ *වීඩියෝ ලින්ක් එක හමු නොවීය!*");
-        }
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+        const ffmpeg = require('fluent-ffmpeg');
+        const ffmpegPath = require('ffmpeg-static');
+        
+        ffmpeg.setFfmpegPath(ffmpegPath);
 
-        try { await socket.sendMessage(sender, { react: { text: '⚙️', key: msg.key } }); } catch (_) {}
-        reply("⏳ _WhatsApp 'HD' Badge එකට Video එක සකසමින් පවතී... කරුණාකර තත්පර කිහිපයක් රැඳී සිටින්න._");
+        const outputPath = path.join(os.tmpdir(), `tiktok_hd_${Date.now()}.mp4`);
 
-        const path = require("path");
-        const fs = require("fs/promises");
-        const os = require("os");
-        const { spawn } = require("child_process");
-        const ffmpegPath = require("ffmpeg-static");
+        // Convert වෙන වෙලාවට පොඩි text එකක් දානවා
+        reply("⏳ *Converting to WhatsApp HD Format... Please wait a few seconds!*");
 
-        const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "sadew-tthd-"));
-        const outPath = path.join(tmpDir, `tt_hd_${Date.now()}.mp4`);
+        ffmpeg(targetUrl)
+            .outputOptions([
+                '-c:v libx264',
+                '-preset ultrafast', // ⚡ උපරිම Speed එකෙන් Convert වෙන්න
+                '-crf 23',
+                '-c:a copy'
+            ])
+            .toFormat('mp4')
+            .on('end', async () => {
+                try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
+                
+                // HD එක විදියට වීඩියෝ එක යවනවා
+                await socket.sendMessage(sender, {
+                    video: fs.readFileSync(outputPath),
+                    caption: `*🎬 TIKTOK HD VIDEO*\n\n> ✅ WhatsApp True HD Format\n\n*© Akira Sadew*`
+                }, { quoted: msg });
 
-        try {
-            await new Promise((resolve, reject) => {
-                const child = spawn(ffmpegPath, [
-                    "-y",
-                    "-headers", "User-Agent: Mozilla/5.0\r\n",
-                    "-i", videoUrl,
-                    "-c:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-crf", "24",
-                    "-c:a", "copy",
-                    "-movflags", "+faststart",
-                    outPath
-                ], { stdio: ["ignore", "pipe", "pipe"] });
-
-                const timer = setTimeout(() => {
-                    child.kill('SIGKILL');
-                    reject(new Error("FFmpeg Timeout!"));
-                }, 60000);
-
-                child.on("close", (code) => {
-                    clearTimeout(timer);
-                    code === 0 ? resolve() : reject(new Error(`FFmpeg exited with code ${code}`));
-                });
-
-                child.on("error", (err) => {
-                    clearTimeout(timer);
-                    reject(err);
-                });
-            });
-
-            const slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
-            const caption = `*↳ ❝ [ ✨ ꜱ ᴀ ᴅ ᴇ ᴡ  𝗪𝗵𝗮𝘁𝘀𝗔𝗽𝗽 𝗛𝗗 ] ¡! ❞*\n\n` +
-                            `✅ *WhatsApp "HD" Badge එක සමඟ සාර්ථකව සකසන ලදී!*\n` +
-                            `📺 *CODEC :* H.264 (Original 720p HD)\n\n` +
-                            `> 👑 *SADEW-MINI* 👑`;
-
-            await socket.sendMessage(sender, {
-                video: { url: outPath },
-                mimetype: 'video/mp4',
-                caption: caption,
-                fileName: `TikTok_Real_HD_${slTimeNow}.mp4`
-            }, { quoted: msg });
-
-            try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
-
-        } finally {
-            await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-        }
+                try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
+                
+                if (fs.existsSync(outputPath)) {
+                    fs.unlinkSync(outputPath); // Phone memory එක පිරෙන්නේ නැති වෙන්න file එක මකනවා
+                }
+            })
+            .on('error', (err) => {
+                console.error("FFmpeg Error:", err);
+                reply("❌ *Error converting to HD!*");
+            })
+            .save(outputPath);
 
     } catch (e) {
-        console.log("TTHD CMD ERROR:", e);
-        reply(`❌ *HD Convert කිරීමේදී දෝෂයක් ඇතිවිය:* ${e.message || "Unknown Error"}`);
-        try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
+        console.error(e);
+        reply("❌ *An error occurred!*");
     }
-    break;
 }
+break;
                 //tiktok photo to video converter 
 case 'ttp': {
     try {
