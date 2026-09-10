@@ -3009,7 +3009,7 @@ case 'facebook': {
 case 'tiktok':
 case 'tt': {
     try {
-        const query = args[0]; // අනිවාර්යයෙන්ම මුල් ලින්ක් එක විතරක් ගන්නවා
+        const query = args[0]; // Button එකට දාන්න ලේසි වෙන්න මුල් ලින්ක් එක විතරක් ගන්නවා
         if (!query) return reply("🔗 *Send me a tiktok link !*");
 
         const tiktokRegex = /(tiktok\.com|vt\.tiktok\.com)/;
@@ -3036,6 +3036,7 @@ case 'tt': {
             return reply("❌ *I cant get video !*");
         }
 
+        // HD ලින්ක් එක ගන්නවා 
         let videoUrl = data.data.hdplay || data.data.play;
         if (!videoUrl) throw new Error("No video URL found.");
 
@@ -3044,7 +3045,9 @@ case 'tt': {
         }
 
         const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
+        const coverUrl = data.data.cover || "https://i.imgur.com/B10J784.jpeg"; 
         
+        // අලුත් Details ටික
         const channelName = data.data.author && data.data.author.nickname ? data.data.author.nickname : "Unknown Channel";
         const title = data.data.title || "TikTok Video";
         const views = data.data.play_count || 0;
@@ -3087,19 +3090,22 @@ case 'tt': {
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
-        // 2. ඔයා ඉල්ලපු විදිහටම Text Message එකක් විදිහට Button එක යවනවා (headerType: 1)
+        // 2. Button Message එක යවනවා
         try {
             const buttonMessage = {
-                text: `*👑 SADEW-MINI HD DOWNLOADER 👑*\n\n> 🎬 සමහර වීඩියෝ වලට WhatsApp එකෙන් HD Badge එක දෙන්නේ නෑ. ඒ වගේ වෙලාවට මේ වීඩියෝ එක True HD (HD Badge එකත් එක්කම) ගන්න පහළ Button එක ඔබන්න 👇`,
+                image: { url: coverUrl },
+                caption: `*SADEW-MINI HD DOWNLOADER*\n\n> 🎬 සමහර වීඩියෝ වලට WhatsApp එකෙන් HD Badge එක දෙන්නේ නෑ. ඒ වගේ වෙලාවට මේ වීඩියෝ එක True HD (HD Badge එකත් එක්කම) ගන්න පහළ Button එක ඔබන්න 👇`,
                 footer: "© SADEW-MINI",
                 buttons: [
+                    // 👇 මෙතන දැන් යවන්නේ අර පොඩි TikTok ලින්ක් එක! (අකුරු 256 පනින්නේ නෑ)
                     { buttonId: `.tthd ${query}`, buttonText: { displayText: '🎬 DOWNLOAD HD' }, type: 1 }
                 ],
-                headerType: 1
+                headerType: 4
             };
             await socket.sendMessage(sender, buttonMessage, { quoted: msg });
         } catch (btnErr) {
             console.log("Button Send Error:", btnErr);
+            reply("⚠️ *Button Message Error:* " + btnErr.message);
         }
 
     } catch (e) {
@@ -3116,11 +3122,12 @@ case 'tt': {
 // ════════════ TIKTOK HD CONVERTER ════════════
 case 'tthd': {
     try {
-        const query = args[0]; 
+        const query = args[0]; // Button එකෙන් එන TikTok ලින්ක් එක ගන්නවා
         if (!query) return reply("❌ *No URL provided for HD conversion!*");
 
         try { await socket.sendMessage(sender, { react: { text: '🔄', key: msg.key } }); } catch (_) {}
 
+        // ⚡ ආයේ ලින්ක් එක අරගෙන Convert කරනවා
         const https = require("https");
         const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
@@ -3189,7 +3196,6 @@ case 'tthd': {
     }
 }
 break;
-
 
 break;// ════════════ cuty AI ════════════
 
