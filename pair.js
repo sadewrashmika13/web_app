@@ -3004,7 +3004,7 @@ case 'facebook': {
     }
     break;
 }
-// ════════════ TIKTOK (HIGH SPEED NORMAL DOWNLOADER) ════════════
+// ════════════ TIKTOK (HIGH SPEED + HD CONVERTER BUTTON) ════════════
 
 case 'tiktok':
 case 'tt': {
@@ -3043,7 +3043,7 @@ case 'tt': {
             videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
         }
 
-        // .tthd command එකෙන් convert කිරීමට URL එක memory එකේ තබා ගැනීම
+        // Memory එකේ තබා ගැනීම
         global.lastTikTokUrl = global.lastTikTokUrl || {};
         global.lastTikTokUrl[sender] = videoUrl;
 
@@ -3078,10 +3078,9 @@ case 'tt': {
                         `🚫 *WATERMARK :* No\n` +
                         `__________________________\n\n` +
                         `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
-                        `💡 *WhatsApp "HD" Badge එක සහිතව අවශ්‍ය නම් මෙම වීඩියෝවට \`.tthd\` ලෙස Reply කරන්න!*\n\n` +
                         `> 👑 *SADEW-MINI* 👑`;
 
-        // 🔧 High Speed Send (කිසිම Button එකක් නැත - කෙලින්ම Video එක යවයි)
+        // 1. High Speed එකෙන් Video එක Send කිරීම
         await socket.sendMessage(sender, {
             video: { url: videoUrl },
             mimetype: 'video/mp4',
@@ -3090,6 +3089,18 @@ case 'tt': {
         }, { quoted: msg });
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
+
+        // 2. Video එක ගියාට පස්සේ වෙනම Button Message එකක් යැවීම
+        const buttons = [
+            { buttonId: `.tthd ${videoUrl}`, buttonText: { displayText: '✨ Convert to WhatsApp HD ✨' }, type: 1 }
+        ];
+
+        await socket.sendMessage(sender, {
+            text: `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ  𝗛𝗗  𝗖𝗢𝗡𝗩𝗘𝗥𝗧𝗘𝗥 ⟡ ] ❞*\n\n⚡ *WhatsApp "HD" Badge එක සහිතව මෙම වීඩියෝව අවශ්‍ය නම් පහත Button එක ඔබන්න:*`,
+            footer: '👑 SADEW-MINI 👑',
+            buttons: buttons,
+            headerType: 1
+        }, { quoted: msg });
 
     } catch (e) {
         console.log("TIKTOK CMD ERROR:", e);
@@ -3103,25 +3114,20 @@ case 'tt': {
 }
 
 
-// ════════════ TIKTOK (REPLY HD CONVERTER) ════════════
+// ════════════ TIKTOK (BUTTON HD CONVERTER) ════════════
 
 case 'tthd': {
     try {
         let videoUrl = args.join(' ').trim();
 
-        // 1. Link එක direct දී නොමැති නම්, Quoted Video එකෙන් හෝ Memory එකෙන් URL එක ලබා ගැනීම
         if (!videoUrl) {
             if (global.lastTikTokUrl && global.lastTikTokUrl[sender]) {
                 videoUrl = global.lastTikTokUrl[sender];
             }
         }
 
-        if (!videoUrl) {
-            return reply("❌ *කරුණාකර TikTok වීඩියෝවට `.tthd` ලෙස Reply කරන්න, නැතහොත් `.tthd <tiktok_link>` ලෙස යොදන්න!*");
-        }
-
-        if (!videoUrl.startsWith('http')) {
-            videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
+        if (!videoUrl || !videoUrl.startsWith('http')) {
+            return reply("❌ *වීඩියෝ ලින්ක් එක හමු නොවීය!*");
         }
 
         try { await socket.sendMessage(sender, { react: { text: '⚙️', key: msg.key } }); } catch (_) {}
@@ -3169,10 +3175,9 @@ case 'tthd': {
             const slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
             const caption = `*↳ ❝ [ ✨ ꜱ ᴀ ᴅ ᴇ ᴡ  𝗪𝗵𝗮𝘁𝘀𝗔𝗽𝗽 𝗛𝗗 ] ¡! ❞*\n\n` +
                             `✅ *WhatsApp "HD" Badge එක සමඟ සාර්ථකව සකසන ලදී!*\n` +
-                            `📺 *CODEC :* H.264 (720p Real HD)\n\n` +
+                            `📺 *CODEC :* H.264 (Original 720p HD)\n\n` +
                             `> 👑 *SADEW-MINI* 👑`;
 
-            // Convert වූ Video එක Send කිරීම (WhatsApp එකෙන් Auto "HD" Badge එක දමයි)
             await socket.sendMessage(sender, {
                 video: { url: outPath },
                 mimetype: 'video/mp4',
@@ -3183,7 +3188,6 @@ case 'tthd': {
             try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
         } finally {
-            // RAM සහ Storage ඉතිරි කිරීමට Temp files මකා දැමීම
             await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
         }
 
@@ -3193,7 +3197,7 @@ case 'tthd': {
         try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
     }
     break;
-}           
+}
                 //tiktok photo to video converter 
 case 'ttp': {
     try {
