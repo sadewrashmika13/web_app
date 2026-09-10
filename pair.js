@@ -3146,7 +3146,88 @@ case 'tt': {
     break;
 }
 
-break;// ════════════ cuty AI ════════════
+                // ════════════ TIKTOK HD CONVERTER ════════════
+case 'tthd': {
+    try {
+        const query = args[0]; 
+        if (!query) return reply("❌ *No URL provided for HD conversion!*");
+
+        try { await socket.sendMessage(sender, { react: { text: '🔄', key: msg.key } }); } catch (_) {}
+
+        const axios = require("axios");
+        
+        reply("⏳ *Downloading Original True HD Video...*");
+
+        // 🔥 TikWM API (www.tikwm.com) 403 එන්නේ නෑ
+        const fetchTikwmData = async (url) => {
+            for (let i = 1; i <= 3; i++) {
+                try {
+                    const res = await axios.get("https://www.tikwm.com/api/", { 
+                        params: { url, hd: 1 }, 
+                        headers: { "User-Agent": "Mozilla/5.0" }
+                    });
+                    if (res.data?.code === 0) return res.data;
+                } catch (e) { 
+                    if (i < 3) await new Promise(r => setTimeout(r, 2000)); 
+                }
+            }
+            throw new Error("API Blocked");
+        };
+
+        let targetUrl = "";
+        try {
+            const result = await fetchTikwmData(query);
+            targetUrl = result.data.hdplay || result.data.play;
+            if (!targetUrl.startsWith('http')) {
+                targetUrl = `https://www.tikwm.com${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
+            }
+        } catch (err) {
+            return reply("❌ *Error: TikWM සර්වර් එකෙන් මේ වෙලාවේ රික්වෙස්ට් එක ප්‍රතික්ෂේප කළා.*");
+        }
+
+        if (!targetUrl) return reply("❌ *Error: Video link not found!*");
+
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+
+        const tempVideoPath = path.join(os.tmpdir(), `tiktok_true_hd_${Date.now()}.mp4`);
+
+        // 🔥 FFmpeg නැතුව කෙලින්ම Original HD File එක Download කරනවා (එතකොට Quality අඩු වෙන්නේ නෑ!)
+        const responseStream = await axios({
+            method: 'GET',
+            url: targetUrl,
+            responseType: 'stream',
+            headers: { "User-Agent": "Mozilla/5.0" }
+        });
+
+        const writer = fs.createWriteStream(tempVideoPath);
+        responseStream.data.pipe(writer);
+
+        await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+
+        try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
+        
+        await socket.sendMessage(sender, {
+            video: fs.readFileSync(tempVideoPath),
+            caption: `*SADEW-MINI HD DOWNLOADER*\n\n> ✅ Original True HD Video\n\n*© SADEW-MINI*`
+        }, { quoted: msg });
+
+        try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
+        
+        if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath);
+
+    } catch (e) {
+        console.error(e);
+        reply("❌ *An error occurred in HD Downloader!*");
+    }
+}
+break;
+
+// ════════════ cuty AI ════════════
 
 case 'ai':
 case 'cuty': {
