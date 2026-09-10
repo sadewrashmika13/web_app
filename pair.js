@@ -3025,7 +3025,10 @@ case 'tt': {
         const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
         const response = await axios.get(apiUrl, { 
             httpsAgent, 
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            // 403 Error එක එන්නේ නැති වෙන්න Full Browser User-Agent එකක් දැම්මා 👇
+            headers: { 
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36" 
+            },
             timeout: 15000 
         });
         const data = response.data;
@@ -3034,7 +3037,7 @@ case 'tt': {
             return reply("❌ *I cant get video !*");
         }
 
-        // ⚡ ඔයා දීපු විදියටම HD ලින්ක් එක ගන්නවා! (Blur වෙන්නේ නැති වෙන්න)
+        // ⚡ HD ලින්ක් එක ගන්නවා (Blur වෙන්නේ නෑ)
         let videoUrl = data.data.hdplay || data.data.play;
         if (!videoUrl) throw new Error("No video URL found.");
 
@@ -3043,24 +3046,17 @@ case 'tt': {
         }
 
         const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
-        const title = data.data.title || "TikTok Video";
-        // Button එකට දාන්න TikTok එකේ Thumbnail Photo එක ගන්නවා
         const coverUrl = data.data.cover || "https://i.imgur.com/B10J784.jpeg"; 
+        
+        // 🌟 ඔයා ඉල්ලපු අලුත් Details ටික
+        const channelName = data.data.author && data.data.author.nickname ? data.data.author.nickname : "Unknown Channel";
+        const title = data.data.title || "TikTok Video";
+        const views = data.data.play_count || 0;
+        const likes = data.data.digg_count || 0;
 
-        // File Size
+        // File Size එක ගන්නවා (axios.head එකෙන් 403 එන නිසා කෙලින්ම API එකෙන් ගන්නවා)
         let fileSizeMB = 'Unknown';
         let fileSizeBytes = data.data.hd_size || data.data.size || 0;
-
-        if (!fileSizeBytes) {
-            try {
-                const headRes = await axios.head(videoUrl, {
-                    httpsAgent,
-                    headers: { 'User-Agent': 'Mozilla/5.0' },
-                    timeout: 10000
-                });
-                fileSizeBytes = parseInt(headRes.headers['content-length'] || '0', 10);
-            } catch (_) {}
-        }
 
         if (fileSizeBytes) {
             fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
@@ -3074,18 +3070,21 @@ case 'tt': {
             slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
         } catch (_) {}
 
+        // අලුත් Caption එක (Akira අයින් කරලා Sadew-Mini දැම්මා, Channel/Views/Likes දැම්මා)
         const caption = `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ 𝗧𝗶𝗸𝗧𝗼𝗸 ] ¡! ❞*\n\n` +
+                        `👤 *CHANNEL :* ${channelName}\n` +
                         `🎬 *TITLE :* ${title}\n` +
                         `✨ *QUALITY :* ${isHD}\n` +
                         `⚖️ *SIZE :* ${fileSizeMB} MB\n` +
-                        `🚫 *WATERMARK :* No\n` +
+                        `👁️ *VIEWS :* ${views}\n` +
+                        `❤️ *LIKES :* ${likes}\n` +
                         `__________________________\n\n` +
                         `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
                         `> 👑 *SADEW-MINI* 👑`;
 
         try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
 
-        // 1. වීඩියෝ එක යවනවා (ඔයාගේ Original Code එක විදියටම)
+        // 1. වීඩියෝ එක යවනවා
         await socket.sendMessage(sender, {
             video: { url: videoUrl },
             mimetype: 'video/mp4',
@@ -3095,12 +3094,12 @@ case 'tt': {
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
-        // 2. Button Message එක යවනවා (Cinesubz වල වගේ Image එකක් එක්ක - HeaderType: 4)
+        // 2. Button Message එක යවනවා (Cinesubz වගේ Image එකක් එක්ක)
         try {
             const buttonMessage = {
                 image: { url: coverUrl },
-                caption: `*SADEW X MINI HD DOWNLOADER*\n\n> 🎬 සමහර වීඩියෝ වලට WhatsApp එකෙන් HD Badge එක දෙන්නේ නෑ. ඒ වගේ වෙලාවට මේ වීඩියෝ එක True HD (HD Badge එකත් එක්කම) ගන්න පහළ Button එක ඔබන්න 👇`,
-                footer: "© Akira Sadew",
+                caption: `*SADEW-MINI HD DOWNLOADER*\n\n> 🎬 සමහර වීඩියෝ වලට WhatsApp එකෙන් HD Badge එක දෙන්නේ නෑ. ඒ වගේ වෙලාවට මේ වීඩියෝ එක True HD (HD Badge එකත් එක්කම) ගන්න පහළ Button එක ඔබන්න 👇`,
+                footer: "© SADEW-MINI",
                 buttons: [
                     { buttonId: `.tthd ${videoUrl}`, buttonText: { displayText: '🎬 DOWNLOAD HD' }, type: 1 }
                 ],
@@ -3109,12 +3108,11 @@ case 'tt': {
             await socket.sendMessage(sender, buttonMessage, { quoted: msg });
         } catch (btnErr) {
             console.log("Button Send Error:", btnErr);
-            reply("⚠️ *Button Message Error:* " + btnErr.message);
         }
 
     } catch (e) {
         console.log("TIKTOK CMD ERROR:", e);
-        // මෙතනින් හරියටම Error එක මොකක්ද කියලා පේන්න හැදුවා!
+        // Error message එක
         let errorMsg = e.message && e.message.includes("timeout")
             ? "❌ *Timeout:* Server took too long."
             : `❌ *Error:* ${e.message}`; 
@@ -3157,7 +3155,7 @@ case 'tthd': {
                 
                 await socket.sendMessage(sender, {
                     video: fs.readFileSync(outputPath),
-                    caption: `*SADEW X MINI HD DOWNLOADER*\n\n> ✅ WhatsApp True HD Format\n\n*© Akira Sadew*`
+                    caption: `*SADEW-MINI HD DOWNLOADER*\n\n> ✅ WhatsApp True HD Format\n\n*© SADEW-MINI*`
                 }, { quoted: msg });
 
                 try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
