@@ -3134,17 +3134,19 @@ case 'tthd': {
 
         try { await socket.sendMessage(sender, { react: { text: '🔄', key: msg.key } }); } catch (_) {}
 
-        const axios = require('axios');
-        // ⚡ TikWM POST ක්‍රමය
-        const apiUrl = `https://tikwm.com/api/`;
+        const axios = require("axios");
+        const https = require("https");
+        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+        // ⚡ ඔයා කලින් පාවිච්චි කරපු TikWM API එකම ආයෙත් දැම්මා! (Zanta අයින් කළා)
+        const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
         let targetUrl = "";
 
         try {
-            const response = await axios.post(apiUrl, `url=${encodeURIComponent(query)}&count=12&cursor=0&web=1&hd=1`, { 
+            const response = await axios.get(apiUrl, { 
+                httpsAgent, 
                 headers: { 
-                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-                    "Accept": "application/json, text/javascript, */*; q=0.01"
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36" 
                 },
                 timeout: 15000 
             });
@@ -3158,14 +3160,8 @@ case 'tthd': {
                 throw new Error("TikWM API Invalid");
             }
         } catch (tikwmErr) {
-            console.log("TikWM API 403 Blocked in TTHD! Switching to Zanta API...");
-            const zantaUrl = `https://api.zanta-mini.store/api/tiktok?apiKey=zan_FIAO7Ayh_eo1vllkep6&url=${encodeURIComponent(query)}`;
-            const zantaRes = await axios.get(zantaUrl, { timeout: 15000 });
-            if (zantaRes.data && zantaRes.data.result) {
-                targetUrl = zantaRes.data.result.links?.no_watermark || zantaRes.data.result.links?.watermark;
-            } else {
-                return reply("❌ *Error: වීඩියෝව ලබාගැනීමට නොහැක! API සේවාදායකයන් කාර්යබහුලයි.*");
-            }
+            console.error(tikwmErr);
+            return reply("❌ *Error: TikWM API එකෙන් දත්ත ලබාගත නොහැක!*");
         }
 
         if (!targetUrl) return reply("❌ *Error: Video link not found!*");
@@ -3181,15 +3177,17 @@ case 'tthd': {
         const inputPath = path.join(os.tmpdir(), `tiktok_in_${Date.now()}.mp4`);
         const outputPath = path.join(os.tmpdir(), `tiktok_out_${Date.now()}.mp4`);
 
-        reply("⏳ *Downloading Video for HD Conversion...*");
+        reply("⏳ *Downloading True HD Video...*");
 
-        // 🔥 FFmpeg එක Block වෙන එක නවත්වන්න මුලින්ම Download කරගන්නවා
+        // 🔥 FFmpeg එක Block වෙන එක නවත්වන්න මුලින්ම Axios වලින් Download කරගන්නවා (දැන් 403 එන්නේ නෑ)
         const responseStream = await axios({
             method: 'GET',
             url: targetUrl,
             responseType: 'stream',
+            httpsAgent, 
             headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+                "Referer": "https://tikwm.com/"
             }
         });
 
