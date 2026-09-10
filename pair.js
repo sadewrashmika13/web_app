@@ -3025,50 +3025,93 @@ case 'tt': {
         const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
         const response = await axios.get(apiUrl, { 
             httpsAgent, 
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Accept": "application/json"
-            }
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            timeout: 15000 
         });
+        const data = response.data;
 
-        if (!response.data || response.data.code !== 0) {
-            return reply("❌ *I can't get video link !*");
+        if (!data || !data.data) {
+            return reply("❌ *I cant get video !*");
         }
 
-        const videoData = response.data.data;
-        const normalSpeedUrl = videoData.play;
-        
-        // සමහර වෙලාවට hdplay නැති නිසා, නැත්නම් සාමාන්‍ය play url එක ගන්නවා
-        const hdVideoUrl = videoData.hdplay || videoData.play;
+        // ⚡ ඔයා දීපු විදියටම HD ලින්ක් එක ගන්නවා! (Blur වෙන්නේ නැති වෙන්න)
+        let videoUrl = data.data.hdplay || data.data.play;
+        if (!videoUrl) throw new Error("No video URL found.");
+
+        if (!videoUrl.startsWith('http')) {
+            videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
+        }
+
+        const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
+        const title = data.data.title || "TikTok Video";
+        const coverUrl = data.data.cover; // 👈 Button එකට දාන්න TikTok එකේ Thumbnail Photo එක ගන්නවා
+
+        // File Size
+        let fileSizeMB = 'Unknown';
+        let fileSizeBytes = data.data.hd_size || data.data.size || 0;
+
+        if (!fileSizeBytes) {
+            try {
+                const headRes = await axios.head(videoUrl, {
+                    httpsAgent,
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                    timeout: 10000
+                });
+                fileSizeBytes = parseInt(headRes.headers['content-length'] || '0', 10);
+            } catch (_) {}
+        }
+
+        if (fileSizeBytes) {
+            fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+        }
+
+        const slDate = moment().tz('Asia/Colombo').format('YYYY-MM-DD');
+        const slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
+
+        const caption = `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ 𝗧𝗶𝗸𝗧𝗼𝗸 ] ¡! ❞*\n\n` +
+                        `🎬 *TITLE :* ${title}\n` +
+                        `✨ *QUALITY :* ${isHD}\n` +
+                        `⚖️ *SIZE :* ${fileSizeMB} MB\n` +
+                        `🚫 *WATERMARK :* No\n` +
+                        `__________________________\n\n` +
+                        `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
+                        `> 👑 *SADEW-MINI* 👑`;
 
         try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
 
-        // 1. මුලින්ම Normal Quality Video එක යවනවා
+        // 1. වීඩියෝ එක යවනවා (ඔයාගේ Original Code එක විදියටම)
         await socket.sendMessage(sender, {
-            video: { url: normalSpeedUrl },
-            caption: `*🎬 TIKTOK DOWNLOADER*\n\n*📝 Title:* ${videoData.title || 'No Title'}\n\n*© Akira Sadew*`
+            video: { url: videoUrl },
+            mimetype: 'video/mp4',
+            caption: caption,
+            fileName: `TikTok_HD_${Date.now()}.mp4`
         }, { quoted: msg });
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
-        // 2. ඊට පස්සේ අනිවාර්යයෙන්ම Text Message එක යවනවා (ඔයා කියපු නමත් එක්ක)
+        // 2. Button Message එක යවනවා (Cinesubz වල වගේ Image එකක් එක්ක - HeaderType: 4)
         const buttonMessage = {
-            text: `*SADEW X MINI HD DOWNLOADER*\n\nඔයාට මේ Video එක True HD Quality එකෙන් ඕනෙ නම් පහළ තියෙන Button එක click කරන්න! 👇\n\n*© Akira Sadew*`,
-            footer: "Akira Sadew",
+            image: { url: coverUrl }, // Cinesubz වගේ Image එකක් දැම්මා Button එක අනිවාර්යයෙන්ම පේන්න!
+            caption: `*SADEW X MINI HD DOWNLOADER*\n\n> 🎬 සමහර වීඩියෝ වලට WhatsApp එකෙන් HD Badge එක දෙන්නේ නෑ. ඒ වගේ වෙලාවට මේ වීඩියෝ එක True HD (HD Badge එකත් එක්කම) ගන්න පහළ Button එක ඔබන්න 👇`,
+            footer: "© Akira Sadew",
             buttons: [
-                { buttonId: `.tthd ${hdVideoUrl}`, buttonText: { displayText: '🎬 DOWNLOAD HD' }, type: 1 }
+                { buttonId: `.tthd ${videoUrl}`, buttonText: { displayText: '🎬 DOWNLOAD HD' }, type: 1 }
             ],
-            headerType: 1 // Text message + Button
+            headerType: 4 // Cinesubz වල පාවිච්චි කරන හරියටම වැඩ කරන Type 4
         };
         
         await socket.sendMessage(sender, buttonMessage, { quoted: msg });
 
     } catch (e) {
-        console.error(e);
-        reply("❌ *Error fetching TikTok video!*");
+        console.log("TIKTOK CMD ERROR:", e);
+        let errorMsg = e.message && e.message.includes("timeout")
+            ? "❌ *Timeout:* Server took too long."
+            : "❌ *Video එක ලබාගත නොහැකි විය.*";
+        reply(errorMsg);
+        try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
     }
+    break;
 }
-break;
 
 // ════════════ TIKTOK HD CONVERTER ════════════
 case 'tthd': {
