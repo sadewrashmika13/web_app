@@ -3004,7 +3004,7 @@ case 'facebook': {
     }
     break;
 }
-// ════════════ TIKTOK (HD DOWNLOADER) ════════════
+// ════════════ TIKTOK (FULL HD DOWNLOADER) ════════════
 
 case 'tiktok':
 case 'tt': {
@@ -3022,69 +3022,70 @@ case 'tt': {
         const https = require("https");
         const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-        // TikWM API එක භාවිතා කිරීම
-        const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}`;
-        const response = await axios.get(apiUrl, { httpsAgent, timeout: 15000 });
+        // ⚡ FIX: මෙතන &hd=1 අනිවාර්යයෙන්ම තියෙන්න ඕනේ TikWM එකෙන් HD එක එවන්න!
+        const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
+        const response = await axios.get(apiUrl, { 
+            httpsAgent, 
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+            timeout: 15000 
+        });
         const data = response.data;
 
         if (!data || !data.data) {
             return reply("❌ *I cant get video !*");
         }
 
-        // ⚡ HD තිබුණොත් ඒක ගන්නවා, නැත්නම් Normal එක ගන්නවා
-        const videoUrl = data.data.hdplay || data.data.play;
+        // ⚡ HD ලින්ක් එක තිබුණොත් අනිවාර්යයෙන්ම HD එක ගන්නවා
+        let videoUrl = data.data.hdplay || data.data.play;
         if (!videoUrl) throw new Error("No video URL found.");
 
-        const isHD = data.data.hdplay ? "High Quality (HD) ✅" : "Normal Quality ⚠️";
+        // TikWM relative link එකක් ආවොත් Full URL එක හදනවා
+        if (!videoUrl.startsWith('http')) {
+            videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
+        }
+
+        const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
         const title = data.data.title || "TikTok Video";
 
-        // 🔧 RAM FIX: video එකම buffer එකකට download කරන එක අයින් කළා. size එක
-        // දැනගන්න HEAD request එකක් විතරයි යවන්නේ (KB ගානක් විතරයි, video එකම නෙමෙයි).
+        // File Size එක හරියටම ගන්නවා
         let fileSizeMB = 'Unknown';
-        let fileSizeBytes = 0;
-        try {
-            const headRes = await axios.head(videoUrl, {
-                httpsAgent,
-                headers: { 'User-Agent': 'Mozilla/5.0' },
-                timeout: 10000
-            });
-            fileSizeBytes = parseInt(headRes.headers['content-length'] || '0', 10);
-            if (fileSizeBytes) fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
-        } catch (_) {
-            // සමහර CDN වලට HEAD support නෑ — size එක Unknown වෙන්නම් , video එකක් විදිහටම යවනවා
+        let fileSizeBytes = data.data.hd_size || data.data.size || 0;
+
+        if (!fileSizeBytes) {
+            try {
+                const headRes = await axios.head(videoUrl, {
+                    httpsAgent,
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                    timeout: 10000
+                });
+                fileSizeBytes = parseInt(headRes.headers['content-length'] || '0', 10);
+            } catch (_) {}
+        }
+
+        if (fileSizeBytes) {
+            fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
         }
 
         const slDate = moment().tz('Asia/Colombo').format('YYYY-MM-DD');
         const slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
 
-        // Akira Girl ලස්සන Caption එක
-        const caption = `*↳ ❝ [  ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ 𝗧𝗶𝗸𝗧𝗼𝗸 ] ¡! ❞*\n\n` +
+        const caption = `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ 𝗧𝗶𝗸𝗧𝗼𝗸 ] ¡! ❞*\n\n` +
                         `🎬 *TITLE :* ${title}\n` +
                         `✨ *QUALITY :* ${isHD}\n` +
                         `⚖️ *SIZE :* ${fileSizeMB} MB\n` +
                         `🚫 *WATERMARK :* No\n` +
                         `__________________________\n\n` +
                         `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
-                        `>𝗕y 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮��' 𝜗𝜚⋆`;
+                        `> 👑 *SADEW-MINI* 👑`;
 
-        // 🔧 RAM FIX: { url: videoUrl } — Baileys/WhatsApp එකම URL එකෙන් fetch කරගන්නවා.
-        // 40MB වලට වඩා වැඩි නම් document එකක් විදිහට, නැත්නම් video එකක් විදිහට —
-        // දෙකෙන් කිසිවකටවත් video buffer එකක් අපේ RAM එකේ load වෙන්නේ නෑ.
-        if (fileSizeBytes > 40 * 1024 * 1024) {
-            await socket.sendMessage(sender, {
-                document: { url: videoUrl },
-                mimetype: "video/mp4",
-                fileName: `tiktok_HD_${slTimeNow}.mp4`,
-                caption: caption
-            }, { quoted: msg });
-        } else {
-            await socket.sendMessage(sender, {
-                video: { url: videoUrl },
-                mimetype: 'video/mp4',
-                caption: caption,
-                fileName: `tiktok_HD_${slTimeNow}.mp4`
-            }, { quoted: msg });
-        }
+        // 🔧 RAM & Quality Safe Streaming:
+        // WhatsApp compression එකෙන් බේරෙන්න සහ Original HD Quality යවන්න
+        await socket.sendMessage(sender, {
+            video: { url: videoUrl },
+            mimetype: 'video/mp4',
+            caption: caption,
+            fileName: `TikTok_HD_${Date.now()}.mp4`
+        }, { quoted: msg });
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
@@ -3092,7 +3093,7 @@ case 'tt': {
         console.log("TIKTOK CMD ERROR:", e);
         let errorMsg = e.message.includes("timeout")
             ? "❌ *Timeout:* Server took too long."
-            : "❌ *Known Error*";
+            : "❌ *Video එක ලබාගත නොහැකි විය.*";
         reply(errorMsg);
         try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
     }
