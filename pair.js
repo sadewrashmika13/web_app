@@ -3044,7 +3044,8 @@ case 'tt': {
 
         const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
         const title = data.data.title || "TikTok Video";
-        const coverUrl = data.data.cover; // 👈 Button එකට දාන්න TikTok එකේ Thumbnail Photo එක ගන්නවා
+        // Button එකට දාන්න TikTok එකේ Thumbnail Photo එක ගන්නවා
+        const coverUrl = data.data.cover || "https://i.imgur.com/B10J784.jpeg"; 
 
         // File Size
         let fileSizeMB = 'Unknown';
@@ -3065,8 +3066,13 @@ case 'tt': {
             fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
         }
 
-        const slDate = moment().tz('Asia/Colombo').format('YYYY-MM-DD');
-        const slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
+        let slDate = 'Unknown';
+        let slTimeNow = 'Unknown';
+        try {
+            const moment = require('moment-timezone');
+            slDate = moment().tz('Asia/Colombo').format('YYYY-MM-DD');
+            slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
+        } catch (_) {}
 
         const caption = `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ 𝗧𝗶𝗸𝗧𝗼𝗸 ] ¡! ❞*\n\n` +
                         `🎬 *TITLE :* ${title}\n` +
@@ -3090,23 +3096,28 @@ case 'tt': {
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
         // 2. Button Message එක යවනවා (Cinesubz වල වගේ Image එකක් එක්ක - HeaderType: 4)
-        const buttonMessage = {
-            image: { url: coverUrl }, // Cinesubz වගේ Image එකක් දැම්මා Button එක අනිවාර්යයෙන්ම පේන්න!
-            caption: `*SADEW X MINI HD DOWNLOADER*\n\n> 🎬 සමහර වීඩියෝ වලට WhatsApp එකෙන් HD Badge එක දෙන්නේ නෑ. ඒ වගේ වෙලාවට මේ වීඩියෝ එක True HD (HD Badge එකත් එක්කම) ගන්න පහළ Button එක ඔබන්න 👇`,
-            footer: "© Akira Sadew",
-            buttons: [
-                { buttonId: `.tthd ${videoUrl}`, buttonText: { displayText: '🎬 DOWNLOAD HD' }, type: 1 }
-            ],
-            headerType: 4 // Cinesubz වල පාවිච්චි කරන හරියටම වැඩ කරන Type 4
-        };
-        
-        await socket.sendMessage(sender, buttonMessage, { quoted: msg });
+        try {
+            const buttonMessage = {
+                image: { url: coverUrl },
+                caption: `*SADEW X MINI HD DOWNLOADER*\n\n> 🎬 සමහර වීඩියෝ වලට WhatsApp එකෙන් HD Badge එක දෙන්නේ නෑ. ඒ වගේ වෙලාවට මේ වීඩියෝ එක True HD (HD Badge එකත් එක්කම) ගන්න පහළ Button එක ඔබන්න 👇`,
+                footer: "© Akira Sadew",
+                buttons: [
+                    { buttonId: `.tthd ${videoUrl}`, buttonText: { displayText: '🎬 DOWNLOAD HD' }, type: 1 }
+                ],
+                headerType: 4
+            };
+            await socket.sendMessage(sender, buttonMessage, { quoted: msg });
+        } catch (btnErr) {
+            console.log("Button Send Error:", btnErr);
+            reply("⚠️ *Button Message Error:* " + btnErr.message);
+        }
 
     } catch (e) {
         console.log("TIKTOK CMD ERROR:", e);
+        // මෙතනින් හරියටම Error එක මොකක්ද කියලා පේන්න හැදුවා!
         let errorMsg = e.message && e.message.includes("timeout")
             ? "❌ *Timeout:* Server took too long."
-            : "❌ *Video එක ලබාගත නොහැකි විය.*";
+            : `❌ *Error:* ${e.message}`; 
         reply(errorMsg);
         try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
     }
