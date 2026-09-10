@@ -3122,13 +3122,151 @@ case 'tt': {
     break;
 }
 
+// ════════════ TIKTOK (FULL HD DOWNLOADER) ════════════
+
+case 'tiktok':
+case 'tt': {
+    try {
+        const query = args[0]; // Button එකට දාන්න ලේසි වෙන්න මුල් ලින්ක් එක විතරක් ගන්නවා
+        if (!query) return reply("🔗 *Send me a tiktok link !*");
+
+        const tiktokRegex = /(tiktok\.com|vt\.tiktok\.com)/;
+        if (!tiktokRegex.test(query)) {
+            return reply("❌ *This is not valid tiktok link !*");
+        }
+
+        try { await socket.sendMessage(sender, { react: { text: '📥', key: msg.key } }); } catch (_) {}
+
+        const https = require("https");
+        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+        const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
+        const response = await axios.get(apiUrl, { 
+            httpsAgent, 
+            headers: { 
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36" 
+            },
+            timeout: 15000 
+        });
+        const data = response.data;
+
+        if (!data || !data.data) {
+            return reply("❌ *I cant get video !*");
+        }
+
+        // HD ලින්ක් එක ගන්නවා 
+        let videoUrl = data.data.hdplay || data.data.play;
+        if (!videoUrl) throw new Error("No video URL found.");
+
+        if (!videoUrl.startsWith('http')) {
+            videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
+        }
+
+        const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
+        const coverUrl = data.data.cover || "https://i.imgur.com/B10J784.jpeg"; 
+        
+        // අලුත් Details ටික
+        const channelName = data.data.author && data.data.author.nickname ? data.data.author.nickname : "Unknown Channel";
+        const title = data.data.title || "TikTok Video";
+        const views = data.data.play_count || 0;
+        const likes = data.data.digg_count || 0;
+
+        let fileSizeMB = 'Unknown';
+        let fileSizeBytes = data.data.hd_size || data.data.size || 0;
+        if (fileSizeBytes) {
+            fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+        }
+
+        let slDate = 'Unknown';
+        let slTimeNow = 'Unknown';
+        try {
+            const moment = require('moment-timezone');
+            slDate = moment().tz('Asia/Colombo').format('YYYY-MM-DD');
+            slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
+        } catch (_) {}
+
+        const caption = `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ 𝗧𝗶𝗸𝗧𝗼𝗸 ] ¡! ❞*\n\n` +
+                        `👤 *CHANNEL :* ${channelName}\n` +
+                        `🎬 *TITLE :* ${title}\n` +
+                        `✨ *QUALITY :* ${isHD}\n` +
+                        `⚖️ *SIZE :* ${fileSizeMB} MB\n` +
+                        `👁️ *VIEWS :* ${views}\n` +
+                        `❤️ *LIKES :* ${likes}\n` +
+                        `__________________________\n\n` +
+                        `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
+                        `> 👑 *SADEW-MINI* 👑`;
+
+        try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
+
+        // 1. වීඩියෝ එක යවනවා
+        await socket.sendMessage(sender, {
+            video: { url: videoUrl },
+            mimetype: 'video/mp4',
+            caption: caption,
+            fileName: `TikTok_HD_${Date.now()}.mp4`
+        }, { quoted: msg });
+
+        try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
+
+        // 2. Button Message එක යවනවා
+        try {
+            const buttonMessage = {
+                image: { url: coverUrl },
+                caption: `*SADEW-MINI HD DOWNLOADER*\n\n> 🎬 සමහර වීඩියෝ වලට WhatsApp එකෙන් HD Badge එක දෙන්නේ නෑ. ඒ වගේ වෙලාවට මේ වීඩියෝ එක True HD (HD Badge එකත් එක්කම) ගන්න පහළ Button එක ඔබන්න 👇`,
+                footer: "© SADEW-MINI",
+                buttons: [
+                    // 👇 මෙතන දැන් යවන්නේ අර පොඩි TikTok ලින්ක් එක! (අකුරු 256 පනින්නේ නෑ)
+                    { buttonId: `.tthd ${query}`, buttonText: { displayText: '🎬 DOWNLOAD HD' }, type: 1 }
+                ],
+                headerType: 4
+            };
+            await socket.sendMessage(sender, buttonMessage, { quoted: msg });
+        } catch (btnErr) {
+            console.log("Button Send Error:", btnErr);
+            reply("⚠️ *Button Message Error:* " + btnErr.message);
+        }
+
+    } catch (e) {
+        console.log("TIKTOK CMD ERROR:", e);
+        let errorMsg = e.message && e.message.includes("timeout")
+            ? "❌ *Timeout:* Server took too long."
+            : `❌ *Error:* ${e.message}`; 
+        reply(errorMsg);
+        try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
+    }
+    break;
+}
+
 // ════════════ TIKTOK HD CONVERTER ════════════
 case 'tthd': {
     try {
-        const targetUrl = args.join(' ');
-        if (!targetUrl) return reply("❌ *No URL provided for HD conversion!*");
+        const query = args[0]; // Button එකෙන් එන TikTok ලින්ක් එක ගන්නවා
+        if (!query) return reply("❌ *No URL provided for HD conversion!*");
 
         try { await socket.sendMessage(sender, { react: { text: '🔄', key: msg.key } }); } catch (_) {}
+
+        // ⚡ ආයේ ලින්ක් එක අරගෙන Convert කරනවා
+        const https = require("https");
+        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+        const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
+        const response = await axios.get(apiUrl, { 
+            httpsAgent, 
+            headers: { 
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36" 
+            },
+            timeout: 15000 
+        });
+        
+        const data = response.data;
+        if (!data || !data.data) {
+            return reply("❌ *I cant get video!*");
+        }
+
+        let targetUrl = data.data.hdplay || data.data.play;
+        if (!targetUrl.startsWith('http')) {
+            targetUrl = `https://tikwm.com${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
+        }
 
         const os = require('os');
         const path = require('path');
@@ -3140,7 +3278,7 @@ case 'tthd': {
 
         const outputPath = path.join(os.tmpdir(), `tiktok_hd_${Date.now()}.mp4`);
 
-        reply("⏳ *Converting to WhatsApp HD Format... Please wait!*");
+        reply("⏳ *Converting to WhatsApp True HD Format... Please wait!*");
 
         ffmpeg(targetUrl)
             .outputOptions([
@@ -3172,227 +3310,10 @@ case 'tthd': {
 
     } catch (e) {
         console.error(e);
-        reply("❌ *An error occurred!*");
+        reply("❌ *An error occurred in HD Converter!*");
     }
 }
-break;
-                //tiktok photo to video converter 
-case 'ttp': {
-    try {
-        const axios = require("axios");
-        const fs = require("fs/promises");
-        const path = require("path");
-        const os = require("os");
-        const { spawn } = require("child_process");
-        const moment = require('moment-timezone');
-
-        const ffmpegPath = require('ffmpeg-static'); 
-
-        let query = args.join(' ');
-        if (!query && msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.conversation) {
-            query = msg.message.extendedTextMessage.contextInfo.quotedMessage.conversation;
-        } else if (!query && msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.extendedTextMessage?.text) {
-            query = msg.message.extendedTextMessage.contextInfo.quotedMessage.extendedTextMessage.text;
-        }
-
-        const extractUrl = (text) => {
-            const match = String(text || "").match(/https?:\/\/[^\s]+/i);
-            return match ? match[0].replace(/[),.]+$/, "") : "";
-        };
-
-        const tiktokUrl = extractUrl(query);
-        const quality = /\b(normal|sd|720)\b/i.test(query) ? "normal" : "hd";
-
-        if (!tiktokUrl) return reply("🎥 *කරුණාකර TikTok Photo Slideshow ලින්ක් එකක් දෙන්න!*");
-        if (!/tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com/i.test(tiktokUrl)) {
-            return reply("❌ *මෙය නිවැරදි TikTok ලින්ක් එකක් නොවේ!*");
-        }
-
-        try { await socket.sendMessage(sender, { react: { text: '📥', key: msg.key } }); } catch (_) {}
-        reply("📥 _TikTok Photo Video එක සකසමින් පවතී... කරුණාකර රැඳී සිටින්න. ⏳_");
-
-        const TIKWM_API = "https://www.tikwm.com/api/";
-        const MAX_IMAGES = 30;
-        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-        const buildTikwmUrl = (url) => (!url ? "" : /^https?:\/\//i.test(url) ? url : `https://www.tikwm.com${url.startsWith("/") ? "" : "/"}${url}`);
-
-        const fetchTikwmData = async (url) => {
-            for (let i = 1; i <= 3; i++) {
-                try {
-                    const res = await axios.get(TIKWM_API, { params: { url, hd: 1 }, headers: { "User-Agent": "Mozilla/5.0" }});
-                    if (res.data?.code === 0) return res.data;
-                } catch (e) { if (i < 3) await sleep(2000); }
-            }
-            throw new Error("TikTok API එකෙන් දත්ත ලබාගැනීමට නොහැකි විය.");
-        };
-
-        const pickImages = (data) => {
-            const root = data?.data || {};
-            const lists = [root.images, root.image_post?.images];
-            const set = new Set();
-            for (const list of lists) {
-                if (Array.isArray(list)) list.forEach(img => {
-                    if (typeof img === 'string') set.add(buildTikwmUrl(img));
-                    else if (img?.url || img?.display_image) set.add(buildTikwmUrl(img.url || img.display_image));
-                });
-            }
-            return [...set].slice(0, MAX_IMAGES);
-        };
-
-        // 🔥 Audio extension bug එක fix කළා
-        const downloadBuffer = async (url, isAudio = false) => {
-            const res = await axios.get(url, { responseType: "arraybuffer", headers: { "User-Agent": "Mozilla/5.0" } });
-            return { buffer: Buffer.from(res.data), type: isAudio ? ".mp3" : ".jpg" };
-        };
-
-        const getAudioDuration = (audioPath) => {
-            return new Promise((resolve) => {
-                const child = spawn(ffmpegPath, ["-i", audioPath]);
-                let output = "";
-                child.stderr.on("data", d => output += d);
-                child.on("close", () => {
-                    const match = output.match(/Duration: (\d{2}):(\d{2}):(\d{2}\.\d+)/);
-                    if (match) {
-                        const hours = parseInt(match[1], 10);
-                        const minutes = parseInt(match[2], 10);
-                        const seconds = parseFloat(match[3]);
-                        resolve((hours * 3600) + (minutes * 60) + seconds);
-                    } else {
-                        resolve(15); 
-                    }
-                });
-                child.on("error", () => resolve(15));
-            });
-        };
-
-        const runCommand = (cmd, args) => {
-            return new Promise((resolve, reject) => {
-                const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
-                let out = ""; child.stdout.on("data", d => out += d);
-                let err = ""; child.stderr.on("data", d => err += d);
-
-                const timer = setTimeout(() => {
-                    child.kill('SIGKILL');
-                    reject(new Error("FFmpeg Process Timeout! වින්ඩෝ එක හිරවිය."));
-                }, 180000);
-
-                child.on("close", code => {
-                    clearTimeout(timer);
-                    // 🔥 Error ආවොත් මුළු ලොග් එකම නොදා අන්තිම ටික විතරක් ගන්නවා
-                    code === 0 ? resolve(out) : reject(new Error(`FFmpeg Failed: ${err.slice(-500)}`));
-                });
-                child.on("error", (e) => {
-                    clearTimeout(timer);
-                    reject(new Error(`FFmpeg error: ${e.message}`));
-                });
-            });
-        };
-
-        const createVideo = async (imagePaths, audioPath, outPath, qlty) => {
-            const profile = qlty === "hd" ? { w: 720, h: 1280 } : { w: 720, h: 1280 };
-            const scaleFilter = `scale=${profile.w}:${profile.h}:force_original_aspect_ratio=decrease,pad=${profile.w}:${profile.h}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p`;
-
-            const listPath = path.join(path.dirname(outPath), "images.txt");
-            let listBody = "";
-
-            if (imagePaths.length === 1) {
-                // 🔥 Single Image Fix: Loop කමාන්ඩ් එක අයින් කරලා Concat ක්රමයම පාවිච්චි කරනවා
-                listBody += `file '${imagePaths[0].replace(/\\/g, "/")}'\n`;
-                listBody += `duration 600.000\n`; 
-                listBody += `file '${imagePaths[0].replace(/\\/g, "/")}'\n`;
-            } else {
-                let audioDuration = await getAudioDuration(audioPath);
-                if (!audioDuration || audioDuration <= 0) audioDuration = 15; 
-
-                const eachDuration = audioDuration / imagePaths.length;
-                for (let i = 0; i < imagePaths.length; i++) {
-                    listBody += `file '${imagePaths[i].replace(/\\/g, "/")}'\n`;
-                    if (i === imagePaths.length - 1) {
-                        listBody += `duration 600.000\n`; 
-                    } else {
-                        listBody += `duration ${eachDuration.toFixed(3)}\n`;
-                    }
-                }
-                listBody += `file '${imagePaths[imagePaths.length - 1].replace(/\\/g, "/")}'\n`;
-            }
-
-            await fs.writeFile(listPath, listBody);
-
-            await runCommand(ffmpegPath, [
-                "-y", "-f", "concat", "-safe", "0", "-i", listPath, "-i", audioPath,
-                "-vf", scaleFilter,
-                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-                "-c:a", "aac", "-shortest", "-fflags", "+genpts", "-movflags", "+faststart", outPath
-            ]);
-            return profile;
-        };
-
-        // --- Main Execution ---
-        const result = await fetchTikwmData(tiktokUrl);
-        const images = pickImages(result);
-        const audioUrl = buildTikwmUrl(result.data?.music_info?.play || result.data?.music);
-
-        if (!images.length || !audioUrl) throw new Error("මෙය Photo Slideshow එකක් නොවේ හෝ Audio එක ලබාගත නොහැක.");
-
-        const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "sadew-ttp-"));
-        let finalVideoBuffer;
-        let videoMeta;
-
-        try {
-            const imagePaths = [];
-            for (let i = 0; i < images.length; i++) {
-                // 🔥 Photos .jpg විදිහටම ගන්නවා
-                const img = await downloadBuffer(images[i], false);
-                const p = path.join(tmpDir, `img${i}${img.type}`);
-                await fs.writeFile(p, img.buffer);
-                imagePaths.push(p);
-            }
-            // 🔥 Audio එක අනිවාර්යයෙන් .mp3 විදිහට ගන්නවා
-            const aud = await downloadBuffer(audioUrl, true);
-            const audPath = path.join(tmpDir, `aud${aud.type}`);
-            await fs.writeFile(audPath, aud.buffer);
-
-            const outPath = path.join(tmpDir, "out.mp4");
-            videoMeta = await createVideo(imagePaths, audPath, outPath, quality);
-            finalVideoBuffer = await fs.readFile(outPath);
-        } finally {
-            await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-        }
-
-        // --- Sending the Message ---
-        const slDate = moment().tz('Asia/Colombo').format('YYYY-MM-DD');
-        const slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
-        const fileSizeMB = (finalVideoBuffer.length / (1024 * 1024)).toFixed(2);
-
-        const caption = `*↳ ❝ [🎀  ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ � 🎀] ¡! ❞*\n\n` +
-                        `🎬 *TITLE :* TikTok Photo Video\n` +
-                        `📸 *IMAGES :* ${images.length}\n` +
-                        `📺 *QUALITY :* ${videoMeta.w}x${videoMeta.h}\n` +
-                        `⚖️ *SIZE :* ${fileSizeMB} MB\n` +
-                        `__________________________\n\n` +
-                        `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
-                        `> *🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮� 𝜗𝜚⋆*`;
-
-        try { await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } }); } catch (_) {}
-
-        await socket.sendMessage(sender, {
-            video: finalVideoBuffer,
-            mimetype: 'video/mp4',
-            caption: caption,
-            fileName: `Sadew_TikTok_${slTimeNow}.mp4`
-        }, { quoted: msg });
-
-        try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
-
-    } catch (e) {
-        console.log("TTP CMD ERROR:", e);
-        reply(`❌ *ERROR:* ${e.message || "Unknown error"}\n\nකරුණාකර වෙනත් ලින්ක් එකක් උත්සාහ කරන්න!`);
-        try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
-    }
-    break;
-}
-// ════════════ cuty AI ════════════
+break;// ════════════ cuty AI ════════════
 
 case 'ai':
 case 'cuty': {
