@@ -3135,33 +3135,34 @@ case 'tthd': {
         try { await socket.sendMessage(sender, { react: { text: '🔄', key: msg.key } }); } catch (_) {}
 
         const axios = require("axios");
-        const https = require("https");
-        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+        
+        reply("⏳ *Fetching HD Video Link...*");
 
-        // ⚡ ඔයා කලින් පාවිච්චි කරපු TikWM API එකම ආයෙත් දැම්මා! (Zanta අයින් කළා)
-        const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
-        let targetUrl = "";
-
-        try {
-            const response = await axios.get(apiUrl, { 
-                httpsAgent, 
-                headers: { 
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36" 
-                },
-                timeout: 15000 
-            });
-            const data = response.data;
-            if (data && data.data) {
-                targetUrl = data.data.hdplay || data.data.play;
-                if (!targetUrl.startsWith('http')) {
-                    targetUrl = `https://tikwm.com${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
+        // 🔥 ඔයාගේ ttp එකේ තියෙන විදිහටම (www.tikwm.com) දැම්මා. (403 එන්නේ නෑ!)
+        const fetchTikwmData = async (url) => {
+            for (let i = 1; i <= 3; i++) {
+                try {
+                    const res = await axios.get("https://www.tikwm.com/api/", { 
+                        params: { url, hd: 1 }, 
+                        headers: { "User-Agent": "Mozilla/5.0" }
+                    });
+                    if (res.data?.code === 0) return res.data;
+                } catch (e) { 
+                    if (i < 3) await new Promise(r => setTimeout(r, 2000)); 
                 }
-            } else {
-                throw new Error("TikWM API Invalid");
             }
-        } catch (tikwmErr) {
-            console.error(tikwmErr);
-            return reply("❌ *Error: TikWM API එකෙන් දත්ත ලබාගත නොහැක!*");
+            throw new Error("API Blocked");
+        };
+
+        let targetUrl = "";
+        try {
+            const result = await fetchTikwmData(query);
+            targetUrl = result.data.hdplay || result.data.play;
+            if (!targetUrl.startsWith('http')) {
+                targetUrl = `https://www.tikwm.com${targetUrl.startsWith('/') ? '' : '/'}${targetUrl}`;
+            }
+        } catch (err) {
+            return reply("❌ *Error: 403 Forbidden! TikWM සර්වර් එකෙන් මේ වෙලාවේ රික්වෙස්ට් එක ප්‍රතික්ෂේප කළා.*");
         }
 
         if (!targetUrl) return reply("❌ *Error: Video link not found!*");
@@ -3179,15 +3180,13 @@ case 'tthd': {
 
         reply("⏳ *Downloading True HD Video...*");
 
-        // 🔥 FFmpeg එක Block වෙන එක නවත්වන්න මුලින්ම Axios වලින් Download කරගන්නවා (දැන් 403 එන්නේ නෑ)
+        // 🔥 Download වෙද්දිත් 403 නොඑන්න ඔයාගේ ttp එකේ වගේම 'Mozilla/5.0' දානවා
         const responseStream = await axios({
             method: 'GET',
             url: targetUrl,
             responseType: 'stream',
-            httpsAgent, 
             headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-                "Referer": "https://tikwm.com/"
+                "User-Agent": "Mozilla/5.0"
             }
         });
 
