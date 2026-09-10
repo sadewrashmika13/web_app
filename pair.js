@@ -3004,98 +3004,126 @@ case 'facebook': {
     }
     break;
 }
-// ════════════ TIKTOK (FULL HD DOWNLOADER) ════════════
+// ════════════ TIKTOK (ULTRA HD DOWNLOADER) ════════════
 
 case 'tiktok':
 case 'tt': {
     try {
-        const query = args.join(' ');
+        const query = args.join(' ').trim();
         if (!query) return reply("🔗 *Send me a tiktok link !*");
 
         const tiktokRegex = /(tiktok\.com|vt\.tiktok\.com)/;
         if (!tiktokRegex.test(query)) {
-            return reply("❌ *This is not valid tiktok link !*");
+            return reply("❌ *This is not a valid TikTok link!*");
         }
 
         try { await socket.sendMessage(sender, { react: { text: '📥', key: msg.key } }); } catch (_) {}
 
-        const https = require("https");
-        const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+        // 1. Short Link එකක් නම් (vt.tiktok.com) Redirect එක හොයාගෙන Full URL එක ගැනීම
+        let finalUrl = query;
+        if (query.includes('vt.tiktok.com') || query.includes('vm.tiktok.com')) {
+            try {
+                const headRes = await axios.get(query, {
+                    maxRedirects: 5,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                    }
+                });
+                if (headRes.request?.res?.responseUrl) {
+                    finalUrl = headRes.request.res.responseUrl;
+                }
+            } catch (e) {
+                // Redirect එක fail උනොත් original link එකෙන්ම try කරයි
+            }
+        }
 
-        // ⚡ FIX: මෙතන &hd=1 අනිවාර්යයෙන්ම තියෙන්න ඕනේ TikWM එකෙන් HD එක එවන්න!
-        const apiUrl = `https://tikwm.com/api/?url=${encodeURIComponent(query)}&hd=1`;
-        const response = await axios.get(apiUrl, { 
-            httpsAgent, 
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-            timeout: 15000 
-        });
-        const data = response.data;
+        // 2. TikWM API එකට POST Request එකක් යැවීම (Cloudflare Cache Bypass කිරීමට)
+        let data = null;
+        try {
+            const res = await axios.post('https://tikwm.com/api/', 
+                new URLSearchParams({
+                    url: finalUrl,
+                    count: '12',
+                    cursor: '0',
+                    web: '1',
+                    hd: '1'
+                }).toString(),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                        'Accept': 'application/json, text/javascript, */*; q=0.01',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    timeout: 15000
+                }
+            );
+            data = res.data;
+        } catch (postErr) {
+            // POST එක fail උනොත් GET එකෙන් backup try කිරීම
+            const getRes = await axios.get(`https://tikwm.com/api/?url=${encodeURIComponent(finalUrl)}&hd=1`, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                },
+                timeout: 15000
+            });
+            data = getRes.data;
+        }
 
         if (!data || !data.data) {
-            return reply("❌ *I cant get video !*");
+            return reply("❌ *Could not fetch TikTok video! Please try again.*");
         }
 
-        // ⚡ HD ලින්ක් එක තිබුණොත් අනිවාර්යයෙන්ම HD එක ගන්නවා
-        let videoUrl = data.data.hdplay || data.data.play;
-        if (!videoUrl) throw new Error("No video URL found.");
+        // 3. HD URL එක තෝරා ගැනීම (Domain Prefix එක සමඟ)
+        let videoUrl = '';
+        let isHD = false;
 
-        // TikWM relative link එකක් ආවොත් Full URL එක හදනවා
-        if (!videoUrl.startsWith('http')) {
-            videoUrl = `https://tikwm.com${videoUrl.startsWith('/') ? '' : '/'}${videoUrl}`;
+        if (data.data.hdplay) {
+            videoUrl = data.data.hdplay;
+            isHD = true;
+        } else if (data.data.play) {
+            videoUrl = data.data.play;
+            isHD = false;
         }
 
-        const isHD = data.data.hdplay ? "Full HD Quality (1080p/720p) ✅" : "Normal Quality ⚠️";
-        const title = data.data.title || "TikTok Video";
+        if (!videoUrl) return reply("❌ *No downloadable video link found!*");
 
-        // File Size එක හරියටම ගන්නවා
-        let fileSizeMB = 'Unknown';
-        let fileSizeBytes = data.data.hd_size || data.data.size || 0;
-
-        if (!fileSizeBytes) {
-            try {
-                const headRes = await axios.head(videoUrl, {
-                    httpsAgent,
-                    headers: { 'User-Agent': 'Mozilla/5.0' },
-                    timeout: 10000
-                });
-                fileSizeBytes = parseInt(headRes.headers['content-length'] || '0', 10);
-            } catch (_) {}
+        // TikWM relative link එකක් දුන්නොත් domain එක එකතු කිරීම
+        if (videoUrl.startsWith('//')) {
+            videoUrl = 'https:' + videoUrl;
+        } else if (videoUrl.startsWith('/')) {
+            videoUrl = 'https://tikwm.com' + videoUrl;
         }
 
-        if (fileSizeBytes) {
-            fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
-        }
+        const title = data.data.title || 'TikTok Video';
+        const author = data.data.author?.nickname || 'Unknown Creator';
+        const views = data.data.play_count || 0;
+        const likes = data.data.digg_count || 0;
 
-        const slDate = moment().tz('Asia/Colombo').format('YYYY-MM-DD');
-        const slTimeNow = moment().tz('Asia/Colombo').format('HH:mm:ss');
+        const caption = `╭───────────────━⊷
+│ 乂  *TIKTOK DOWNLOADER*
+╰───────────────━⊷
 
-        const caption = `*↳ ❝ [ ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ 𝗧𝗶𝗸𝗧𝗼𝗸 ] ¡! ❞*\n\n` +
-                        `🎬 *TITLE :* ${title}\n` +
-                        `✨ *QUALITY :* ${isHD}\n` +
-                        `⚖️ *SIZE :* ${fileSizeMB} MB\n` +
-                        `🚫 *WATERMARK :* No\n` +
-                        `__________________________\n\n` +
-                        `📅 *DATE :* ${slDate} | ⌚ *TIME :* ${slTimeNow}\n\n` +
-                        `> 👑 *SADEW-MINI* 👑`;
+📝 *Title:* ${title}
+👤 *Author:* ${author}
+👁️ *Views:* ${views.toLocaleString()}
+❤️ *Likes:* ${likes.toLocaleString()}
+✨ *Quality:* ${isHD ? 'HD (High Definition) ✨' : 'Normal Quality ⚠️'}
 
-        // 🔧 RAM & Quality Safe Streaming:
-        // WhatsApp compression එකෙන් බේරෙන්න සහ Original HD Quality යවන්න
+> *POWERED BY SADEW-MINI*`;
+
+        // 4. WhatsApp එකට Send කිරීම
         await socket.sendMessage(sender, {
             video: { url: videoUrl },
-            mimetype: 'video/mp4',
             caption: caption,
-            fileName: `TikTok_HD_${Date.now()}.mp4`
+            mimetype: 'video/mp4'
         }, { quoted: msg });
 
         try { await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } }); } catch (_) {}
 
-    } catch (e) {
-        console.log("TIKTOK CMD ERROR:", e);
-        let errorMsg = e.message.includes("timeout")
-            ? "❌ *Timeout:* Server took too long."
-            : "❌ *Video එක ලබාගත නොහැකි විය.*";
-        reply(errorMsg);
-        try { await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } }); } catch (_) {}
+    } catch (error) {
+        console.error("TikTok Error:", error);
+        reply(`❌ *Error downloading video:* ${error.message || error}`);
     }
     break;
 }
