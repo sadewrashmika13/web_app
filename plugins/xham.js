@@ -1,56 +1,63 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
-// Memory Store
-if (!global.xhamStore) global.xhamStore = {};
+// Memory Store (බොත්තම් වලට දිග ලින්ක් නොදා Short ID එකක් යවන්න)
+if (!global.xvStore) global.xvStore = {};
 
 module.exports = {
-    name: "xHamster",
+    name: "xVideos",
     category: "18+",
-    description: "Search and download xHamster videos",
-    commands: ["xham", "xhamget", "xhamdl"], // 👈 Commands ටික
+    description: "Search and download xVideos",
+    commands: ["xv", "xvideo", "xvdl"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         
-        // ඔයා දුන්න API Key එක
         const API_KEY = "slk_feb4c1b4888e42998f43b746336ca25e";
 
         // ==============================================================
-        // 1. SEARCH (.xham)
+        // 1. SEARCH (.xvideo / .xv)
         // ==============================================================
-        if (command === "xham") {
+        if (command === "xvideo" || command === "xv") {
             const query = args.join(' ').trim();
-            if (!query) return reply("🔍 *කරුණාකර නමක් ලබා දෙන්න!*\n💡 උදා: `.xham new`");
+            if (!query) return reply("🔍 *කරුණාකර නමක් හෝ ලින්ක් එකක් ලබා දෙන්න!*\n💡 උදා: `.xv new`");
 
             try {
                 await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } });
                 
+                // ⚡ ලින්ක් එකක් දුන්නොත් කෙලින්ම Download Command එකට යවනවා
+                if (query.includes('xvideos.com')) {
+                    const shortId = crypto.randomBytes(3).toString('hex');
+                    global.xvStore[shortId] = { url: query, title: "XVideos Download" };
+                    
+                    const fakeMsg = JSON.parse(JSON.stringify(msg));
+                    fakeMsg.message.conversation = `.xvdl ${shortId}`;
+                    socket.ev.emit('messages.upsert', { messages: [fakeMsg], type: 'notify' });
+                    return;
+                }
+
                 // Search API Request
-                const searchUrl = `https://mizuki-md-api.netlify.app/api/search/xhamster?q=${encodeURIComponent(query)}&apiKey=${API_KEY}`;
+                const searchUrl = `https://mizuki-md-api.netlify.app/api/search/xvideo?q=${encodeURIComponent(query)}&apiKey=${API_KEY}`;
                 const res = await axios.get(searchUrl, { timeout: 15000 });
                 
                 const items = res.data?.data || [];
                 if (!res.data?.status || items.length === 0) {
                     await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
-                    return reply("❌ *සමාවෙන්න, කිසිවක් සොයාගත නොහැකි විය!*");
+                    return reply("❌ *සමාවෙන්න, ප්‍රතිඵල කිසිවක් සොයාගත නොහැකි විය!*");
                 }
 
-                let listText = `*🔥 SADEW-MINI XHAMSTER SEARCH*\n\n`;
+                let listText = `*🔞 SADEW-MINI X-VIDEOS SEARCH*\n\n`;
                 let buttons = [];
 
-                // මුල් ප්‍රතිඵල 5 පමණක් ගන්නවා
+                // මුල් ප්‍රතිඵල 10 පමණක් ගන්නවා
                 let count = 0;
                 for (const item of items) {
                     if (count >= 10) break;
 
-                    // සමහර Ads/Shorts වල එන අවුල් Links අයින් කරනවා
-                    if (item.url.includes("xhamster.com/ff/out")) continue; 
-                    
                     const shortId = crypto.randomBytes(3).toString('hex');
-                    global.xhamStore[shortId] = { 
+                    global.xvStore[shortId] = { 
                         url: item.url, 
                         title: item.title, 
-                        thumb: item.thumbnail,
+                        thumb: item.thumb,
                         duration: item.duration 
                     };
 
@@ -58,8 +65,8 @@ module.exports = {
                     listText += `*${count}.* ${item.title}\n⏱️ *Duration:* ${item.duration}\n\n`;
                     
                     buttons.push({
-                        buttonId: `.xhamget ${shortId}`,
-                        buttonText: { displayText: `📥 Get Video ${count}` },
+                        buttonId: `.xvdl ${shortId}`,
+                        buttonText: { displayText: `📥 DOWNLOAD ${count}` },
                         type: 1
                     });
                 }
@@ -68,7 +75,7 @@ module.exports = {
                     return reply("❌ *සමාවෙන්න, නිවැරදි ප්‍රතිඵල සොයාගත නොහැකි විය!*");
                 }
 
-                listText += `> *ඔබට අවශ්‍ය වීඩියෝව පහතින් තෝරන්න.*`;
+                listText += `> *ඔබට අවශ්‍ය වීඩියෝව පහතින් තෝරන්න 👇*`;
 
                 const msgOpts = { 
                     caption: listText, 
@@ -77,9 +84,8 @@ module.exports = {
                     headerType: 4 
                 };
                 
-                // පළවෙනි වීඩියෝ එකේ Thumbnail එක දානවා
-                if (items[0]?.thumbnail) {
-                    msgOpts.image = { url: items[0].thumbnail };
+                if (items[0]?.thumb) {
+                    msgOpts.image = { url: items[0].thumb };
                 }
 
                 await socket.sendMessage(sender, msgOpts, { quoted: msg });
@@ -92,77 +98,51 @@ module.exports = {
         }
 
         // ==============================================================
-        // 2. GET DETAILS (.xhamget)
+        // 2. FULL STREAM DOWNLOAD (.xvdl)
         // ==============================================================
-        else if (command === "xhamget") {
+        else if (command === "xvdl") {
             const shortId = args[0];
-            const item = global.xhamStore[shortId];
+            const item = global.xvStore[shortId];
 
-            if (!item) return reply("❌ *මෙම ලින්ක් එක කල් ඉකුත් වී ඇත. කරුණාකර මුල සිට Search කරන්න.*");
+            let videoTargetUrl = "";
+            let videoTitle = "XVideos Download";
+            
+            if (shortId && shortId.includes('xvideos.com')) {
+                videoTargetUrl = shortId;
+            } else if (item) {
+                videoTargetUrl = item.url;
+                videoTitle = item.title;
+            }
+
+            if (!videoTargetUrl) return reply("❌ *මෙම ලින්ක් එක කල් ඉකුත් වී ඇත. කරුණාකර මුල සිට Search කරන්න.*");
 
             try {
                 await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
                 
-                const dlApiUrl = `https://mizuki-md-api.netlify.app/api/download/xhamster?q=${encodeURIComponent(item.url)}&apiKey=${API_KEY}`;
-                
-                // ⚠️ මෙතන Timeout එක තත්පර 60ක් කරා (60000ms)
+                const dlApiUrl = `https://mizuki-md-api.netlify.app/api/download/xvideo?q=${encodeURIComponent(videoTargetUrl)}&apiKey=${API_KEY}`;
                 const res = await axios.get(dlApiUrl, { timeout: 60000 }); 
                 
-                const formats = res.data?.data?.formats || [];
-                const dlUrl = formats[0]?.url;
+                const resData = res.data?.data?.result;
+                const dlUrl = resData?.dl_link;
 
                 if (!res.data?.status || !dlUrl) {
                     await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
-                    return reply("❌ *මෙම වීඩියෝව සඳහා Download Link එකක් API එකෙන් ලබා දුන්නේ නැත. සමහරවිට එය ඉවත් කර තිබිය හැක.*");
+                    return reply("❌ *මෙම වීඩියෝව සඳහා Download Link එකක් ලබා ගත නොහැක.*");
                 }
 
-                item.dlUrl = dlUrl;
+                videoTitle = resData.title || videoTitle;
+                const views = resData.views || "Unknown";
+                const likes = resData.likes || "Unknown";
 
-                let infoText = `*🎬 SADEW-MINI XHAMSTER INFO*\n\n`;
-                infoText += `📌 *Title:* ${res.data.data.title || item.title}\n`;
-                infoText += `⏱️ *Duration:* ${res.data.data.duration || item.duration}\n\n`;
-                infoText += `> *බාගත කිරීම සඳහා පහත Button එක Click කරන්න.*`;
-
-                const thumb = res.data.data.thumbnail || item.thumb;
-
-                const buttons = [{
-                    buttonId: `.xhamdl ${shortId}`,
-                    buttonText: { displayText: `📥 Download Video` },
-                    type: 1
-                }];
-
-                await socket.sendMessage(sender, {
-                    image: { url: thumb },
-                    caption: infoText,
-                    footer: "👑 SADEW-MINI 👑",
-                    buttons: buttons,
-                    headerType: 4
-                }, { quoted: msg });
-                
-                await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
-
-            } catch (e) {
-                console.error(e);
-                reply("❌ *API එකෙන් ප්‍රතිචාරයක් නොලැබුණි (Timeout). වෙනත් වීඩියෝවක් උත්සාහ කරන්න.*");
-            }
-        }
-
-        // ==============================================================
-        // 3. FULL STREAM DOWNLOAD (.xhamdl)
-        // ==============================================================
-        else if (command === "xhamdl") {
-            const shortId = args[0];
-            const item = global.xhamStore[shortId];
-
-            if (!item || !item.dlUrl) return reply("❌ *ලින්ක් එක කල් ඉකුත් වී ඇත. නැවත Search කරන්න.*");
-
-            try {
-                await socket.sendMessage(sender, { react: { text: '⬇️', key: msg.key } });
+                let caption = `*🔞 SADEW-MINI X-VIDEOS DOWNLOADER*\n\n` +
+                              `🎬 *Title:* ${videoTitle}\n` +
+                              `👁️ *Views:* ${views}\n` +
+                              `👍 *Likes:* ${likes}\n` +
+                              `> *👑 SADEW-MINI 👑*`;
 
                 let sizeMB = "Unknown";
                 try {
-                    // මෙතනත් Timeout එක තත්පර 30ක් කරා
-                    const headRes = await axios.head(item.dlUrl, { timeout: 30000 });
+                    const headRes = await axios.head(dlUrl, { timeout: 30000 });
                     const contentLength = headRes.headers['content-length'];
                     if (contentLength) {
                         sizeMB = (parseInt(contentLength) / (1024 * 1024)).toFixed(2);
@@ -171,21 +151,23 @@ module.exports = {
                     console.log("HEAD request failed, moving on...");
                 }
 
-                await reply(`📥 *Downloading...*\n🎬 ${item.title.substring(0, 30)}...\n📦 Size: ~${sizeMB} MB\n⏳ _Directly streaming..._`);
+                await reply(`📥 *Downloading...*\n🎬 ${videoTitle.substring(0, 30)}...\n📦 Size: ~${sizeMB} MB\n⏳ _Directly streaming..._`);
                 await socket.sendMessage(sender, { react: { text: '⬆️', key: msg.key } });
                 
+                // 🔥 ඔයාගේ Stream ක්‍රමයම මෙතනත් පාවිච්චි කළා
                 const streamRes = await axios({
                     method: 'GET',
-                    url: item.dlUrl,
+                    url: dlUrl,
                     responseType: 'stream',
-                    timeout: 0 // මෙතන 0 තියෙන්නේ Download වෙන්න ඕන තරම් වෙලාවක් ගන්න දෙනවා
+                    timeout: 0,
+                    headers: { "User-Agent": "Mozilla/5.0" }
                 });
 
                 await socket.sendMessage(sender, {
                     document: { stream: streamRes.data },
                     mimetype: 'video/mp4',
-                    fileName: `SadewMini_${shortId}.mp4`,
-                    caption: `*🎬 Title:* ${item.title}\n> *👑 SADEW-MINI 👑*`
+                    fileName: `${videoTitle.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`,
+                    caption: caption
                 }, { quoted: msg });
 
                 await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
@@ -193,7 +175,7 @@ module.exports = {
             } catch (e) {
                 console.error(e);
                 await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
-                reply(`❌ *බාගත කිරීම අසාර්ථක විය (Stream Error).*\n\n🔗 *Link:* ${item.dlUrl}`);
+                reply(`❌ *බාගත කිරීම අසාර්ථක විය (Stream Error).*`);
             }
         }
     }
