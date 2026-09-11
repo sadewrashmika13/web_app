@@ -1,0 +1,137 @@
+const { cmd, commands } = require('../command'); // ඔයාගේ bot එකේ command file එකේ path එකට හරියන්න වෙනස් කරගන්න (බොහෝවිට මේකම තමයි)
+const axios = require('axios');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// ════════════ XVIDEOS SEARCH ════════════
+cmd({
+    pattern: "xvideo",
+    alias: ["xv"],
+    react: "🔍",
+    desc: "Search XVideos",
+    category: "search",
+    use: '.xvideo <query>',
+    filename: __filename
+},
+async(conn, mek, m, { from, q, args, reply, sender }) => {
+    try {
+        const query = q; // q කියන්නේ user දෙන search එක
+        if (!query) return reply("🔍 *කරුණාකර Search කිරීමට නමක් හෝ ලින්ක් එකක් දෙන්න!*");
+
+        const apiKey = 'slk_feb4c1b4888e42998f43b746336ca25e';
+
+        // ⚡ ලින්ක් එකක් දුන්නොත් කෙලින්ම Download Command එකට යවනවා
+        if (query.includes('xvideos.com')) {
+            const fakeMsg = JSON.parse(JSON.stringify(mek));
+            fakeMsg.message.conversation = `.xvdl ${query}`;
+            conn.ev.emit('messages.upsert', { messages: [fakeMsg], type: 'notify' });
+            return;
+        }
+
+        const searchUrl = `https://mizuki-md-api.netlify.app/api/search/xvideo?q=${encodeURIComponent(query)}&apiKey=${apiKey}`;
+        const response = await axios.get(searchUrl);
+
+        if (!response.data || !response.data.status || !response.data.data || response.data.data.length === 0) {
+            return reply("❌ *ප්‍රතිඵල කිසිවක් සොයාගත නොහැකි විය!*");
+        }
+
+        const results = response.data.data.slice(0, 10); // මුල් ප්‍රතිඵල 10
+        let listText = `*🔞 SADEW-MINI X-VIDEOS SEARCH 🔞*\n\n> 🔍 *Search:* ${query}\n\n`;
+        let dynamicButtons = [];
+
+        results.forEach((v, index) => {
+            listText += `*${index + 1}.* ${v.title}\n`;
+            listText += `⏱️ *Duration:* ${v.duration}\n\n`;
+
+            dynamicButtons.push({
+                buttonId: `.xvdl ${v.url}`, 
+                buttonText: { displayText: `📥 DOWNLOAD ${index + 1}` }, 
+                type: 1 
+            });
+        });
+
+        const buttonMessage = {
+            image: { url: results[0].thumb },
+            caption: listText,
+            footer: "© SADEW-MINI",
+            buttons: dynamicButtons,
+            headerType: 4
+        };
+
+        await conn.sendMessage(from, buttonMessage, { quoted: mek });
+
+    } catch (e) {
+        console.error(e);
+        reply("❌ *Error searching videos!*");
+    }
+});
+
+// ════════════ XVIDEOS DOWNLOADER ════════════
+cmd({
+    pattern: "xvdl",
+    react: "📥",
+    desc: "Download XVideos",
+    category: "download",
+    use: '.xvdl <url>',
+    filename: __filename
+},
+async(conn, mek, m, { from, args, reply, sender }) => {
+    try {
+        const url = args[0];
+        if (!url) return reply("❌ *Please provide an xvideos link!*");
+
+        const apiKey = 'slk_feb4c1b4888e42998f43b746336ca25e';
+        const dlUrl = `https://mizuki-md-api.netlify.app/api/download/xvideo?q=${encodeURIComponent(url)}&apiKey=${apiKey}`;
+
+        const response = await axios.get(dlUrl);
+
+        if (!response.data || !response.data.status || !response.data.data.result) {
+            return reply("❌ *Error fetching video details!*");
+        }
+
+        const resData = response.data.data.result;
+        const videoUrl = resData.dl_link;
+        if (!videoUrl) return reply("❌ *Video download link not found!*");
+
+        const caption = `*🔞 SADEW-MINI X-VIDEO DOWNLOADER 🔞*\n\n` +
+                        `🎬 *TITLE :* ${resData.title}\n` +
+                        `👁️ *VIEWS :* ${resData.views}\n` +
+                        `👍 *LIKES :* ${resData.likes}\n` +
+                        `__________________________\n\n` +
+                        `> 👑 *SADEW-MINI* 👑`;
+
+        reply("⏳ *Downloading Video... Please wait!*");
+
+        const tempVideoPath = path.join(os.tmpdir(), `xv_${Date.now()}.mp4`);
+        
+        const responseStream = await axios({
+            method: 'GET',
+            url: videoUrl,
+            responseType: 'stream',
+            headers: { "User-Agent": "Mozilla/5.0" }
+        });
+
+        const writer = fs.createWriteStream(tempVideoPath);
+        responseStream.data.pipe(writer);
+
+        await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+
+        // ⚠️ WhatsApp Ban වීම වළක්වන්න සහ Size ලොකු ඒවත් යවන්න Document එකක් විදිහට යවයි
+        await conn.sendMessage(from, {
+            document: fs.readFileSync(tempVideoPath), 
+            mimetype: 'video/mp4',
+            caption: caption,
+            fileName: `${resData.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`
+        }, { quoted: mek });
+
+        if (fs.existsSync(tempVideoPath)) fs.unlinkSync(tempVideoPath);
+
+    } catch (e) {
+        console.error(e);
+        reply("❌ *An error occurred while downloading!*");
+    }
+});
