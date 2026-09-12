@@ -41,7 +41,7 @@ module.exports = {
                 await socket.sendMessage(sender, { text: text });
                 
                 // 🛑 බොට්ව Ban වෙන එකෙන් බේරගන්න මැසේජ් 2ක් අතර මිලි තත්පර 500ක (තත්පර බාගෙක) පොඩි පරතරයක් (Delay) තියනවා
-                await new Promise(resolve => setTimeout(resolve, 0)); 
+              //await new Promise(resolve => setTimeout(resolve, 0)); 
             }
 
             // වැඩේ ඉවර වුණාම කියනවා
