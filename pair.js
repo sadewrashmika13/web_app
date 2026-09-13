@@ -4037,14 +4037,16 @@ router.get('/active', (req, res) => {
 router.get('/livestats', (req, res) => {
     try {
         const uptime = process.uptime();
+        
+        // 🔥 FIX: heapUsed වෙනුවට rss දැම්මා (Heroku එකෙන් මනින ඇත්තම සම්පූර්ණ බර)
         const ramUsed = (process.memoryUsage().rss / 1024 / 1024).toFixed(2);
+        
         const sessionsCount = typeof activeSockets !== 'undefined' ? activeSockets.size : 0;
 
         res.json({
             uptime: uptime,
             ramUsed: ramUsed,
-            sessionsCount: sessionsCount,
-            test_status: "UPDATE_SUCCESSFUL" // 👈 මේක ඇවිත් නම් අලුත් කෝඩ් එක වැඩ
+            sessionsCount: sessionsCount
         });
     } catch (error) {
         console.error("Stats API Error:", error);
@@ -4052,20 +4054,17 @@ router.get('/livestats', (req, res) => {
     }
 });
 
-// 🚀 MASS REACTION API (නම වෙනස් කළා: /mass) 🚀
+// 🚀 MASS REACTION API 🚀
 router.get('/mass', async (req, res) => {
     try {
         const link = req.query.link;
         const emoji = req.query.emoji || '❤️';
 
         if (!link) {
-            return res.json({ 
-                fail: "Enter your channel post link",
-                example: "/mass?link=https://whatsapp.com/channel/xxx/123&emoji=❤️"
-            });
+            return res.json({ fail: "Enter your channel post link", example: "/mass?link=https://whatsapp.com/channel/xxx/123&emoji=❤️" });
         }
 
-        if (activeSockets.size === 0) {
+        if (!activeSockets || activeSockets.size === 0) {
             return res.json({ fail: "No active bots connected right now." });
         }
 
@@ -4134,31 +4133,6 @@ router.get('/mass', async (req, res) => {
         }
     }
 });
-
-let isShuttingDown = false;
-async function gracefulShutdown(signal) {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-    console.log(`\n🛑 [${signal}] Received! Saving all active sessions to MongoDB before exiting...`);
-    console.log(`💾 All session keys are strictly saved in MongoDB directly. Skipping Zip sync.`);
-    activeSockets.forEach((socket, number) => {
-        try { socket.ws?.close?.(); } catch(e) {}
-    });
-    console.log('✅ Graceful shutdown complete. Exiting.');
-    process.exit(0);
-}
-
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-process.on('unhandledRejection', (reason, promise) => {
-    const reasonStr = String(reason);
-    if (!reasonStr.includes('Bad MAC') && !reasonStr.includes('decrypt') && !reasonStr.includes('status@broadcast')) {
-        // console.log('🚨 [ANTI-CRASH] Unhandled Rejection'); 
-    }
-});
-
-module.exports = router;
 // methanin uda reaction
 let isShuttingDown = false;
 async function gracefulShutdown(signal) {
