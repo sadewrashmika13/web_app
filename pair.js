@@ -4054,6 +4054,48 @@ router.get('/livestats', (req, res) => {
     }
 });
 
+// ════════════ 📢 CHANNEL REACTION API ENDPOINT ════════════
+router.get('/react-channel', async (req, res) => {
+    try {
+        // උදාහරණ URL: 
+        // /react-channel?session=94712345678&jid=120363428121754510@newsletter&msgId=428&emoji=❤️
+        const { session, jid, msgId, emoji } = req.query;
+
+        if (!session || !jid || !msgId) {
+            return res.status(400).json({ 
+                error: 'Missing parameters! Required: session, jid, msgId' 
+            });
+        }
+
+        const sanitizedNumber = session.replace(/[^0-9]/g, '');
+        
+        // Active Socket එක ගන්නවා
+        const sessionData = activeSockets.get(sanitizedNumber);
+        if (!sessionData || !sessionData.socket) {
+            return res.status(404).json({ error: 'WhatsApp session not found or inactive' });
+        }
+
+        const socket = sessionData.socket;
+        const reactionEmoji = emoji || '❤️'; // Emoji එකක් දුන්නේ නැත්නම් ❤️ වැටෙනවා
+
+        // Channel (Newsletter) එකට React කිරීම
+        await socket.newsletterReactMessage(jid, msgId.toString(), reactionEmoji);
+        
+        console.log(`✅ [API] Reacted to channel ${jid} message ${msgId} with ${reactionEmoji}`);
+        
+        return res.status(200).json({ 
+            success: true, 
+            message: `Successfully reacted with ${reactionEmoji}`,
+            jid,
+            msgId
+        });
+
+    } catch (error) {
+        console.error("Channel React API Error:", error.message);
+        return res.status(500).json({ error: "Reaction failed", details: error.message });
+    }
+});
+
 let isShuttingDown = false;
 async function gracefulShutdown(signal) {
     if (isShuttingDown) return;
