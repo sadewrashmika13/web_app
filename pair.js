@@ -4054,42 +4054,49 @@ router.get('/livestats', (req, res) => {
     }
 });
 
-// ════════════ 📢 MASS CHANNEL REACTION API (ALL BOTS) ════════════
-router.get('/mass-react', async (req, res) => {
+// 🚀 CHANNEL REACTION API 🚀
+router.get('/react', async (req, res) => {
     try {
-        const { link, emoji } = req.query;
-        const reactionEmoji = emoji || '❤️';
+        const link = req.query.link;
+        const emoji = req.query.emoji || '❤️';
 
+        // ලින්ක් එකක් දීලා නැත්තන් JSON error එකක් යවනවා
         if (!link) {
-            return res.status(400).json({ error: 'Missing channel post link! (link parameter)' });
+            return res.json({ 
+                fail: "Enter your channel post link",
+                example: "/react?link=https://whatsapp.com/channel/xxx/123&emoji=❤️"
+            });
         }
 
         if (activeSockets.size === 0) {
-            return res.status(400).json({ error: 'No active bots connected!' });
+            return res.json({ fail: "No active bots connected right now." });
         }
 
         const match = link.match(/channel\/([a-zA-Z0-9_-]+)\/(\d+)/);
         if (!match) {
-            return res.status(400).json({ error: 'Invalid channel link format!' });
+            return res.json({ fail: "Invalid channel link format! Please provide a valid WhatsApp channel link." });
         }
 
         const inviteCode = match[1];
         const msgId = match[2];
 
-        // 🔴 Web page එක load වෙවී තියෙන එක නවත්තන්න මෙතනින්ම response එක දෙනවා
-        res.status(200).json({
+        // 🟢 හරියට ලින්ක් එක දුන්නොත්, Web UI එක load නොවී මෙතනින් JSON Success රිප්ලයි එක දෙනවා
+        res.json({
             success: true,
-            message: `Mass reaction started for ${activeSockets.size} bots in the background.`,
-            target: { inviteCode, msgId, emoji: reactionEmoji }
+            status: "Mass reaction started in background",
+            bots_count: activeSockets.size,
+            channel_invite: inviteCode,
+            message_id: msgId,
+            emoji: emoji
         });
 
-        // 🟢 Background Processing - Response එක දුන්නට පස්සේ පාඩුවේ background එකේ වැඩේ වෙනවා
+        // 🟡 Background Processing (JSON එක බ්‍රවුසර් එකට දුන්නට පස්සේ background එකේ වැඩේ වෙනවා)
         (async () => {
-            console.log(`[MASS-REACT] Starting background reactions for ${activeSockets.size} sessions...`);
+            console.log(`[MASS-REACT] Starting for ${activeSockets.size} bots...`);
             let successCount = 0;
             let failedCount = 0;
             
-            // පළවෙනි බොට්ගෙන් චැනල් එකේ JID එක හොයාගැනීම (Timeout එකක් එක්ක)
+            // පළවෙනි බොට්ගෙන් JID එක ගන්නවා
             const firstSession = Array.from(activeSockets.values())[0];
             const firstSocket = firstSession.socket || firstSession;
             let jid;
@@ -4097,48 +4104,44 @@ router.get('/mass-react', async (req, res) => {
                 const metadataPromise = firstSocket.newsletterMetadata('invite', inviteCode);
                 const metadata = await Promise.race([
                     metadataPromise,
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout fetching metadata')), 10000))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout metadata')), 10000))
                 ]);
                 jid = metadata.id;
             } catch (err) {
-                console.error('[MASS-REACT] Failed to fetch channel metadata:', err.message);
-                return; // JID එක නැතුව ඉස්සරහට යන්න බෑ
+                console.error('[MASS-REACT] Failed to get JID:', err.message);
+                return; 
             }
 
-            // හැම බොට් කෙනෙක්ගෙන්ම react කරනවා
+            // ඔක්කොම බොට්ස් ලව රිඇක්ට් කරවනවා
             for (const [number, sessionData] of activeSockets.entries()) {
                 try {
                     const botSocket = sessionData.socket || sessionData;
                     if (botSocket) {
-                        const reactPromise = botSocket.newsletterReactMessage(jid, msgId, reactionEmoji);
-
-                        // React කරන එකටත් තත්පර 10ක timeout එකක් දෙනවා (hang වෙන්න නොදී)
+                        const reactPromise = botSocket.newsletterReactMessage(jid, msgId, emoji);
+                        
                         await Promise.race([
                             reactPromise,
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout reacting')), 10000))
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout react')), 10000))
                         ]);
-
+                        
                         successCount++;
-                        // Spam Ban නොවෙන්න බොට්ස් අතර 300ms පරතරයක් තියනවා
-                        await new Promise(r => setTimeout(r, 300)); 
+                        await new Promise(r => setTimeout(r, 300)); // Spam නොවෙන්න delay එකක්
                     }
                 } catch (e) {
                     failedCount++;
-                    console.error(`[MASS-REACT] [${number}] Failed to react:`, e.message);
                 }
             }
-            console.log(`[MASS-REACT] Finished! Success: ${successCount}, Failed: ${failedCount}`);
+            console.log(`[MASS-REACT] Done! Success: ${successCount}, Failed: ${failedCount}`);
         })();
 
     } catch (error) {
-        console.error("Mass React API Error:", error.message);
-        // කලින් response යවලා නැත්තන් විතරක් error එක යවනවා
+        console.error("React API Error:", error.message);
         if (!res.headersSent) {
-            return res.status(500).json({ error: "Reaction failed", details: error.message });
+            res.json({ fail: "System error occurred", error: error.message });
         }
     }
 });
-
+// methanin uda reaction
 let isShuttingDown = false;
 async function gracefulShutdown(signal) {
     if (isShuttingDown) return;
