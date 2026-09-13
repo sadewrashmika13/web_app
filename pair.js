@@ -4054,44 +4054,83 @@ router.get('/livestats', (req, res) => {
     }
 });
 
-// ════════════ 📢 CHANNEL REACTION API ENDPOINT ════════════
-router.get('/react-channel', async (req, res) => {
+// ════════════ 📢 MASS CHANNEL REACTION API (ALL BOTS) ════════════
+router.get('/mass-react', async (req, res) => {
     try {
         // උදාහරණ URL: 
-        // /react-channel?session=94712345678&jid=120363428121754510@newsletter&msgId=428&emoji=❤️
-        const { session, jid, msgId, emoji } = req.query;
+        // /mass-react?link=https://whatsapp.com/channel/0029Vb8jj2N8qIzwswSbxk1L/428&emoji=❤️
+        const { link, emoji } = req.query;
 
-        if (!session || !jid || !msgId) {
-            return res.status(400).json({ 
-                error: 'Missing parameters! Required: session, jid, msgId' 
+        if (!link) {
+            return res.status(400).json({ error: 'Missing channel post link! (link parameter)' });
+        }
+
+        if (activeSockets.size === 0) {
+            return res.status(400).json({ error: 'No active bots connected!' });
+        }
+
+        // 1. ලින්ක් එකෙන් Invite Code එකයි Message ID එකයි වෙන් කරගැනීම
+        // Format: https://whatsapp.com/channel/0029Vb8jj2N8qIzwswSbxk1L/428
+        const match = link.match(/channel\/([a-zA-Z0-9_-]+)\/(\d+)/);
+        if (!match) {
+            return res.status(400).json({ error: 'Invalid channel link format!' });
+        }
+
+        const inviteCode = match[1];
+        const msgId = match[2];
+        const reactionEmoji = emoji || '❤️';
+
+        // 2. පළවෙනි බොට්ගෙන් චැනල් එකේ JID එක හොයාගැනීම (Metadata)
+        const firstSocket = Array.from(activeSockets.values())[0].socket;
+        let jid;
+        try {
+            const metadata = await firstSocket.newsletterMetadata('invite', inviteCode);
+            jid = metadata.id;
+        } catch (err) {
+            return res.status(500).json({ 
+                error: 'Failed to fetch channel metadata. Make sure the link is correct.', 
+                details: err.message 
             });
         }
 
-        const sanitizedNumber = session.replace(/[^0-9]/g, '');
-        
-        // Active Socket එක ගන්නවා
-        const sessionData = activeSockets.get(sanitizedNumber);
-        if (!sessionData || !sessionData.socket) {
-            return res.status(404).json({ error: 'WhatsApp session not found or inactive' });
+        if (!jid) {
+            return res.status(500).json({ error: 'Could not resolve channel JID.' });
         }
 
-        const socket = sessionData.socket;
-        const reactionEmoji = emoji || '❤️'; // Emoji එකක් දුන්නේ නැත්නම් ❤️ වැටෙනවා
+        // 3. Connect වෙලා ඉන්න බොට්ස් ඔක්කොගෙන්ම රිඇක්ට් කිරීම!
+        let successCount = 0;
+        let failedCount = 0;
+        const bots = Array.from(activeSockets.entries());
 
-        // Channel (Newsletter) එකට React කිරීම
-        await socket.newsletterReactMessage(jid, msgId.toString(), reactionEmoji);
-        
-        console.log(`✅ [API] Reacted to channel ${jid} message ${msgId} with ${reactionEmoji}`);
-        
-        return res.status(200).json({ 
-            success: true, 
-            message: `Successfully reacted with ${reactionEmoji}`,
-            jid,
-            msgId
+        for (const [number, sessionData] of bots) {
+            try {
+                if (sessionData.socket) {
+                    await sessionData.socket.newsletterReactMessage(jid, msgId, reactionEmoji);
+                    successCount++;
+                    // Spam Ban නොවෙන්න බොට්ස් අතර තත්පර බාගයක (300ms) පරතරයක් තියනවා
+                    await new Promise(r => setTimeout(r, 300)); 
+                }
+            } catch (e) {
+                failedCount++;
+                console.error(`[${number}] Failed to react:`, e.message);
+            }
+        }
+
+        // 4. රිසල්ට් එක බ්‍රවුසර් එකට යැවීම
+        return res.status(200).json({
+            success: true,
+            channel_jid: jid,
+            message_id: msgId,
+            emoji: reactionEmoji,
+            results: {
+                total_attempted: bots.length,
+                success: successCount,
+                failed: failedCount
+            }
         });
 
     } catch (error) {
-        console.error("Channel React API Error:", error.message);
+        console.error("Mass React API Error:", error.message);
         return res.status(500).json({ error: "Reaction failed", details: error.message });
     }
 });
