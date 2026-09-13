@@ -55,22 +55,25 @@ app.get('/react', async (req, res) => {
         const inviteCode = match[1];
         const msgId = match[2];
 
-        // 🔥 යවන ඉමෝජි සෙට් එක වෙන් කරගන්නවා (උදා: 😂👍🔥 -> ['😂', '👍', '🔥'])
-        const emojiRegex = /(\p{Emoji_Presentation}|\p{Extended_Pictographic})/gu;
-        let emojiArray = inputEmojis.match(emojiRegex);
-        
-        if (!emojiArray || emojiArray.length === 0) {
-            emojiArray = ['❤️']; // මොකුත් නැත්තන් ❤️ දානවා
+        // 🔥 ඉමෝජි ටික හරියටම වෙන් කිරීම (කිසිම ඉමෝජියක් කැඩෙන්නේ නෑ)
+        // 1 ක් දුන්නොත් 1 යි, 3 ක් දුන්නොත් 3 යි.
+        const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
+        let emojiArray = Array.from(segmenter.segment(inputEmojis))
+            .map(s => s.segment)
+            .filter(char => char.trim() !== '');
+
+        if (emojiArray.length === 0) {
+            emojiArray = ['❤️']; 
         }
 
-        // 🟢 බ්‍රවුසර් එකට දෙන JSON එක
+        // 🟢 බ්‍රවුසර් එකට දෙන JSON එක (මේකේ emojis_detected එකේ ඔයා දාපු ටික හරියට ආවද බලන්න)
         res.json({
             success: true,
             status: "Background Mass Reaction Started",
             bots_count: activeSockets.size,
             channel_invite: inviteCode,
             message_id: msgId,
-            random_emojis_detected: emojiArray
+            emojis_detected: emojiArray
         });
 
         // 🟡 Background එකේ ඉතුරු වැඩේ වෙනවා
@@ -85,11 +88,11 @@ app.get('/react', async (req, res) => {
                     try {
                         const botSocket = sessionData.socket || sessionData;
                         if (botSocket) {
-                            // 🎲 හැම බොට් කෙනෙක්ටම වෙනස් ඉමෝජි එකක් Random තෝරනවා!
+                            // 🎲 හැම බොට් කෙනෙක්ටම වෙනස් ඉමෝජි එකක් ඔයා දුන්න ලිස්ට් එකෙන් Random තෝරනවා!
                             const randomEmoji = emojiArray[Math.floor(Math.random() * emojiArray.length)];
                             
                             await botSocket.newsletterReactMessage(jid, msgId, randomEmoji);
-                            await new Promise(r => setTimeout(r, 300)); // Spam නොවෙන්න
+                            await new Promise(r => setTimeout(r, 300)); 
                         }
                     } catch (e) {
                         console.log(`React failed for ${number}`);
