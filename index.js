@@ -35,13 +35,12 @@ app.get('/livestats', (req, res) => {
 app.get('/react', async (req, res) => {
     try {
         const link = req.query.link;
-        const emoji = req.query.emoji || '❤️';
+        const inputEmojis = req.query.emoji || '❤️';
 
         if (!link) {
-            return res.json({ fail: "Enter your channel post link", example: "/react?link=https://whatsapp.com/channel/xxx/123&emoji=❤️" });
+            return res.json({ fail: "Enter your channel post link", example: "/react?link=https://whatsapp.com/channel/xxx/123&emoji=😂👍🔥" });
         }
 
-        // index.js එකේදී global.activeSockets හරහා bots ලව ගන්නවා
         const activeSockets = global.activeSockets;
 
         if (!activeSockets || activeSockets.size === 0) {
@@ -56,14 +55,22 @@ app.get('/react', async (req, res) => {
         const inviteCode = match[1];
         const msgId = match[2];
 
-        // 🟢 බ්‍රවුසර් එක හිරවෙන්නේ නැති වෙන්න කෙලින්ම JSON එක මෙතනින් දෙනවා
+        // 🔥 යවන ඉමෝජි සෙට් එක වෙන් කරගන්නවා (උදා: 😂👍🔥 -> ['😂', '👍', '🔥'])
+        const emojiRegex = /(\p{Emoji_Presentation}|\p{Extended_Pictographic})/gu;
+        let emojiArray = inputEmojis.match(emojiRegex);
+        
+        if (!emojiArray || emojiArray.length === 0) {
+            emojiArray = ['❤️']; // මොකුත් නැත්තන් ❤️ දානවා
+        }
+
+        // 🟢 බ්‍රවුසර් එකට දෙන JSON එක
         res.json({
             success: true,
             status: "Background Mass Reaction Started",
             bots_count: activeSockets.size,
             channel_invite: inviteCode,
             message_id: msgId,
-            emoji: emoji
+            random_emojis_detected: emojiArray
         });
 
         // 🟡 Background එකේ ඉතුරු වැඩේ වෙනවා
@@ -78,7 +85,10 @@ app.get('/react', async (req, res) => {
                     try {
                         const botSocket = sessionData.socket || sessionData;
                         if (botSocket) {
-                            await botSocket.newsletterReactMessage(jid, msgId, emoji);
+                            // 🎲 හැම බොට් කෙනෙක්ටම වෙනස් ඉමෝජි එකක් Random තෝරනවා!
+                            const randomEmoji = emojiArray[Math.floor(Math.random() * emojiArray.length)];
+                            
+                            await botSocket.newsletterReactMessage(jid, msgId, randomEmoji);
                             await new Promise(r => setTimeout(r, 300)); // Spam නොවෙන්න
                         }
                     } catch (e) {
