@@ -15,7 +15,6 @@ function storeData(data, ttlMs = 20 * 60 * 1000) {
     return id;
 }
 
-// 🎯 ULTRA SMART PARSER
 function parseCineSend(fullText) {
     if (!fullText) return { query: "", targetJid: null };
     let raw = fullText.trim();
@@ -67,7 +66,6 @@ module.exports = {
             message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Cinesubz\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
         };
 
-        // 💎 Premium Users LIDs & Numbers
         const premiumUsers = [
             "194601394663437", 
             "94769634033"      
@@ -76,7 +74,7 @@ module.exports = {
         const isPremium = premiumUsers.some(id => actualSender.includes(id));
 
         // ════════════════════════════════════════════════════════
-        // ⚙️ CORE DOWNLOAD FUNCTION (Fixed placement)
+        // ⚙️ CORE DOWNLOAD FUNCTION (Fixed for TV Series ztLinks)
         // ════════════════════════════════════════════════════════
         const executeDownload = async (dlDetails) => {
             const destJid = dlDetails.targetJid || sender;
@@ -111,35 +109,63 @@ module.exports = {
 
             if (!downloadSuccess && !dlDetails.isPlayer) {
                 let resolvedUrl = dlDetails.url.trim();
-                resolvedUrl = resolvedUrl.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
-                if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) resolvedUrl = resolvedUrl.replace(/\.mp4$/, '?ext=mp4');
-                let fallbackUrl = resolvedUrl.replace(/\/server\d+\//, '/server1/');
+                
+                // Cinesubz Server URL Fixes (Apply only if it's a csplayer link)
+                if (resolvedUrl.includes("csplayer")) {
+                    resolvedUrl = resolvedUrl.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
+                    if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) {
+                        resolvedUrl = resolvedUrl.replace(/\.mp4$/, '?ext=mp4');
+                    }
+                }
+                
+                let fallbackUrl = resolvedUrl.includes("csplayer") ? resolvedUrl.replace(/\/server\d+\//, '/server1/') : resolvedUrl;
 
                 const tryApi = async (urlToTry) => {
                     try {
-                        const dlRes = await axios.get(`${CZ_API}/download?url=${urlToTry}`, { timeout: 20000 });
-                        if (dlRes.data.success && dlRes.data.result?.downloadUrls) {
-                            const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.toLowerCase().includes('telegram'));
-                            if (!httpUrl?.url) return false;
-
-                            if (dlDetails.targetJid) await sendCard();
-                            
-                            const streamRes = await axios({ method: 'GET', url: httpUrl.url, responseType: 'stream', timeout: 300000, headers: { 'User-Agent': 'Mozilla/5.0' }, maxRedirects: 10 });
-                            const cl = parseInt(streamRes.headers['content-length'] || '0');
-                            const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
-                            
-                            await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: `${captionBase}\n📦 *Size:* ${size}\n> 👑 *SADEW-MINI*` }, { quoted: metaQuote });
-                            
-                            try { if (streamRes.data.destroy) streamRes.data.destroy(); } catch (err) {}
-                            setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
-                            return true;
+                        let finalVidUrl = null;
+                        
+                        // 1. ztLink එකක් නම් අලුත් /resolve එකට යවන්න ඕනේ (TV Series වලට ගොඩක් එන්නේ මේක)
+                        if (urlToTry.includes("cinesubz.net/api-") || urlToTry.includes("zt-links")) {
+                            const resolveRes = await axios.get(`${CZ_API}/resolve?url=${encodeURIComponent(urlToTry)}`, { timeout: 20000 });
+                            let resData = resolveRes.data.result;
+                            if (typeof resData === 'string') finalVidUrl = resData;
+                            else if (resData?.url) finalVidUrl = resData.url;
+                            else if (resData?.downloadUrls) { 
+                                const hUrl = resData.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.toLowerCase().includes('telegram'));
+                                if (hUrl) finalVidUrl = hUrl.url;
+                            }
+                        } 
+                        // 2. Direct csplayer link එකක් නම් පරණ /download එකට යවනවා (Movies වලට එන්නේ මේක)
+                        else {
+                            const dlRes = await axios.get(`${CZ_API}/download?url=${urlToTry}`, { timeout: 20000 });
+                            if (dlRes.data.success && dlRes.data.result?.downloadUrls) {
+                                const hUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.toLowerCase().includes('telegram'));
+                                if (hUrl) finalVidUrl = hUrl.url;
+                            }
                         }
+
+                        if (!finalVidUrl) return false;
+
+                        if (dlDetails.targetJid) await sendCard();
+                        
+                        const streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 300000, headers: { 'User-Agent': 'Mozilla/5.0' }, maxRedirects: 10 });
+                        const cl = parseInt(streamRes.headers['content-length'] || '0');
+                        const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
+                        
+                        await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: `${captionBase}\n📦 *Size:* ${size}\n> 👑 *SADEW-MINI*` }, { quoted: metaQuote });
+                        
+                        try { if (streamRes.data.destroy) streamRes.data.destroy(); } catch (err) {}
+                        setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
+                        return true;
+                    } catch (e) {
                         return false;
-                    } catch (e) { return false; }
+                    }
                 };
 
                 downloadSuccess = await tryApi(resolvedUrl);
-                if (!downloadSuccess && fallbackUrl !== resolvedUrl) downloadSuccess = await tryApi(fallbackUrl);
+                if (!downloadSuccess && fallbackUrl !== resolvedUrl) {
+                    downloadSuccess = await tryApi(fallbackUrl);
+                }
             }
             return downloadSuccess;
         };
