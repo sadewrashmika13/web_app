@@ -92,7 +92,7 @@ module.exports = {
                     } else {
                         // Only 1 Season
                         const s = seasons[0];
-                        let maxLimit = Math.min(s.maxEp, 70); // Button Limit Safety
+                        let maxLimit = Math.min(s.maxEp, 70); 
                         let capText = `*↳ ❝ [📺 𝗦𝘁𝗿𝗲𝗮𝗺𝗕𝗼𝘅 𝗧𝗩 𝗦𝗲𝗿𝗶𝗲𝘀 ] ¡! ❞*\n\n🎬 *Title:* ${item.title}\n📺 *Season:* ${s.se}\n\n> *අවශ්‍ය Episode එක තෝරන්න* ⬇️`;
                         const buttons = [];
                         for(let i = 1; i <= maxLimit; i++) {
@@ -113,7 +113,8 @@ module.exports = {
                     let capText = `*↳ ❝ [🎬 𝗦𝘁𝗿𝗲𝗮𝗺𝗕𝗼𝘅 𝗠𝗼𝘃𝗶𝗲𝘀 ] ¡! ❞*\n\n🎬 *Title:* ${item.title}\n\n> *අවශ්‍ය Quality එක තෝරන්න* ⬇️`;
                     const buttons = [];
                     dls.forEach(dl => {
-                        let url = dl.directUrl || dl.url;
+                        // 🌟 Changed to prefer dl.url (Proxy) to avoid IP Blocks
+                        let url = dl.url || dl.directUrl || dl.proxyUrl;
                         if(url) {
                             let sizeMB = dl.size ? (parseInt(dl.size)/1024/1024).toFixed(1) + 'MB' : 'Unknown';
                             const dlId = storeData({ ...item, quality: dl.resolution, url: url, size: sizeMB });
@@ -162,7 +163,8 @@ module.exports = {
                 let capText = `*↳ ❝ [📺 𝗦𝘁𝗿𝗲𝗮𝗺𝗕𝗼𝘅 𝗧𝗩 𝗦𝗲𝗿𝗶𝗲𝘀 ] ¡! ❞*\n\n🎬 *Title:* ${item.title}\n📺 *Season ${item.se} - Episode ${item.ep}*\n\n> *අවශ්‍ය Quality එක තෝරන්න* ⬇️`;
                 const buttons = [];
                 dls.forEach(dl => {
-                    let url = dl.directUrl || dl.url;
+                    // 🌟 Changed to prefer dl.url (Proxy) to avoid IP Blocks
+                    let url = dl.url || dl.directUrl || dl.proxyUrl;
                     if(url) {
                         let sizeMB = dl.size ? (parseInt(dl.size)/1024/1024).toFixed(1) + 'MB' : 'Unknown';
                         const dlId = storeData({ 
@@ -194,8 +196,7 @@ module.exports = {
                 if (dl.targetJid) await reply(`🚀 *[StreamBox]* \`${dl.title}\` ඩවුන්ලෝඩ් කර \`${dl.targetJid}\` වෙත යවමින් පවතී...`);
                 else await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*\n_කරුණාකර රැඳී සිටින්න..._`);
 
-                // 🌟 TARGET JID DETAILS CARD
-                const isTv = dl.title.includes("S0"); // TV show identify
+                const isTv = dl.title.includes("S0"); 
                 const targetCardText = `*↳ ❝ [${isTv ? '📺 𝗡𝗘𝗪 𝗘𝗣𝗜𝗦𝗢𝗗𝗘' : '🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘'} 𝗔𝗥𝗥𝗜𝗩𝗔𝗟] ¡! ❞*\n\n` +
                     `🎬 *Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📦 *Size:* ${dl.size}\n\n` +
                     `🍿 *වීඩියෝව පහතින් ලබාගන්න.* \n\n> 👑 *SADEW-MINI* 👑`;
@@ -210,14 +211,26 @@ module.exports = {
                 const fileName = `${dl.title.replace(/[^a-zA-Z0-9 .\-]/g, '').trim()} - ${dl.quality}.mp4`;
                 const finalCap = `🎬 *Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📦 *Size:* ${dl.size}\n\n> 👑 *SADEW-MINI* 👑`;
                 
-                const streamRes = await axios({ method: 'GET', url: dl.url, responseType: 'stream', timeout: 300000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+                // 🌟 Added special Headers to bypass server restrictions
+                const streamRes = await axios({ 
+                    method: 'GET', 
+                    url: dl.url, 
+                    responseType: 'stream', 
+                    timeout: 300000, 
+                    headers: { 
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Referer': 'https://streambox.top/',
+                        'Origin': 'https://streambox.top'
+                    } 
+                });
                 
                 await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName: fileName, caption: finalCap }, { quoted: metaQuote });
                 await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
 
             } catch (e) {
+                console.error("[SB DL Error]:", e.message);
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                await reply("❌ *Download Failed!* සර්වර් එකෙන් වීඩියෝව ලබාගත නොහැකි විය.");
+                await reply("❌ *Download Failed!* සර්වර් එකෙන් වීඩියෝව ලබාගත නොහැකි විය.\n_දෝෂය:_ " + e.message);
             }
         }
 
