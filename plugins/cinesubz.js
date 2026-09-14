@@ -8,14 +8,14 @@ if (!global.czStore) global.czStore = {};
 
 function genId() { return crypto.randomBytes(4).toString('hex'); }
 
-function storeData(data, ttlMs = 20 * 60 * 1000) { // TV Series නිසා විනාඩි 20ක් කළා
+function storeData(data, ttlMs = 20 * 60 * 1000) { 
     const id = genId();
     global.czStore[id] = data;
     setTimeout(() => { delete global.czStore[id]; }, ttlMs);
     return id;
 }
 
-// 🎯 ULTRA SMART PARSER (ඔයාගේ පරණ එකමයි)
+// 🎯 ULTRA SMART PARSER
 function parseCineSend(fullText) {
     if (!fullText) return { query: "", targetJid: null };
     let raw = fullText.trim();
@@ -56,7 +56,6 @@ module.exports = {
     name: "cinesubz-downloader",
     category: 0,
     description: "Search and download Movies and TV Series from Cinesubz",
-    // අලුතින් TV Series සඳහා cs_ep සහ cs_all එකතු කර ඇත
     commands: ["cz", "cinesubz", "cinesend", "cs_sel", "cs_dl", "cs_ep", "cs_all"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -70,11 +69,80 @@ module.exports = {
 
         // 💎 Premium Users LIDs & Numbers
         const premiumUsers = [
-            "194601394663437", // ඔයාගේ LID එක
-            "94769634033"      // ඔයාගේ නම්බර් එක
+            "194601394663437", 
+            "94769634033"      
         ];
         const actualSender = msg.key.participant || msg.key.remoteJid || sender;
         const isPremium = premiumUsers.some(id => actualSender.includes(id));
+
+        // ════════════════════════════════════════════════════════
+        // ⚙️ CORE DOWNLOAD FUNCTION (Fixed placement)
+        // ════════════════════════════════════════════════════════
+        const executeDownload = async (dlDetails) => {
+            const destJid = dlDetails.targetJid || sender;
+            const captionBase = `🎬 *Name:* ${dlDetails.title}\n📽 *Quality:* ${dlDetails.quality}`;
+            const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n🎬 *Title:* ${dlDetails.title}\n📽 *Quality:* ${dlDetails.quality}\n\n> 👑 *SADEW-MINI* 👑`;
+            const fileName = `${(dlDetails.title).substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dlDetails.quality}.mp4`;
+            let downloadSuccess = false;
+
+            const sendCard = async () => {
+                try {
+                    if (dlDetails.img) await socket.sendMessage(destJid, { image: { url: dlDetails.img }, caption: targetCardText }, { quoted: metaQuote });
+                    else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: metaQuote });
+                } catch (e) {}
+            };
+
+            if (dlDetails.isPlayer) {
+                try {
+                    const htmlRes = await axios.get(dlDetails.url, { timeout: 15000 });
+                    const match = htmlRes.data.match(/const ALL_QUALITIES = (\[.*?\]);/);
+                    if (match) {
+                        const qs = JSON.parse(match[1]);
+                        const rq = dlDetails.quality.toLowerCase().includes('480') ? '480p' : '720p';
+                        const matched = qs.find(q => q.html?.toLowerCase().includes(rq) || q.url?.toLowerCase().includes(rq));
+                        if (matched?.url) {
+                            if (dlDetails.targetJid) await sendCard();
+                            await socket.sendMessage(destJid, { document: { url: matched.url }, mimetype: "video/mp4", fileName, caption: `${captionBase}\n> 👑 *SADEW-MINI*` }, { quoted: metaQuote });
+                            downloadSuccess = true;
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            if (!downloadSuccess && !dlDetails.isPlayer) {
+                let resolvedUrl = dlDetails.url.trim();
+                resolvedUrl = resolvedUrl.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
+                if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) resolvedUrl = resolvedUrl.replace(/\.mp4$/, '?ext=mp4');
+                let fallbackUrl = resolvedUrl.replace(/\/server\d+\//, '/server1/');
+
+                const tryApi = async (urlToTry) => {
+                    try {
+                        const dlRes = await axios.get(`${CZ_API}/download?url=${urlToTry}`, { timeout: 20000 });
+                        if (dlRes.data.success && dlRes.data.result?.downloadUrls) {
+                            const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.toLowerCase().includes('telegram'));
+                            if (!httpUrl?.url) return false;
+
+                            if (dlDetails.targetJid) await sendCard();
+                            
+                            const streamRes = await axios({ method: 'GET', url: httpUrl.url, responseType: 'stream', timeout: 300000, headers: { 'User-Agent': 'Mozilla/5.0' }, maxRedirects: 10 });
+                            const cl = parseInt(streamRes.headers['content-length'] || '0');
+                            const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
+                            
+                            await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: `${captionBase}\n📦 *Size:* ${size}\n> 👑 *SADEW-MINI*` }, { quoted: metaQuote });
+                            
+                            try { if (streamRes.data.destroy) streamRes.data.destroy(); } catch (err) {}
+                            setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
+                            return true;
+                        }
+                        return false;
+                    } catch (e) { return false; }
+                };
+
+                downloadSuccess = await tryApi(resolvedUrl);
+                if (!downloadSuccess && fallbackUrl !== resolvedUrl) downloadSuccess = await tryApi(fallbackUrl);
+            }
+            return downloadSuccess;
+        };
 
         // ════════════════════════════════════════════════════════
         // 1. SEARCH (.cz / .cinesubz / .cinesend)
@@ -147,12 +215,10 @@ module.exports = {
                     const movidlUrl = `${CZ_API}/movidl?url=${encodeURIComponent(movie.url)}`;
                     const dlRes = await axios.get(movidlUrl, { timeout: 20000 });
                     
-                    // 📺 ━━━━━ TV SERIES AUTO-DETECT ━━━━━ 📺
                     if (dlRes.data.result?.type === 'tvshow' || dlRes.data.result?.episodes) {
                         const episodes = dlRes.data.result.episodes || [];
                         if (!episodes.length) return reply("❌ *Episodes හමු නොවිණි.*");
 
-                        // Save full TV series data
                         const tvId = storeData({ ...movie, episodes: episodes });
 
                         let tvCap = `*↳ ❝ [📺 𝗦𝗮𝗱𝗲𝘄 𝗧𝗩 𝗦𝗲𝗿𝗶𝗲𝘀 📺] ¡! ❞*\n\n`;
@@ -180,13 +246,11 @@ module.exports = {
                         
                         await socket.sendMessage(sender, msgOpts, { quoted: msg });
                         await socket.sendMessage(sender, { react: { text: "📺", key: msg.key } });
-                        return; // 👈 Exit (Movie Code එකට යන්නේ නෑ)
+                        return; 
                     }
 
-                    // 🎬 ━━━━━ IT'S A MOVIE ━━━━━ 🎬
                     downloads = dlRes.data.result?.downloads || [];
                 } catch (dlErr) {
-                    // (ඔයාගේ පරණ OLD_API Fallback එක)
                     if (dlErr.response && (dlErr.response.status >= 500 || dlErr.response.status === 404)) {
                         try {
                             const oldRes = await axios.get(`${OLD_API}/extract?id=${movie.id}&type=mv`, { timeout: 15000 });
@@ -247,7 +311,6 @@ module.exports = {
                 let label = dl.meta || 'HD';
                 let rawUrl = dl.resolvedUrl || dl.ztLink || '';
                 
-                // Movie Data Format එකටම Episode එක Save කරනවා
                 const dlId = storeData({ ...tv, title: `${tv.title} - Ep ${ep.episode}`, quality: label, url: rawUrl, isPlayer: false });
                 buttons.push({ buttonId: `.cs_dl ${dlId}`, buttonText: { displayText: `🎥 ${label.split('•')[0].trim()}` }, type: 1 });
             });
@@ -256,76 +319,7 @@ module.exports = {
         }
 
         // ════════════════════════════════════════════════════════
-        // 4. CORE DOWNLOAD FUNCTION (ඔයාගේ පරණ කෝඩ් එකමයි)
-        // ════════════════════════════════════════════════════════
-        const executeDownload = async (dlDetails) => {
-            const destJid = dlDetails.targetJid || sender;
-            const captionBase = `🎬 *Name:* ${dlDetails.title}\n📽 *Quality:* ${dlDetails.quality}`;
-            const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n🎬 *Title:* ${dlDetails.title}\n📽 *Quality:* ${dlDetails.quality}\n\n> 👑 *SADEW-MINI* 👑`;
-            const fileName = `${(dlDetails.title).substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dlDetails.quality}.mp4`;
-            let downloadSuccess = false;
-
-            const sendCard = async () => {
-                try {
-                    if (dlDetails.img) await socket.sendMessage(destJid, { image: { url: dlDetails.img }, caption: targetCardText }, { quoted: metaQuote });
-                    else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: metaQuote });
-                } catch (e) {}
-            };
-
-            if (dlDetails.isPlayer) {
-                try {
-                    const htmlRes = await axios.get(dlDetails.url, { timeout: 15000 });
-                    const match = htmlRes.data.match(/const ALL_QUALITIES = (\[.*?\]);/);
-                    if (match) {
-                        const qs = JSON.parse(match[1]);
-                        const rq = dlDetails.quality.toLowerCase().includes('480') ? '480p' : '720p';
-                        const matched = qs.find(q => q.html?.toLowerCase().includes(rq) || q.url?.toLowerCase().includes(rq));
-                        if (matched?.url) {
-                            if (dlDetails.targetJid) await sendCard();
-                            await socket.sendMessage(destJid, { document: { url: matched.url }, mimetype: "video/mp4", fileName, caption: `${captionBase}\n> 👑 *SADEW-MINI*` }, { quoted: metaQuote });
-                            downloadSuccess = true;
-                        }
-                    }
-                } catch (e) {}
-            }
-
-            if (!downloadSuccess && !dlDetails.isPlayer) {
-                let resolvedUrl = dlDetails.url.trim();
-                resolvedUrl = resolvedUrl.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
-                if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) resolvedUrl = resolvedUrl.replace(/\.mp4$/, '?ext=mp4');
-                let fallbackUrl = resolvedUrl.replace(/\/server\d+\//, '/server1/');
-
-                const tryApi = async (urlToTry) => {
-                    try {
-                        const dlRes = await axios.get(`${CZ_API}/download?url=${urlToTry}`, { timeout: 20000 });
-                        if (dlRes.data.success && dlRes.data.result?.downloadUrls) {
-                            const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.toLowerCase().includes('telegram'));
-                            if (!httpUrl?.url) return false;
-
-                            if (dlDetails.targetJid) await sendCard();
-                            
-                            const streamRes = await axios({ method: 'GET', url: httpUrl.url, responseType: 'stream', timeout: 300000, headers: { 'User-Agent': 'Mozilla/5.0' }, maxRedirects: 10 });
-                            const cl = parseInt(streamRes.headers['content-length'] || '0');
-                            const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
-                            
-                            await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: `${captionBase}\n📦 *Size:* ${size}\n> 👑 *SADEW-MINI*` }, { quoted: metaQuote });
-                            
-                            try { if (streamRes.data.destroy) streamRes.data.destroy(); } catch (err) {}
-                            setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
-                            return true;
-                        }
-                        return false;
-                    } catch (e) { return false; }
-                };
-
-                downloadSuccess = await tryApi(resolvedUrl);
-                if (!downloadSuccess && fallbackUrl !== resolvedUrl) downloadSuccess = await tryApi(fallbackUrl);
-            }
-            return downloadSuccess;
-        };
-
-        // ════════════════════════════════════════════════════════
-        // 5. DOWNLOAD MOVIE/EPISODE (.cs_dl)
+        // 4. DOWNLOAD MOVIE/EPISODE (.cs_dl)
         // ════════════════════════════════════════════════════════
         else if (command === "cs_dl") {
             const dl = global.czStore[args[0]];
@@ -341,7 +335,7 @@ module.exports = {
         }
 
         // ════════════════════════════════════════════════════════
-        // 6. 💎 PREMIUM DOWNLOAD ALL (.cs_all)
+        // 5. 💎 PREMIUM DOWNLOAD ALL (.cs_all)
         // ════════════════════════════════════════════════════════
         else if (command === "cs_all") {
             if (!isPremium) return reply("❌ *මෙම පහසුකම Premium Users ලාට පමණි!* 💎\n_වෙන වෙනම බටන් ක්ලික් කර Episode එකෙන් එක ඩවුන්ලෝඩ් කරගන්න._");
@@ -364,7 +358,7 @@ module.exports = {
                 const success = await executeDownload(details);
                 if (!success) await reply(`⚠️ *Ep ${ep.episode}* Download Failed!`);
 
-                await new Promise(r => setTimeout(r, 6000)); // Delay between episodes
+                await new Promise(r => setTimeout(r, 6000));
             }
             await reply(`✅ *[PREMIUM]* ${tv.title} හි සියල්ල යවා අවසන්!`);
         }
