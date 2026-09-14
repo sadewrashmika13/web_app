@@ -1,5 +1,19 @@
 const axios = require('axios');
-const { prepareWAMessageMedia, generateWAMessageFromContent } = require('@whiskeysockets/baileys');
+
+// 🔴 ඔයාගේ Mod Baileys එක ඔටෝම හොයාගන්න හදපු කෑල්ල 🔴
+let baileysPkg;
+try { baileysPkg = require('@whiskeysockets/baileys'); } 
+catch (e1) {
+    try { baileysPkg = require('@adiwajshing/baileys'); } 
+    catch (e2) {
+        try { baileysPkg = require('baileys'); } 
+        catch (e3) {
+            console.error("Baileys module එක හොයාගන්න බැහැ! කරුණාකර package.json එකේ තියෙන නම දෙන්න.");
+        }
+    }
+}
+
+const { prepareWAMessageMedia, generateWAMessageFromContent } = baileysPkg || {};
 
 module.exports = {
     name: "tiktoksearch_carousel",
@@ -14,10 +28,14 @@ module.exports = {
         try {
             await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } });
             
-            // Carousel එක හදන්න වීඩියෝ 10ම Upload වෙන්න ඕනේ නිසා පොඩි වෙලාවක් යනවා
+            // Baileys අවුලක් තියේනම් මෙතනින් නවතිනවා
+            if (!prepareWAMessageMedia || !generateWAMessageFromContent) {
+                await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
+                return reply("❌ *Mod Baileys එක හඳුනාගැනීමට නොහැකි විය. කරුණාකර 'baileys' module නම පරීක්ෂා කරන්න.*");
+            }
+            
             await reply(`🔍 _Searching TikTok for: "${query}"..._\n\n⏳ *කරුණාකර රැඳී සිටින්න, වීඩියෝ 10ම Carousel Message එකක් ලෙස සකසමින් පවතී... (මෙයට සුළු වෙලාවක් ගත විය හැක)*`);
 
-            // Kavindu API එකෙන් Search කිරීම
             const searchUrl = `https://kavindu-download-web.vercel.app/api/search/tiktok?q=${encodeURIComponent(query)}`;
             const { data } = await axios.get(searchUrl);
 
@@ -26,23 +44,20 @@ module.exports = {
                 return reply("❌ *සෙවූ වීඩියෝව හමු වුනේ නැහැ.*");
             }
 
-            // උපරිම වීඩියෝ 10 වෙන් කරගැනීම (Carousel උපරිමය 10යි)
             const results = data.result.slice(0, 10);
             const cards = [];
 
-            // වීඩියෝ 10 එකින් එක WhatsApp Servers වලට Upload කරලා Card හදනවා
             for (let i = 0; i < results.length; i++) {
                 const video = results[i];
                 if (!video.play) continue;
 
                 try {
-                    // WhatsApp සර්වර් එකට වීඩියෝ එක Upload කිරීම (Card එකට වීඩියෝ දාන්න මේක අනිවාර්යයි)
+                    // WhatsApp සර්වර් එකට Video එක Upload කරනවා
                     const media = await prepareWAMessageMedia(
                         { video: { url: video.play } },
                         { upload: socket.waUploadToServer }
                     );
 
-                    // එක Card එකක් හැදීම
                     cards.push({
                         body: { text: `*🎬 Title:* ${video.title || 'No Title'}\n👤 *Author:* ${video.author?.nickname || 'Unknown'}\n👁️ *Views:* ${video.play_count || 0}` },
                         footer: { text: "👑 SADEW-MINI 👑" },
@@ -72,7 +87,6 @@ module.exports = {
                 return reply("❌ *වීඩියෝ කාඩ්ස් සැකසීමට නොහැකි විය!*");
             }
 
-            // සම්පූර්ණ Carousel (Interactive Message) එක හැදීම
             const msgContent = generateWAMessageFromContent(sender, {
                 viewOnceMessage: {
                     message: {
@@ -92,7 +106,6 @@ module.exports = {
                 }
             }, { quoted: msg });
 
-            // Message එක යැවීම
             await socket.relayMessage(sender, msgContent.message, { messageId: msgContent.key.id });
             await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
 
