@@ -2,7 +2,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 // ════════════════════════════════════════════════════════
-// GLOBAL STORE FOR TV (පරණ API එකට වෙනම Store එකක්)
+// GLOBAL STORE FOR TV 
 // ════════════════════════════════════════════════════════
 if (!global.tvOldStore) global.tvOldStore = {};
 
@@ -49,7 +49,7 @@ module.exports = {
     name: "cinesubz-tv-old",
     category: 10,
     description: "Search and download TV Series using Old API",
-    commands: ["tv", "tv_ep", "tv_dl", "tv_dlall"], // tv_sel අයින් කළා
+    commands: ["tv", "tv_ep", "tv_dl", "tv_dlall"], 
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const botName = "👑 SADEW-MINI 👑";
@@ -58,6 +58,14 @@ module.exports = {
             key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_TV" },
             message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Cinesubz\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
         };
+
+        // 💎 PREMIUM USERS CHECK
+        const premiumUsers = [
+            "194601394663437", 
+            "94769634033"      
+        ];
+        const actualSender = msg.key.participant || msg.key.remoteJid || sender;
+        const isPremium = premiumUsers.some(id => actualSender.includes(id));
 
         // ════════════════════════════════════════════════════════
         // 1. SEARCH TV SERIES (.tv)
@@ -73,7 +81,6 @@ module.exports = {
                 const searchRes = await axios.get(`${OLD_API}/search?q=${encodeURIComponent(query)}`, { timeout: 15000 });
                 if (!searchRes.data.status || !searchRes.data.data.length) return reply("❌ *කිසිවක් හමුවූයේ නැත.*");
 
-                // Filter ONLY TV Shows
                 const tvShows = searchRes.data.data.filter(x => x.isTV).slice(0, 10);
                 if (!tvShows.length) return reply("❌ *TV Series කිසිවක් හමුවූයේ නැත.*");
 
@@ -117,7 +124,9 @@ module.exports = {
                     capText += `\n> *ඔබට අවශ්‍ය Episode එක තෝරන්න* ⬇️`;
 
                     const dlAllId = storeData({ title: tv.title, episodes: eps, targetJid: tv.targetJid, img: tv.img, date: tv.date }, 60 * 60 * 1000); 
-                    buttons.push({ buttonId: `.tv_dlall ${dlAllId}`, buttonText: { displayText: `📥 DOWNLOAD ALL EPISODES` }, type: 1 });
+                    
+                    // 💎 Premium Button
+                    buttons.push({ buttonId: `.tv_dlall ${dlAllId}`, buttonText: { displayText: `💎 DOWNLOAD ALL (Premium)` }, type: 1 });
 
                     eps.forEach(ep => {
                         const epId = storeData({ 
@@ -125,7 +134,6 @@ module.exports = {
                             url: ep.url, 
                             targetJid: tv.targetJid 
                         });
-                        // Quality අහන එක මඟහැර කෙලින්ම tv_dl එකට යවනවා
                         buttons.push({ buttonId: `.tv_dl ${epId}`, buttonText: { displayText: `🎬 Ep ${ep.episode}: ${ep.title || ''}`.substring(0, 20) }, type: 1 });
                     });
 
@@ -139,7 +147,7 @@ module.exports = {
         }
 
         // ════════════════════════════════════════════════════════
-        // 3. DIRECT DOWNLOAD EPISODE (.tv_dl) (Skip Quality)
+        // 3. DIRECT DOWNLOAD EPISODE (.tv_dl) 
         // ════════════════════════════════════════════════════════
         else if (command === "tv_dl") {
             const ep = global.tvOldStore[args[0]];
@@ -151,19 +159,18 @@ module.exports = {
                 if (ep.targetJid) await reply(`🚀 *[CineSend]* \`${ep.title}\` යවමින් පවතී...`);
                 else await reply(`📥 *Downloading ${ep.title}...*`);
 
-                // Fetch dl-links to get the default MP4 url silently
                 const dlRes = await axios.get(`${OLD_API}/dl-links?url=${encodeURIComponent(ep.url)}`, { timeout: 25000 });
                 const arr = dlRes.data?.downloadLinks || [];
                 
                 let vidUrl = null;
-                let qualityStr = "720p"; // Default
+                let qualityStr = "720p"; 
 
                 for (let item of arr) {
                     let u = item.direct_mp4_url || item.url || item.link;
                     if (u && typeof u === 'string' && u.startsWith('http')) {
                         vidUrl = u; 
                         qualityStr = item.quality || item.resolution || item.name || '720p';
-                        break; // Grab the first available link and stop
+                        break; 
                     }
                 }
 
@@ -183,9 +190,15 @@ module.exports = {
         }
 
         // ════════════════════════════════════════════════════════
-        // 4. DOWNLOAD ALL EPISODES (.tv_dlall)
+        // 4. 💎 PREMIUM DOWNLOAD ALL (.tv_dlall)
         // ════════════════════════════════════════════════════════
         else if (command === "tv_dlall") {
+            
+            // 🚫 PREMIUM CHECK
+            if (!isPremium) {
+                return reply("❌ *සමාවෙන්න, 'Download All' පහසුකම Premium Users ලාට පමණි!* 💎");
+            }
+
             const show = global.tvOldStore[args[0]];
             if (!show || !show.episodes) return reply("❌ *Link expired. නැවත search කරන්න.*");
             const destJid = show.targetJid || sender;
@@ -193,7 +206,7 @@ module.exports = {
 
             try {
                 await socket.sendMessage(sender, { react: { text: "🚀", key: msg.key } });
-                await reply(`🚀 *[CineSend Bulk]* \`${show.title}\` හි Episodes ${eps.length} ක් ඔටෝමැටික් ඩවුන්ලෝඩ් වීම ආරම්භ විය.\n_කරුණාකර රැඳී සිටින්න..._`);
+                await reply(`🚀 *[PREMIUM Bulk]* \`${show.title}\` හි Episodes ${eps.length} ක් ඔටෝමැටික් ඩවුන්ලෝඩ් වීම ආරම්භ විය.\n_කරුණාකර රැඳී සිටින්න..._`);
 
                 for (let i = 0; i < eps.length; i++) {
                     const ep = eps[i];
@@ -225,7 +238,7 @@ module.exports = {
                     }
                 }
                 await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
-                await reply(`✅ *[CineSend Bulk]* \`${show.title}\` හි සියලුම Episodes යවා අවසන්!`);
+                await reply(`✅ *[PREMIUM Bulk]* \`${show.title}\` හි සියලුම Episodes යවා අවසන්!`);
             } catch (e) { reply("❌ *Bulk Download ක්‍රියාවලිය අතරමග නැවතුණි.*"); }
         }
     }
