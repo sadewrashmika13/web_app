@@ -54,7 +54,7 @@ function parseCineSend(fullText) {
 
 module.exports = {
     name: "cinesubz-tvseries",
-    category: "TV Series",
+    category: 10,  // 👈 මෙතන "TV Series" වෙනුවට කෙලින්ම 10 දාන්න
     description: "Search and download Sinhala Subbed TV Series",
     commands: ["tv", "tvsend", "tv_sel", "tv_ep", "tv_dl", "tv_all"],
 
