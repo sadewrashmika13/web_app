@@ -1698,6 +1698,24 @@ const SADEW_CATEGORIES = {
             { cmd: '.sublk', desc: 'sublk movie ' }
 
       ] 
+    },
+      11: {
+        emoji: '💎',
+        name: 'Premium Menu',
+        items: [ 
+            { cmd: '.join', desc: 'Join bot to your group (Premium)' },
+            { cmd: '.cfollow', desc: 'Mass Channel Follow (Premium)' },
+            { cmd: '.creact', desc: 'Mass Channel React (Premium)' }
+        ] 
+    },
+    // 👇 අලුතින් දාපු 18+ Menu එක
+    12: {
+        emoji: '💋',
+        name: '18+ Menu',
+        items: [ 
+            { cmd: '.hentai', desc: 'Random Videos (18+)' },
+            { cmd: '.xnxx', desc: 'Video Search & Download (18+)' }
+        ] 
     }
 };
 
@@ -1721,8 +1739,10 @@ const CATEGORY_KEYWORDS = {
     6: ['owner', 'active', 'session', 'dev'],
     7: ['alive', 'system', 'ping', 'lvcal', 'love', 'hack', 'hentai', 'fun', 'game'],
     8: ['song', 'music', 'mp3', 'audio', 'lyrics', 'playlist'],
-        9: ['dalle', 'pixabay', 'picsum', 'flickr', 'dog', 'cat', 'bingimg'],
-        10: ['kdrama', 'movie', 'tv', 'series', 'drama', 'cinesubz', 'moviebox', 'cinema'] 
+    9: ['dalle', 'pixabay', 'picsum', 'flickr', 'dog', 'cat', 'bingimg'],
+    10: ['kdrama', 'movie', 'tv', 'series', 'drama', 'cinesubz', 'moviebox', 'cinema'],
+    11: ['premium', 'pro', 'vip'],
+    12: ['18+', 'nsfw', 'hentai', 'xnxx', 'xxx'] 
 };
 
 function autoDetectCategory(plugin) {
@@ -2385,6 +2405,8 @@ try {
 ┣⪼ ❖ 8.  🎵 𝚂𝙾𝙽𝙶 & 𝙼𝚄𝚂𝙸𝙲
 ┣⪼ ❖ 9.  🖼️ 𝙰𝙸 𝙸𝙼𝙰𝙶𝙴 𝙼𝙴𝙽𝚄
 ┣⪼ ❖ 10. 🎬 𝚃𝚅 𝚂𝙴𝚁𝙸𝙴𝚂 & 𝙼𝙾𝚅𝙸𝙴𝚂
+┣⪼ ❖ 11. 💎 𝙿𝚁𝙴𝙼𝙸𝚄𝙼 𝙼𝙴𝙽𝚄
+┣⪼ ❖ 12. 💋 𝟷𝟾+ 𝙼𝙴𝙽𝚄
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━
 ⊱ ─────── { 𑁍 } ─────── ⊰
 ╰┈⪼ 𝚁𝙴𝙿𝙻𝚈 𝚆𝙸𝚃𝙷 𝙰 𝙽𝚄𝙼𝙱𝙴𝚁 (1-10) 𝙾𝚁 𝚃𝙰𝙿 𝙰 𝙱𝚄𝚃𝚃𝙾𝙽 𝙱𝙴𝙻𝙾𝚆 ⪻
@@ -4203,6 +4225,20 @@ async function sendCategoryWebview(socket, msg, sender, categoryName, commandsAr
         } else if (nameLower.includes("tool") || nameLower.includes("edit")) {
             pC = "#b185fa"; sC = "rgba(177,133,250,0.3)"; pS = "🍃"; 
             svg = `<svg width="60" height="60" viewBox="0 0 100 100"><circle cx="50" cy="50" r="20" fill="none" stroke="${pC}" stroke-width="4" stroke-dasharray="10 5"><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="5s" repeatCount="indefinite"/></circle><circle cx="50" cy="50" r="10" fill="${pC}"/></svg>`;
+        }         // අනිත් Themes වලට පල්ලෙහායින් මේක දාන්න
+        } else if (nameLower.includes("premium") || nameLower.includes("vip")) {
+            pC = "#ffbc00"; // 👑 Gold Color
+            sC = "rgba(255,188,0,0.3)";
+            pS = "💎"; 
+            // දියමන්ති හැඩයේ ලස්සන SVG Animation එකක්
+            svg = `<svg width="60" height="60" viewBox="0 0 100 100"><path d="M50 15 L85 40 L50 90 L15 40 Z" fill="none" stroke="${pC}" stroke-width="3"><animateTransform attributeName="transform" type="translate" values="0,0; 0,-5; 0,0" dur="2s" repeatCount="indefinite"/></path><line x1="15" y1="40" x2="85" y2="40" stroke="${pC}" stroke-width="2"/><line x1="50" y1="15" x2="50" y2="90" stroke="${pC}" stroke-width="2"/></svg>`;
+            
+        } else if (nameLower.includes("18") || nameLower.includes("nsfw") || nameLower.includes("hentai")) {
+            pC = "#ff1493"; // 💋 Deep Pink Color (ඔයා ඉල්ලපු රෝස පාට)
+            sC = "rgba(255,20,147,0.3)";
+            pS = "💋"; 
+            // 18+ Menu එකට ගැළපෙන Beating Heart SVG Animation එකක්
+            svg = `<svg width="60" height="60" viewBox="0 0 100 100"><path d="M50 85 C 20 55, 10 30, 25 15 C 35 5, 50 20, 50 20 C 50 20, 65 5, 75 15 C 90 30, 80 55, 50 85 Z" fill="none" stroke="${pC}" stroke-width="3"><animateTransform attributeName="transform" type="scale" values="1; 1.05; 1" dur="1.5s" repeatCount="indefinite" additive="sum"/></path></svg>`;
         }
 
         // 🔥 පාවී පාවී වැටෙන Animation එක (Swaying System) 
