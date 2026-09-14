@@ -4225,7 +4225,7 @@ async function sendCategoryWebview(socket, msg, sender, categoryName, commandsAr
         } else if (nameLower.includes("tool") || nameLower.includes("edit")) {
             pC = "#b185fa"; sC = "rgba(177,133,250,0.3)"; pS = "🍃"; 
             svg = `<svg width="60" height="60" viewBox="0 0 100 100"><circle cx="50" cy="50" r="20" fill="none" stroke="${pC}" stroke-width="4" stroke-dasharray="10 5"><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="5s" repeatCount="indefinite"/></circle><circle cx="50" cy="50" r="10" fill="${pC}"/></svg>`;
-        }         // අනිත් Themes වලට පල්ලෙහායින් මේක දාන්න
+      
         } else if (nameLower.includes("premium") || nameLower.includes("vip")) {
             pC = "#ffbc00"; // 👑 Gold Color
             sC = "rgba(255,188,0,0.3)";
