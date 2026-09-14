@@ -6,7 +6,7 @@ if (!global.xvStore) global.xvStore = {};
 
 module.exports = {
     name: "xVideos",
-    category: "18+",
+    category: "12",
     description: "Search and download xVideos",
     commands: ["xv", "xvideo"], // xvdl සම්පූර්ණයෙන්ම අයින් කළා! Menu එකේ පේන්නේ නෑ
 
