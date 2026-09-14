@@ -1,24 +1,9 @@
 const axios = require('axios');
 
-// 🔴 ඔයාගේ Mod Baileys එක ඔටෝම හොයාගන්න හදපු කෑල්ල 🔴
-let baileysPkg;
-try { baileysPkg = require('@whiskeysockets/baileys'); } 
-catch (e1) {
-    try { baileysPkg = require('@adiwajshing/baileys'); } 
-    catch (e2) {
-        try { baileysPkg = require('baileys'); } 
-        catch (e3) {
-            console.error("Baileys module එක හොයාගන්න බැහැ! කරුණාකර package.json එකේ තියෙන නම දෙන්න.");
-        }
-    }
-}
-
-const { prepareWAMessageMedia, generateWAMessageFromContent } = baileysPkg || {};
-
 module.exports = {
-    name: "tiktoksearch_carousel",
+    name: "tiktoksearch",
     category: 1,
-    description: "Search and send TikTok videos in a Horizontal Carousel",
+    description: "Search and download 10 TikTok videos directly",
     commands: ["ts"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -27,15 +12,9 @@ module.exports = {
 
         try {
             await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } });
-            
-            // Baileys අවුලක් තියේනම් මෙතනින් නවතිනවා
-            if (!prepareWAMessageMedia || !generateWAMessageFromContent) {
-                await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
-                return reply("❌ *Mod Baileys එක හඳුනාගැනීමට නොහැකි විය. කරුණාකර 'baileys' module නම පරීක්ෂා කරන්න.*");
-            }
-            
-            await reply(`🔍 _Searching TikTok for: "${query}"..._\n\n⏳ *කරුණාකර රැඳී සිටින්න, වීඩියෝ 10ම Carousel Message එකක් ලෙස සකසමින් පවතී... (මෙයට සුළු වෙලාවක් ගත විය හැක)*`);
+            await reply(`🔍 _Searching TikTok for: "${query}"... Please wait!_`);
 
+            // Kavindu API එකෙන් Search කිරීම
             const searchUrl = `https://kavindu-download-web.vercel.app/api/search/tiktok?q=${encodeURIComponent(query)}`;
             const { data } = await axios.get(searchUrl);
 
@@ -44,73 +23,46 @@ module.exports = {
                 return reply("❌ *සෙවූ වීඩියෝව හමු වුනේ නැහැ.*");
             }
 
+            // මුල් වීඩියෝ 10 වෙන් කරගැනීම
             const results = data.result.slice(0, 10);
-            const cards = [];
+            
+            await reply(`✅ *වීඩියෝ ${results.length} ක් සොයාගත්තා. දැන් එකින් එක එවනු ලැබේ... (තත්පර 3ක පරතරයකින්)*`);
 
+            // වීඩියෝ 10 එකින් එක යැවීම (Loop එක)
             for (let i = 0; i < results.length; i++) {
                 const video = results[i];
-                if (!video.play) continue;
+                const videoUrl = video.play; // No Watermark Video (Top Quality)
+                
+                if (!videoUrl) continue;
+
+                const title = video.title || 'No Title';
+                const author = video.author?.nickname || 'Unknown';
+                const views = video.play_count || 0;
+
+                const caption = `*🎬 Title:* ${title}\n👤 *Author:* ${author}\n👁️ *Views:* ${views}\n\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
 
                 try {
-                    // WhatsApp සර්වර් එකට Video එක Upload කරනවා
-                    const media = await prepareWAMessageMedia(
-                        { video: { url: video.play } },
-                        { upload: socket.waUploadToServer }
-                    );
+                    // කෙලින්ම URL එකෙන් වීඩියෝ එක යවනවා (RAM එකට බර නෑ)
+                    await socket.sendMessage(sender, {
+                        video: { url: videoUrl },
+                        caption: caption,
+                        mimetype: 'video/mp4'
+                    }, { quoted: msg });
+                } catch (sendErr) {
+                    console.error(`Failed to send video ${i+1}:`, sendErr.message);
+                }
 
-                    cards.push({
-                        body: { text: `*🎬 Title:* ${video.title || 'No Title'}\n👤 *Author:* ${video.author?.nickname || 'Unknown'}\n👁️ *Views:* ${video.play_count || 0}` },
-                        footer: { text: "👑 SADEW-MINI 👑" },
-                        header: {
-                            title: `TikTok Video ${i+1}`,
-                            hasMediaAttachment: true,
-                            videoMessage: media.videoMessage
-                        },
-                        nativeFlowMessage: {
-                            buttons: [
-                                {
-                                    name: "cta_url",
-                                    buttonParamsJson: JSON.stringify({
-                                        display_text: "🔗 Direct Link",
-                                        url: video.play
-                                    })
-                                }
-                            ]
-                        }
-                    });
-                } catch (e) {
-                    console.error(`Failed to prepare card ${i+1}:`, e.message);
+                // ඊළඟ වීඩියෝව යවන්න කලින් තත්පර 3ක Delay එකක් දෙනවා
+                if (i < results.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
                 }
             }
 
-            if (cards.length === 0) {
-                return reply("❌ *වීඩියෝ කාඩ්ස් සැකසීමට නොහැකි විය!*");
-            }
-
-            const msgContent = generateWAMessageFromContent(sender, {
-                viewOnceMessage: {
-                    message: {
-                        messageContextInfo: {
-                            deviceListMetadata: {},
-                            deviceListMetadataVersion: 2
-                        },
-                        interactiveMessage: {
-                            body: { text: `*🔍 SADEW-MINI TIKTOK SEARCH*\nResults for: _${query}_\n\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*` },
-                            footer: { text: "Swipe left to view videos ➡️" },
-                            header: { title: "", subtitle: "", hasMediaAttachment: false },
-                            carouselMessage: {
-                                cards: cards
-                            }
-                        }
-                    }
-                }
-            }, { quoted: msg });
-
-            await socket.relayMessage(sender, msgContent.message, { messageId: msgContent.key.id });
             await socket.sendMessage(sender, { react: { text: '✅', key: msg.key } });
+            await reply("✅ *වීඩියෝ සියල්ලම යවා අවසන්!*");
 
         } catch (e) {
-            console.error("[tiktok search carousel] Error:", e.message);
+            console.error("[tiktok search] Error:", e.message);
             await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
             reply(`❌ *Search error: ${e.message}*`);
         }
