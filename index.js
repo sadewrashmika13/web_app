@@ -110,6 +110,76 @@ app.get('/react', async (req, res) => {
     }
 });
 // ═══════════════════════════════════════════════════════════
+// ════════════ 📢 MASS CHANNEL FOLLOW API (WITH 15s ANTI-SPAM DELAY) ════════════
+app.get('/follow', async (req, res) => {
+    try {
+        const link = req.query.link;
+
+        if (!link) {
+            return res.json({ fail: "Enter your channel link", example: "/follow?link=https://whatsapp.com/channel/xxx" });
+        }
+
+        const activeSockets = global.activeSockets;
+
+        if (!activeSockets || activeSockets.size === 0) {
+            return res.json({ fail: "No active bots connected!" });
+        }
+
+        // ලින්ක් එකෙන් Invite Code එක විතරක් වෙන් කරගැනීම
+        const match = link.match(/channel\/([a-zA-Z0-9_-]+)/);
+        if (!match) {
+            return res.json({ fail: "Invalid channel link format!" });
+        }
+
+        const inviteCode = match[1];
+
+        // 🟢 බ්‍රවුසර් එක Load වෙවී තියෙන්නේ නැති වෙන්න ක්ෂණිකව පිළිතුරක් යැවීම
+        res.json({
+            success: true,
+            status: "Background Mass Follow Started",
+            bots_count: activeSockets.size,
+            channel_invite: inviteCode,
+            anti_spam_delay: "15 Seconds per user"
+        });
+
+        // 🟡 Background එකේ තත්පර 15න් 15ට Follow වෙන ලොජික් එක
+        (async () => {
+            try {
+                // මුලින්ම ඉන්න කෙනාගෙන් Channel එකේ JID (ID) එක හොයාගැනීම
+                const firstSession = Array.from(activeSockets.values())[0];
+                const firstSocket = firstSession.socket || firstSession;
+                const metadata = await firstSocket.newsletterMetadata('invite', inviteCode);
+                const jid = metadata.id;
+
+                let count = 1;
+                for (const [number, sessionData] of activeSockets.entries()) {
+                    try {
+                        const botSocket = sessionData.socket || sessionData;
+                        if (botSocket) {
+                            // Channel එක Follow කිරීම
+                            await botSocket.newsletterFollow(jid);
+                            console.log(`[+] [${count}/${activeSockets.size}] Followed successfully: ${number}`);
+                            
+                            // ⏱️ Anti-Spam Delay: තත්පර 15ක් (15000 ms) රඳවා තබා ගැනීම
+                            await new Promise(r => setTimeout(r, 15000));
+                        }
+                    } catch (e) {
+                        console.log(`[-] Follow failed for ${number}:`, e.message);
+                    }
+                    count++;
+                }
+                console.log(`✅ Mass follow completely finished for ${inviteCode}`);
+            } catch (err) {
+                console.error('Mass Follow Error:', err.message);
+            }
+        })();
+
+    } catch (error) {
+        if (!res.headersSent) {
+            res.json({ fail: "System error occurred", error: error.message });
+        }
+    }
+});
 // ═══════════════════════════════════════════════════════════
 
 app.use('/code', code);
