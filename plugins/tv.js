@@ -49,7 +49,7 @@ module.exports = {
     name: "cinesubz-tv-old",
     category: 10,
     description: "Search and download TV Series using Old API",
-    commands: ["tv", "tv_ep", "tv_sel", "tv_dl", "tv_dlall"],
+    commands: ["tv", "tv_ep", "tv_dl", "tv_dlall"], // tv_sel අයින් කළා
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const botName = "👑 SADEW-MINI 👑";
@@ -120,8 +120,13 @@ module.exports = {
                     buttons.push({ buttonId: `.tv_dlall ${dlAllId}`, buttonText: { displayText: `📥 DOWNLOAD ALL EPISODES` }, type: 1 });
 
                     eps.forEach(ep => {
-                        const epId = storeData({ title: `${tv.title} - ${ep.title || 'Ep ' + ep.episode}`, url: ep.url, targetJid: tv.targetJid, img: tv.img, date: tv.date });
-                        buttons.push({ buttonId: `.tv_sel ${epId}`, buttonText: { displayText: `🎬 Ep ${ep.episode}: ${ep.title || ''}`.substring(0, 20) }, type: 1 });
+                        const epId = storeData({ 
+                            title: `${tv.title} - ${ep.title || 'Ep ' + ep.episode}`, 
+                            url: ep.url, 
+                            targetJid: tv.targetJid 
+                        });
+                        // Quality අහන එක මඟහැර කෙලින්ම tv_dl එකට යවනවා
+                        buttons.push({ buttonId: `.tv_dl ${epId}`, buttonText: { displayText: `🎬 Ep ${ep.episode}: ${ep.title || ''}`.substring(0, 20) }, type: 1 });
                     });
 
                     const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: tv.img ? 4 : 1 };
@@ -134,79 +139,51 @@ module.exports = {
         }
 
         // ════════════════════════════════════════════════════════
-        // 3. GET QUALITIES FOR EPISODE (.tv_sel)
-        // ════════════════════════════════════════════════════════
-        else if (command === "tv_sel") {
-            const ep = global.tvOldStore[args[0]];
-            if (!ep) return reply("❌ *Link expired. නැවත search කරන්න.*");
-
-            await socket.sendMessage(sender, { react: { text: "⏳", key: msg.key } });
-            
-            try {
-                const dlRes = await axios.get(`${OLD_API}/dl-links?url=${encodeURIComponent(ep.url)}`, { timeout: 25000 });
-                const arr = dlRes.data?.downloadLinks || [];
-                let downloads = [];
-
-                arr.forEach(item => {
-                    const resolvedUrl = item.direct_mp4_url || item.url || item.link;
-                    if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
-                        let q = item.quality || item.resolution || item.name || '';
-                        if (!q) {
-                            if (resolvedUrl.includes('480p')) q = '480p';
-                            else if (resolvedUrl.includes('720p')) q = '720p';
-                            else if (resolvedUrl.includes('1080p')) q = '1080p';
-                            else q = 'HD';
-                        }
-                        downloads.push({ meta: q, size: item.fileSize || item.size || 'Unknown', resolvedUrl: resolvedUrl });
-                    }
-                });
-
-                if (!downloads.length) return reply("❌ *මෙම කොටස සඳහා Download Links හමු නොවිණි.*");
-
-                const buttons = [];
-                let capText = `*↳ ❝ [📺 𝗦𝗮𝗱𝗲𝘄 𝗧𝗩 𝗦𝗲𝗿𝗶𝗲𝘀 📺] ¡! ❞*\n\n🎬 *Episode:* ${ep.title}\n`;
-                if (ep.targetJid) capText += `🎯 *Send Target:* \`${ep.targetJid}\`\n`;
-                capText += `\n> *ඔබට අවශ්‍ය Quality එක පහලින් තෝරන්න* ⬇️`;
-
-                downloads.forEach((dl) => {
-                    const dlId = storeData({ title: ep.title, quality: dl.meta, size: dl.size, url: dl.resolvedUrl, targetJid: ep.targetJid, img: ep.img, date: ep.date });
-                    buttons.push({ buttonId: `.tv_dl ${dlId}`, buttonText: { displayText: `🎥 ${dl.meta} ${dl.size && dl.size !== 'Unknown' ? `(${dl.size})` : ''}`.trim() }, type: 1 });
-                });
-
-                const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: ep.img ? 4 : 1 };
-                if (ep.img) msgOpts.image = { url: ep.img };
-                await socket.sendMessage(sender, msgOpts, { quoted: msg });
-            } catch (e) { reply("❌ Quality error."); }
-        }
-
-        // ════════════════════════════════════════════════════════
-        // 4. DOWNLOAD SINGLE EPISODE (.tv_dl)
+        // 3. DIRECT DOWNLOAD EPISODE (.tv_dl) (Skip Quality)
         // ════════════════════════════════════════════════════════
         else if (command === "tv_dl") {
-            const dl = global.tvOldStore[args[0]];
-            if (!dl) return reply("❌ *Link expired. නැවත search කරන්න.*");
-            const destJid = dl.targetJid || sender;
+            const ep = global.tvOldStore[args[0]];
+            if (!ep) return reply("❌ *Link expired. නැවත search කරන්න.*");
+            const destJid = ep.targetJid || sender;
 
             try {
                 await socket.sendMessage(sender, { react: { text: "⬇️", key: msg.key } });
-                if (dl.targetJid) await reply(`🚀 *[CineSend]* \`${dl.title}\` (${dl.quality}) යවමින් පවතී...`);
-                else await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*`);
+                if (ep.targetJid) await reply(`🚀 *[CineSend]* \`${ep.title}\` යවමින් පවතී...`);
+                else await reply(`📥 *Downloading ${ep.title}...*`);
 
-                const fileName = `${(dl.title || 'Video').substring(0, 40).replace(/[^a-zA-Z0-9 .\-]/g, '').trim()} - ${dl.quality}.mp4`;
-                const finalCap = `🎬 *Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📦 *Size:* ${dl.size || 'Unknown'}\n\n> 👑 *SADEW-MINI* 👑`;
+                // Fetch dl-links to get the default MP4 url silently
+                const dlRes = await axios.get(`${OLD_API}/dl-links?url=${encodeURIComponent(ep.url)}`, { timeout: 25000 });
+                const arr = dlRes.data?.downloadLinks || [];
                 
-                const streamRes = await axios({ method: 'GET', url: dl.url, responseType: 'stream', timeout: 300000, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://cinesubz.net/' }, maxRedirects: 10 });
+                let vidUrl = null;
+                let qualityStr = "720p"; // Default
+
+                for (let item of arr) {
+                    let u = item.direct_mp4_url || item.url || item.link;
+                    if (u && typeof u === 'string' && u.startsWith('http')) {
+                        vidUrl = u; 
+                        qualityStr = item.quality || item.resolution || item.name || '720p';
+                        break; // Grab the first available link and stop
+                    }
+                }
+
+                if (!vidUrl) return reply("❌ *මෙම කොටස සඳහා Direct MP4 Link එකක් හමු නොවිණි.*");
+
+                const fileName = `${(ep.title || 'Video').substring(0, 40).replace(/[^a-zA-Z0-9 .\-]/g, '').trim()} - ${qualityStr}.mp4`;
+                const finalCap = `🎬 *Name:* ${ep.title}\n📽 *Quality:* ${qualityStr}\n\n> 👑 *SADEW-MINI* 👑`;
+                
+                const streamRes = await axios({ method: 'GET', url: vidUrl, responseType: 'stream', timeout: 300000, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://cinesubz.net/' }, maxRedirects: 10 });
                 
                 await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName: fileName, caption: finalCap }, { quoted: metaQuote });
                 await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
-            } catch (e2) {
+            } catch (e) {
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
                 await reply("❌ *Download Failed!* සර්වර් එකෙන් වීඩියෝව ලබාගත නොහැකි විය.");
             }
         }
 
         // ════════════════════════════════════════════════════════
-        // 5. DOWNLOAD ALL EPISODES (.tv_dlall)
+        // 4. DOWNLOAD ALL EPISODES (.tv_dlall)
         // ════════════════════════════════════════════════════════
         else if (command === "tv_dlall") {
             const show = global.tvOldStore[args[0]];
@@ -226,11 +203,11 @@ module.exports = {
                         const arr = dlRes.data?.downloadLinks || [];
                         
                         let vidUrl = null;
-                        let qualityStr = "480p"; 
+                        let qualityStr = "720p"; 
                         for (let item of arr) {
                             let u = item.direct_mp4_url || item.url || item.link;
                             if (u && typeof u === 'string' && u.startsWith('http')) {
-                                vidUrl = u; qualityStr = item.quality || '480p'; break; 
+                                vidUrl = u; qualityStr = item.quality || '720p'; break; 
                             }
                         }
 
