@@ -40,22 +40,21 @@ function parseCineSend(fullText) {
 }
 
 module.exports = {
-    name: "cinesubz-mixed",
+    name: "cinesubz-fixed",
     category: "Movies",
-    description: "Download Cinesubz movies using mixed API logic",
+    description: "Download Cinesubz movies using Danuz Updated API",
     commands: ["cz", "cinesubz", "cinesend", "cs_sel", "cs_dl"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const botName = "👑 SADEW-MINI 👑";
         const CZ_API = "https://cz-dnuz.vercel.app";
-        const CINE_API = "https://cinesubz-api-cnw.vercel.app/api";
         
         const metaQuote = {
             key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_CZ" },
             message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Cinesubz\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
         };
 
-        // 1. SEARCH (.cz) -> Using CZ_API for fast search
+        // 1. SEARCH (.cz)
         if (command === "cz" || command === "cinesubz" || command === "cinesend") {
             const fullText = args.join(" ").trim();
             if (!fullText) return reply("🎬 *කරුණාකර Movie එකේ නම ලබා දෙන්න!*\n_උදා: .cz batman_");
@@ -94,7 +93,7 @@ module.exports = {
             }
         }
 
-        // 2. MOVIE SELECT (.cs_sel) -> Qualities from CZ_API
+        // 2. MOVIE SELECT (.cs_sel)
         else if (command === "cs_sel") {
             const id = args[0];
             const movie = global.czStore[id];
@@ -123,12 +122,16 @@ module.exports = {
                     let label = dl.meta || 'HD'; 
                     let cleanLabel = label.split('•').map(x => x.trim()).join(' | ');
 
+                    // API ටෙස්ට් එකට අනුව resolvedUrl තමයි නියම ලින්ක් එක
+                    let rawLink = dl.resolvedUrl || dl.ztLink || dl.link || dl.url || "";
+
                     const dlId = storeData({
-                        movieUrl: movie.url, // Keep the movie URL for the download API
                         title: movie.title,
-                        qualityLabel: label,
+                        qualityLabel: cleanLabel,
+                        rawLink: rawLink, 
                         targetJid: movie.targetJid,
-                        img: movie.img, date: movie.date
+                        img: movie.img, 
+                        date: movie.date
                     });
 
                     buttons.push({
@@ -150,11 +153,12 @@ module.exports = {
             }
         }
 
-        // 3. DOWNLOAD (.cs_dl) -> GET DIRECT MP4 FROM CINE_API AND SORT BY SIZE 🔥
+        // 3. DOWNLOAD (.cs_dl) - ✅ 100% FIXED WITH LIVE API TEST
         else if (command === "cs_dl") {
             const id = args[0];
             const dl = global.czStore[id];
             if (!dl) return reply("❌ *Link expired. නැවත search කරන්න.*");
+            if (!dl.rawLink) return reply("❌ *Download link එක හමුවූයේ නැත.*");
 
             const destJid = dl.targetJid || sender;
 
@@ -162,40 +166,34 @@ module.exports = {
                 await socket.sendMessage(sender, { react: { text: "⬇️", key: msg.key } });
                 
                 if (dl.targetJid) await reply(`🚀 *[CineSend]* \`${dl.title}\` (${dl.qualityLabel}) ඩවුන්ලෝඩ් කරමින් පවතී...`);
-                else await reply(`📥 *Downloading ${dl.title}*\n🎯 ${dl.qualityLabel}\n_Direct Link සම්බන්ධ වෙමින් පවතී..._`);
+                else await reply(`📥 *Downloading ${dl.title}*\n🎯 ${dl.qualityLabel}\n_Direct MP4 Link එක ලබාගනිමින් පවතී..._`);
 
-                // Call CINE_API using the original Movie URL to bypass JS security!
-                const dlApiUrl = `${CINE_API}/dl-links?url=${encodeURIComponent(dl.movieUrl)}`;
-                const dlRes = await axios.get(dlApiUrl, { timeout: 25000 });
-                const arr = dlRes.data?.downloadLinks || dlRes.data?.result || dlRes.data?.data || [];
+                let apiEndpoint = "";
+                if (dl.rawLink.includes("zt-links") || dl.rawLink.includes("cinesubz.net/api-")) {
+                    apiEndpoint = `${CZ_API}/resolve?url=${encodeURIComponent(dl.rawLink)}`;
+                } else {
+                    apiEndpoint = `${CZ_API}/download?url=${encodeURIComponent(dl.rawLink)}`;
+                }
 
-                let rawDownloads = [];
-                arr.forEach(item => {
-                    const resolvedUrl = item.direct_mp4_url || item.url || item.link;
-                    if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
-                        let sizeStr = item.fileSize || item.size || '0 MB';
-                        let sizeNum = 0;
-                        if (sizeStr.toLowerCase().includes('gb')) sizeNum = parseFloat(sizeStr) * 1024;
-                        else if (sizeStr.toLowerCase().includes('mb')) sizeNum = parseFloat(sizeStr);
-                        
-                        rawDownloads.push({ url: resolvedUrl, sizeNum: sizeNum });
-                    }
-                });
+                const apiRes = await axios.get(apiEndpoint, { timeout: 20000 });
+                let finalMp4Url = "";
 
-                if (!rawDownloads.length) return reply("❌ *Cinesubz API එකෙන් Direct Download Link ලබා ගත නොහැක.*");
+                // Danuz ගේ API එකෙන් එන JSON එක හරියටම කියවීම
+                if (apiRes.data?.result?.downloadUrls) {
+                    // Telegram එක නැති Direct Server ලින්ක් එක තෝරාගැනීම
+                    let dls = apiRes.data.result.downloadUrls;
+                    let direct = dls.find(x => !x.url.includes("telegram.me"));
+                    finalMp4Url = direct ? direct.url : dls[0].url;
+                } else if (apiRes.data?.result?.url) {
+                    finalMp4Url = apiRes.data.result.url;
+                } else if (typeof apiRes.data?.result === 'string') {
+                    finalMp4Url = apiRes.data.result;
+                } else if (apiRes.data?.url) {
+                    finalMp4Url = apiRes.data.url;
+                }
 
-                // 🧠 MATCH QUALITY BY SIZE!
-                // Since CINE_API labels are messy, we sort by size to map 480/720/1080 accurately
-                rawDownloads.sort((a, b) => a.sizeNum - b.sizeNum);
-                
-                let selectedVideoUrl = rawDownloads[0].url; // Default to smallest (480p)
-                
-                if (dl.qualityLabel.includes('1080') && rawDownloads.length >= 3) {
-                    selectedVideoUrl = rawDownloads[rawDownloads.length - 1].url; // Largest
-                } else if (dl.qualityLabel.includes('720') && rawDownloads.length >= 2) {
-                    selectedVideoUrl = rawDownloads[Math.floor(rawDownloads.length / 2)].url; // Middle
-                } else if (dl.qualityLabel.includes('1080') && rawDownloads.length === 2) {
-                    selectedVideoUrl = rawDownloads[1].url; // If only 2 exist, pick largest for 1080
+                if (!finalMp4Url || !finalMp4Url.startsWith("http")) {
+                    return reply("❌ *Direct MP4 Link එක සර්වර් එකෙන් ලබාගැනීමට නොහැකි විය!*");
                 }
 
                 const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗩𝗜𝗗𝗘𝗢 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n` +
@@ -211,10 +209,14 @@ module.exports = {
                     } catch (cardErr) {}
                 }
 
-                // ⬇️ DOWNLOAD FROM THE SECURE DIRECT CINE_API LINK!
+                // නියම Direct MP4 URL එකෙන් වීඩියෝව Stream කිරීම
                 const streamRes = await axios({
-                    method: 'GET', url: selectedVideoUrl, responseType: 'stream', timeout: 300000,
-                    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://cinesubz.net/' }, maxRedirects: 10
+                    method: 'GET', 
+                    url: finalMp4Url, 
+                    responseType: 'stream', 
+                    timeout: 300000,
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                    maxRedirects: 10
                 });
 
                 let actualSize = 'Unknown';
@@ -233,7 +235,7 @@ module.exports = {
             } catch (e2) {
                 console.error("[CZ] Stream failed:", e2.message);
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                await reply("❌ *Download Failed!* සර්වර් එකෙන් වීඩියෝව ලබාගත නොහැකි විය.");
+                await reply("❌ *Download Failed!* සර්වර් එකෙන් වීඩියෝව ඩවුන්ලෝඩ් කිරීමේදී දෝෂයක්. (" + e2.message + ")");
             }
             delete global.czStore[id];
         }
