@@ -1,7 +1,7 @@
 module.exports = {
     name: "add2",
     category: 4, 
-    description: "Add a user to the group using LID or normal number.",
+    description: "Add multiple users to the group with a 15s delay.",
     commands: ["add2"], 
     
     handler: async ({ socket, msg, args, reply, store }) => {
@@ -11,50 +11,68 @@ module.exports = {
         
         if (!isGroup) return reply("❌ මේ කමාන්ඩ් එක පාවිච්චි කරන්න පුළුවන් ගෲප් වල විතරයි.");
 
-        // Admin, Owner checks ඔක්කොම අයින් කරලා තියෙන්නේ. ඕනෙම කෙනෙකුට වැඩ.
+        if (!args || args.length === 0) return reply("❌ කරුණාකර Add කළ යුතු නම්බර්ස් කොමාවෙන් (,) වෙන් කර දෙන්න.\nඋදා: .add2 9477..., 9471..., 1234:2@lid");
+
+        // 🔥 තත්පර ගාණක් රඳවාගන්නා (Delay) ෆන්ක්ෂන් එක 🔥
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // කොමාවෙන් (,) නම්බර්ස් ටික වෙන් කරලා Array එකකට ගන්නවා
+        let inputList = args.join("").split(",");
         
-        if (!args || args.length === 0) return reply("❌ කරුණාකර Add කළ යුතු කෙනාගේ LID එක හෝ Number එක දෙන්න.\nඋදා: .add2 123456789:2@lid");
+        let successCount = 0;
+        let failCount = 0;
 
-        let userInput = args.join("").trim();
-        let userToAdd = "";
+        await reply(`⏳ නම්බර්ස්/LIDs ${inputList.length} ක් Add කිරීම ආරම්භ කරනවා.\n(එකක් Add වී තත්පර 15කට පසුව ඊළඟ එක Add වේ. කරුණාකර රැඳී සිටින්න...)`);
 
-        // 🔥 LID Logic (Signal Database & Store)
-        if (userInput.includes("@lid")) {
-            try {
-                let pn = await socket.signalRepository.lidMapping.getPNForLID(userInput);
-                
-                if (pn) {
-                    console.log("🔥 Signal Mapping හරහා නම්බර් එක ගත්තා: ", pn);
-                    userToAdd = pn.includes("@s.whatsapp.net") ? pn : pn + "@s.whatsapp.net";
-                } else {
-                    let contactInfo = store?.contacts?.[userInput] || (store?.contacts && Object.values(store.contacts).find(c => c.lid === userInput));
-                    
-                    if (contactInfo && contactInfo.id) {
-                        userToAdd = contactInfo.id;
+        // එකින් එක Add කරන Loop එක
+        for (let i = 0; i < inputList.length; i++) {
+            let userInput = inputList[i].trim();
+            if (!userInput) continue; // හිස් නම්බර්ස් මඟ හරිනවා
+
+            let userToAdd = "";
+
+            // LID Logic (Signal Database & Store)
+            if (userInput.includes("@lid")) {
+                try {
+                    let pn = await socket.signalRepository.lidMapping.getPNForLID(userInput);
+                    if (pn) {
+                        userToAdd = pn.includes("@s.whatsapp.net") ? pn : pn + "@s.whatsapp.net";
                     } else {
-                        return reply("❌ මේ LID එකට අදාළ නම්බර් එක කොහෙන්වත් හොයාගන්න බැරි වුණා බ්‍රෝ!");
+                        let contactInfo = store?.contacts?.[userInput] || (store?.contacts && Object.values(store.contacts).find(c => c.lid === userInput));
+                        if (contactInfo && contactInfo.id) {
+                            userToAdd = contactInfo.id;
+                        }
                     }
+                } catch (err) {
+                    console.log(err);
                 }
-            } catch (err) {
-                console.log(err);
-                return reply("❌ LID Convert කරද්දී අවුලක් ආවා.");
+            } 
+            // සාමාන්‍ය නම්බර් එකක් දුන්නොත්
+            else {
+                userToAdd = userInput.includes("@s.whatsapp.net") ? userInput : userInput.replace(/[^0-9]/g, '') + "@s.whatsapp.net";
             }
-        } 
-        // 🔥 සාමාන්‍ය නම්බර් එකක් දුන්නොත්
-        else {
-            userToAdd = userInput.includes("@s.whatsapp.net") ? userInput : userInput.replace(/[^0-9]/g, '') + "@s.whatsapp.net";
+
+            // අදාළ කෙනාව ගෲප් එකට Add කිරීම
+            if (userToAdd) {
+                try {
+                    await socket.groupParticipantsUpdate(from, [userToAdd], "add");
+                    successCount++;
+                    console.log(`✅ Add කළා: ${userToAdd}`);
+                } catch (error) {
+                    console.log(`❌ Add කරන්න බැරි වුණා: ${userToAdd}`);
+                    failCount++;
+                }
+            } else {
+                failCount++;
+            }
+
+            // අන්තිම නම්බර් එක නෙමෙයි නම්, තත්පර 15ක (15000ms) විරාමයක් ගන්නවා
+            if (i < inputList.length - 1) {
+                await sleep(15000);
+            }
         }
 
-        // 🔥 අදාළ කෙනාව ගෲප් එකට Add කිරීම 🔥
-        if (userToAdd) {
-            try {
-                await socket.groupParticipantsUpdate(from, [userToAdd], "add");
-                reply(`✅ සාර්ථකව ගෲප් එකට Add කළා!\n(Number: ${userToAdd.split('@')[0]})`);
-            } catch (error) {
-                console.log(error);
-                // හැබැයි WhatsApp එකෙන් කෙනෙක්ව Add කරන්න නම් බොට්ට ඇඩ්මින් තියෙන්නම ඕනේ.
-                reply("❌ Add කරන්න ගිහින් අවුලක් වුණා. (මාව Admin කරලා නැති නිසා හෝ අදාළ කෙනාගේ Privacy Settings නිසා වෙන්න පුළුවන්)");
-            }
-        }
+        // වැඩේ ඉවර වුණාම සම්පූර්ණ රිපෝට් එක යවනවා
+        reply(`✅ සම්පූර්ණයි!\n\n🟢 සාර්ථකව Add කළ ගණන: ${successCount}\n🔴 අසමත් වූ ගණන: ${failCount}`);
     }
 };
