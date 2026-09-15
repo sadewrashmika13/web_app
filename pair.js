@@ -1986,13 +1986,25 @@ async function setupCommandHandlers(socket, number) {
                 socket.isSmartOverridden = true;
             }
 
-            const recentCallers = new Set();
-    socket.ev.on('messages.upsert', async ({ messages }) => {
+        const recentCallers = new Set();
+socket.ev.on('messages.upsert', async ({ messages }) => {
 
-        const msg = messages[0];
-        if (!msg.message) return;
+    const msg = messages[0];
+    if (!msg.message) return;
 
-        const type = getContentType(msg.message);
+    // 🚫 GROUP BLACKLIST CHECK 🚫 (මෙතනින් එහාට Block කරපු Group වල මැසේජ් යන්නේ නෑ)
+    try {
+        const fs = require('fs');
+        if (msg.key.remoteJid && msg.key.remoteJid.endsWith('@g.us')) {
+            if (fs.existsSync('./blacklist.json')) {
+                const blockedGroups = JSON.parse(fs.readFileSync('./blacklist.json', 'utf8'));
+                if (blockedGroups.includes(msg.key.remoteJid)) return; // 🛑 Block!
+            }
+        }
+    } catch (err) {}
+    // ==============================================================
+
+    const type = getContentType(msg.message);
         if (!msg.message) return;
         msg.message = (getContentType(msg.message) === 'ephemeralMessage') ? msg.message.ephemeralMessage.message : msg.message;
         const m = sms(socket, msg);                                              
