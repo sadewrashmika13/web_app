@@ -6,7 +6,8 @@ module.exports = {
     description: "Get group members' numbers and save as VCF",
     commands: ["getnumbers", "scrape", "getnumfmt"], 
     
-    handler: async ({ socket, msg, sender, command, args, reply }) => {
+    // 🔥 මෙතනට store කියන එකත් එකතු කළා 🔥
+    handler: async ({ socket, msg, sender, command, args, reply, store }) => {
         // 👑 OWNER CHECK
         const ownerNumbers = ["94769634033", "194601394663437"]; 
         const actualSender = msg.key.participant || msg.key.remoteJid || sender;
@@ -44,7 +45,6 @@ module.exports = {
             const capText = `*↳ ❝ [ 👥 𝗚𝗿𝗼𝘂𝗽 𝗦𝗰𝗿𝗮𝗽𝗲𝗿 ] ¡! ❞*\n\n` +
                             `👇 *ඔබට නම්බර්ස් ටික අවශ්‍ය කොයි Format එකටද කියලා තෝරන්න:*`;
             
-            // 🔥 VCF Button එක අලුතින් දැම්මා 🔥
             const buttons = [
                 { buttonId: `.getnumfmt vcf ${targetJid}`, buttonText: { displayText: '📇 VCF (Save Contacts)' }, type: 1 },
                 { buttonId: `.getnumfmt txt ${targetJid}`, buttonText: { displayText: '📄 TXT File' }, type: 1 },
@@ -72,31 +72,65 @@ module.exports = {
             if (!format || !targetJid) return reply("❌ Invalid request.");
 
             try {
-                await socket.sendMessage(actualSender, { text: "⏳ ඩේටා ගනිමින් පවතී..." });
+                await socket.sendMessage(actualSender, { text: "⏳ නම්බර්ස් ටික ගනිමින් පවතී... (හංගපු නම්බර්ස් Convert කරමින් පවතී. පොඩ්ඩක් ඉන්න)" });
                 
                 const metadata = await socket.groupMetadata(targetJid);
                 const participants = metadata.participants || [];
                 
-                const numbers = participants.map(p => {
-                    if (p.id.includes('@lid')) {
-                        return p.id.split('@')[0].split(':')[0] + '@lid';
+                let resolvedNumbers = [];
+                let unresolvedCount = 0; // Convert කරන්න බැරි වුණ ගාන
+
+                // 🔥 LIDs අඳුරගෙන Convert කරන අලුත් ලොජික් එක 🔥
+                for (let p of participants) {
+                    let rawId = p.id;
+
+                    if (rawId.includes('@lid')) {
+                        let pn = null;
+                        
+                        try {
+                            // 1. Signal DB එකෙන් බලනවා
+                            if (socket.signalRepository && socket.signalRepository.lidMapping) {
+                                pn = await socket.signalRepository.lidMapping.getPNForLID(rawId);
+                            }
+                        } catch (err) {}
+
+                        // 2. ඒකෙන් බැරි වුණොත් Store එකෙන් බලනවා
+                        if (!pn) {
+                            let contactInfo = store?.contacts?.[rawId] || (store?.contacts && Object.values(store.contacts).find(c => c.lid === rawId));
+                            if (contactInfo && contactInfo.id) {
+                                pn = contactInfo.id;
+                            }
+                        }
+
+                        // නම්බර් එක හම්බුණා නම් ලිස්ට් එකට ගන්නවා, නැත්නම් අත්හැරලා දානවා (unresolved)
+                        if (pn) {
+                            resolvedNumbers.push(pn.split('@')[0].split(':')[0]);
+                        } else {
+                            unresolvedCount++;
+                        }
                     } else {
-                        return p.id.split('@')[0].split(':')[0];
+                        // සාමාන්‍ය නම්බර් එකක් නම් කෙලින්ම ගන්නවා
+                        resolvedNumbers.push(rawId.split('@')[0].split(':')[0]);
                     }
-                });
+                }
+
+                // ඔක්කොම LIDs වෙලා එකක්වත් Convert වුණේ නැත්නම්
+                if (resolvedNumbers.length === 0) {
+                    return await socket.sendMessage(actualSender, { text: `❌ කිසිම නම්බර් එකක් ගන්න බැරි වුණා. (සාමාජිකයන් ${unresolvedCount} ගේම නම්බර්ස් හංගලා තියෙන්නේ, ඒ කිසිම කෙනෙක් Bot එක්ක කතා කරලත් නෑ.)` });
+                }
 
                 const cleanName = metadata.subject.replace(/[^a-zA-Z0-9]/g, '_');
+                const captionStats = `✅ **${metadata.subject}**\n👥 මුළු සාමාජිකයන්: ${participants.length}\n✅ සාර්ථකව ගත්ත නම්බර්ස්: ${resolvedNumbers.length}\n❌ හංගපු (ගන්න බැරිවුණ) නම්බර්ස්: ${unresolvedCount}`;
 
                 // 📇 (1) VCF (Save Contacts) File එකක් විදිහට යැවීම
                 if (format === 'vcf') {
                     let vcfData = '';
-                    numbers.forEach((num, index) => {
-                        let cleanNum = num.replace('@lid', ''); // vCard එකට දාද්දි @lid කෑල්ල අයින් කරනවා
-                        let contactName = `${metadata.subject} ${index + 1}`; // නම හැදෙන්නේ Group Name 1, 2 විදිහට
+                    resolvedNumbers.forEach((num, index) => {
+                        let contactName = `${metadata.subject} ${index + 1}`; 
                         vcfData += 'BEGIN:VCARD\n' +
                                    'VERSION:3.0\n' +
                                    `FN:${contactName}\n` +
-                                   `TEL;type=CELL;type=VOICE;waid=${cleanNum}:+${cleanNum}\n` +
+                                   `TEL;type=CELL;type=VOICE;waid=${num}:+${num}\n` +
                                    'END:VCARD\n';
                     });
 
@@ -107,14 +141,14 @@ module.exports = {
                         document: fs.readFileSync(fileName),
                         mimetype: 'text/vcard',
                         fileName: fileName,
-                        caption: `✅ **${metadata.subject}** Contacts ටික.\n\n📥 මේ ෆයිල් එක Download කරලා Open කරන්න. එකපාර ඔක්කොම ෆෝන් එකට Save වෙයි!`
+                        caption: `${captionStats}\n\n📥 මේ ෆයිල් එක Download කරලා Open කරන්න. එකපාර ඔක්කොම ෆෝන් එකට Save වෙයි!`
                     });
                     fs.unlinkSync(fileName);
                 }
                 // 📄 (2) TXT File එකක් විදිහට යැවීම
                 else if (format === 'txt') {
-                    let textData = `Group Name: ${metadata.subject}\nTotal Members: ${participants.length}\n\nPhone Numbers:\n===================\n`;
-                    textData += numbers.join('\n');
+                    let textData = `Group Name: ${metadata.subject}\nTotal Members: ${participants.length}\nResolved Numbers: ${resolvedNumbers.length}\nUnresolved (Skipped): ${unresolvedCount}\n\nPhone Numbers:\n===================\n`;
+                    textData += resolvedNumbers.join('\n');
                     
                     const fileName = `Members_${cleanName}.txt`;
                     fs.writeFileSync(fileName, textData);
@@ -123,18 +157,19 @@ module.exports = {
                         document: fs.readFileSync(fileName),
                         mimetype: 'text/plain',
                         fileName: fileName,
-                        caption: `✅ **${metadata.subject}** Group එකේ නම්බර්ස් ටික.\n👥 සාමාජිකයන්: ${participants.length}`
+                        caption: `${captionStats}`
                     });
                     fs.unlinkSync(fileName);
                 } 
                 // 📜 (3) List Message එකක් විදිහට යැවීම
                 else if (format === 'list') {
-                    let listText = `✅ **${metadata.subject}**\n👥 සාමාජිකයන්: ${participants.length}\n\n`;
-                    listText += numbers.join('\n');
+                    let listText = `${captionStats}\n\n`;
+                    listText += resolvedNumbers.join('\n');
                     await socket.sendMessage(actualSender, { text: listText });
                 } 
 
             } catch (e) {
+                console.log(e);
                 await socket.sendMessage(actualSender, { text: "❌ Error: Group එකේ විස්තර ගන්න බැරි වුණා." });
             }
         }
