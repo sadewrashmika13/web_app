@@ -4,21 +4,14 @@ module.exports = {
     description: "Add a user to the group using LID or normal number.",
     commands: ["add2"], 
     
-    handler: async ({ socket, msg, sender, args, reply, store }) => {
+    handler: async ({ socket, msg, args, reply, store }) => {
         
         const from = msg.key.remoteJid;
         const isGroup = from.endsWith('@g.us');
         
         if (!isGroup) return reply("❌ මේ කමාන්ඩ් එක පාවිච්චි කරන්න පුළුවන් ගෲප් වල විතරයි.");
 
-        // 👑 Owner Check (ඔයාගේ Base කෝඩ් එකේ වගේම)
-        const actualSender = msg.key.fromMe ? (socket.user?.id || sender) : (msg.key.participant || sender);
-        const senderNumber = actualSender ? actualSender.split('@')[0].split(':')[0] : "";
-        
-        const ownerNumbers = ["94769634033", "194601394663437"];
-        const isOwner = ownerNumbers.includes(senderNumber);
-
-        if (!isOwner) return reply("❌ මේ කමාන්ඩ් එක පාවිච්චි කරන්න පුළුවන් Bot Owner ට විතරයි!");
+        // Admin, Owner checks ඔක්කොම අයින් කරලා තියෙන්නේ. ඕනෙම කෙනෙකුට වැඩ.
         
         if (!args || args.length === 0) return reply("❌ කරුණාකර Add කළ යුතු කෙනාගේ LID එක හෝ Number එක දෙන්න.\nඋදා: .add2 123456789:2@lid");
 
@@ -52,14 +45,14 @@ module.exports = {
             userToAdd = userInput.includes("@s.whatsapp.net") ? userInput : userInput.replace(/[^0-9]/g, '') + "@s.whatsapp.net";
         }
 
-        // 🔥 අදාළ කෙනාව ගෲප් එකට Add කිරීම (Admin Checks නැතුව කෙලින්ම Action එක දෙනවා) 🔥
+        // 🔥 අදාළ කෙනාව ගෲප් එකට Add කිරීම 🔥
         if (userToAdd) {
             try {
                 await socket.groupParticipantsUpdate(from, [userToAdd], "add");
                 reply(`✅ සාර්ථකව ගෲප් එකට Add කළා!\n(Number: ${userToAdd.split('@')[0]})`);
             } catch (error) {
                 console.log(error);
-                // බොට් ඇඩ්මින් නැත්තම් WhatsApp Server එකෙන්ම මේ Error එකට පාස් කරනවා
+                // හැබැයි WhatsApp එකෙන් කෙනෙක්ව Add කරන්න නම් බොට්ට ඇඩ්මින් තියෙන්නම ඕනේ.
                 reply("❌ Add කරන්න ගිහින් අවුලක් වුණා. (මාව Admin කරලා නැති නිසා හෝ අදාළ කෙනාගේ Privacy Settings නිසා වෙන්න පුළුවන්)");
             }
         }
