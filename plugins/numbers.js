@@ -3,7 +3,7 @@ const fs = require('fs');
 module.exports = {
     name: "group-scraper",
     category: 4, // Admin Menu
-    description: "Get group members' numbers with format selection",
+    description: "Get group members' numbers and save as VCF",
     commands: ["getnumbers", "scrape", "getnumfmt"], 
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -14,7 +14,7 @@ module.exports = {
         
         if (!isOwner) return reply("❌ මේ කමාන්ඩ් එක පාවිච්චි කරන්න පුළුවන් Bot Owner ට විතරයි!");
 
-        // ════════════ 1. මුලින්ම කමාන්ඩ් එක ගහද්දි (BUTTONS යැවීම) ════════════
+        // ════════════ 1. BUTTONS යැවීම ════════════
         if (command === "getnumbers" || command === "scrape") {
             let targetJid = '';
 
@@ -44,10 +44,11 @@ module.exports = {
             const capText = `*↳ ❝ [ 👥 𝗚𝗿𝗼𝘂𝗽 𝗦𝗰𝗿𝗮𝗽𝗲𝗿 ] ¡! ❞*\n\n` +
                             `👇 *ඔබට නම්බර්ස් ටික අවශ්‍ය කොයි Format එකටද කියලා තෝරන්න:*`;
             
+            // 🔥 VCF Button එක අලුතින් දැම්මා 🔥
             const buttons = [
+                { buttonId: `.getnumfmt vcf ${targetJid}`, buttonText: { displayText: '📇 VCF (Save Contacts)' }, type: 1 },
                 { buttonId: `.getnumfmt txt ${targetJid}`, buttonText: { displayText: '📄 TXT File' }, type: 1 },
-                { buttonId: `.getnumfmt list ${targetJid}`, buttonText: { displayText: '📜 List Message' }, type: 1 },
-                { buttonId: `.getnumfmt line ${targetJid}`, buttonText: { displayText: '➖ Line (Comma)' }, type: 1 }
+                { buttonId: `.getnumfmt list ${targetJid}`, buttonText: { displayText: '📜 List Message' }, type: 1 }
             ];
 
             await socket.sendMessage(actualSender, { 
@@ -71,27 +72,50 @@ module.exports = {
             if (!format || !targetJid) return reply("❌ Invalid request.");
 
             try {
-                await socket.sendMessage(actualSender, { text: "⏳ නම්බර්ස් ටික ගනිමින් පවතී..." });
+                await socket.sendMessage(actualSender, { text: "⏳ ඩේටා ගනිමින් පවතී..." });
                 
                 const metadata = await socket.groupMetadata(targetJid);
                 const participants = metadata.participants || [];
                 
-                // 🔥 LID ද Normal Number ද කියලා බලලා හරියටම වෙන් කරනවා 🔥
                 const numbers = participants.map(p => {
                     if (p.id.includes('@lid')) {
-                        // LID එකක් නම් අගට @lid කියලා දාලා එවනවා
                         return p.id.split('@')[0].split(':')[0] + '@lid';
                     } else {
-                        // සාමාන්‍ය නම්බර් එකක් නම් පිරිසිදු අංකය විතරක් එවනවා
                         return p.id.split('@')[0].split(':')[0];
                     }
                 });
 
-                if (format === 'txt') {
+                const cleanName = metadata.subject.replace(/[^a-zA-Z0-9]/g, '_');
+
+                // 📇 (1) VCF (Save Contacts) File එකක් විදිහට යැවීම
+                if (format === 'vcf') {
+                    let vcfData = '';
+                    numbers.forEach((num, index) => {
+                        let cleanNum = num.replace('@lid', ''); // vCard එකට දාද්දි @lid කෑල්ල අයින් කරනවා
+                        let contactName = `${metadata.subject} ${index + 1}`; // නම හැදෙන්නේ Group Name 1, 2 විදිහට
+                        vcfData += 'BEGIN:VCARD\n' +
+                                   'VERSION:3.0\n' +
+                                   `FN:${contactName}\n` +
+                                   `TEL;type=CELL;type=VOICE;waid=${cleanNum}:+${cleanNum}\n` +
+                                   'END:VCARD\n';
+                    });
+
+                    const fileName = `Contacts_${cleanName}.vcf`;
+                    fs.writeFileSync(fileName, vcfData);
+
+                    await socket.sendMessage(actualSender, {
+                        document: fs.readFileSync(fileName),
+                        mimetype: 'text/vcard',
+                        fileName: fileName,
+                        caption: `✅ **${metadata.subject}** Contacts ටික.\n\n📥 මේ ෆයිල් එක Download කරලා Open කරන්න. එකපාර ඔක්කොම ෆෝන් එකට Save වෙයි!`
+                    });
+                    fs.unlinkSync(fileName);
+                }
+                // 📄 (2) TXT File එකක් විදිහට යැවීම
+                else if (format === 'txt') {
                     let textData = `Group Name: ${metadata.subject}\nTotal Members: ${participants.length}\n\nPhone Numbers:\n===================\n`;
                     textData += numbers.join('\n');
                     
-                    const cleanName = metadata.subject.replace(/[^a-zA-Z0-9]/g, '_');
                     const fileName = `Members_${cleanName}.txt`;
                     fs.writeFileSync(fileName, textData);
 
@@ -103,16 +127,12 @@ module.exports = {
                     });
                     fs.unlinkSync(fileName);
                 } 
+                // 📜 (3) List Message එකක් විදිහට යැවීම
                 else if (format === 'list') {
                     let listText = `✅ **${metadata.subject}**\n👥 සාමාජිකයන්: ${participants.length}\n\n`;
                     listText += numbers.join('\n');
                     await socket.sendMessage(actualSender, { text: listText });
                 } 
-                else if (format === 'line') {
-                    let lineText = `✅ **${metadata.subject}**\n👥 සාමාජිකයන්: ${participants.length}\n\n`;
-                    lineText += numbers.join(',');
-                    await socket.sendMessage(actualSender, { text: lineText });
-                }
 
             } catch (e) {
                 await socket.sendMessage(actualSender, { text: "❌ Error: Group එකේ විස්තර ගන්න බැරි වුණා." });
