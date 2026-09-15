@@ -20,17 +20,24 @@ module.exports = {
         // Group ඇඩ්මින්ලා කවුද කියලා හොයාගැනීම
         const groupMetadata = await socket.groupMetadata(from);
         const groupAdmins = groupMetadata.participants
-            .filter(p => p.admin !== null) // admin සහ superadmin දෙගොල්ලොම ගන්නවා
+            .filter(p => p.admin === 'admin' || p.admin === 'superadmin') 
             .map(p => normalizeJid(p.id));
         
-        // Bot ගේ සහ ඔයාගේ (Sender) නම්බර් එක හරියටම ගන්නවා
+        // Bot ගේ නම්බර් එක
         const botJid = normalizeJid(socket.user.id);
         
-        // msg.key.participant එක හරහා තමයි Group එකකදි හරියටම යවපු කෙනාව අල්ලගන්නේ
-        const senderJid = normalizeJid(msg.key.participant || msg.participant || sender);
+        // 🔥 ප්‍රධානම වෙනස: Sender ව හරියටම අල්ලගැනීම 🔥
+        // ඔයා බොට්ගේ ෆෝන් එකෙන්ම (Linked Device) මැසේජ් කළොත් ඒක අඳුරගන්නවා
+        let actualSender = msg.key.fromMe ? socket.user.id : (msg.key.participant || sender);
+        const senderJid = normalizeJid(actualSender);
+
+        // 👑 Owner Check: ඔයාගේ නම්බර්ස් වලට හැමදාම Admin බලය දෙනවා
+        const ownerNumbers = ["94769634033", "194601394663437"].map(n => n + "@s.whatsapp.net");
+        const isOwner = ownerNumbers.includes(senderJid);
 
         const isBotAdmins = groupAdmins.includes(botJid);
-        const isAdmins = groupAdmins.includes(senderJid);
+        // ඇඩ්මින් කෙනෙක් නම් "හෝ" බොට්ගේ Owner නම් කමාන්ඩ් එක වැඩ කරනවා
+        const isAdmins = isOwner || groupAdmins.includes(senderJid);
 
         if (!isBotAdmins) return reply("❌ කෙනෙක්ව Add කරන්න මාව මුලින්ම ඇඩ්මින් කරන්න!");
         if (!isAdmins) return reply("❌ මේක ගෲප් ඇඩ්මින්ලට විතරක් පාවිච්චි කරන්න පුළුවන් කමාන්ඩ් එකක්.");
