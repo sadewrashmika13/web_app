@@ -3,10 +3,9 @@ const fs = require('fs');
 module.exports = {
     name: "group-scraper",
     category: 4, // Admin Menu
-    description: "Get group members' numbers and save as VCF",
+    description: "Get group members' numbers",
     commands: ["getnumbers", "scrape", "getnumfmt"], 
     
-    // 🔥 මෙතනට store කියන එකත් එකතු කළා 🔥
     handler: async ({ socket, msg, sender, command, args, reply, store }) => {
         // 👑 OWNER CHECK
         const ownerNumbers = ["94769634033", "194601394663437"]; 
@@ -45,8 +44,9 @@ module.exports = {
             const capText = `*↳ ❝ [ 👥 𝗚𝗿𝗼𝘂𝗽 𝗦𝗰𝗿𝗮𝗽𝗲𝗿 ] ¡! ❞*\n\n` +
                             `👇 *ඔබට නම්බර්ස් ටික අවශ්‍ය කොයි Format එකටද කියලා තෝරන්න:*`;
             
+            // 🔥 VCF අයින් කරලා Line Message එක දැම්මා 🔥
             const buttons = [
-                { buttonId: `.getnumfmt vcf ${targetJid}`, buttonText: { displayText: '📇 VCF (Save Contacts)' }, type: 1 },
+                { buttonId: `.getnumfmt line ${targetJid}`, buttonText: { displayText: '➖ Line (Comma)' }, type: 1 },
                 { buttonId: `.getnumfmt txt ${targetJid}`, buttonText: { displayText: '📄 TXT File' }, type: 1 },
                 { buttonId: `.getnumfmt list ${targetJid}`, buttonText: { displayText: '📜 List Message' }, type: 1 }
             ];
@@ -78,9 +78,9 @@ module.exports = {
                 const participants = metadata.participants || [];
                 
                 let resolvedNumbers = [];
-                let unresolvedCount = 0; // Convert කරන්න බැරි වුණ ගාන
+                let unresolvedCount = 0; 
 
-                // 🔥 LIDs අඳුරගෙන Convert කරන අලුත් ලොජික් එක 🔥
+                // LIDs අඳුරගෙන Convert කරන ලොජික් එක 
                 for (let p of participants) {
                     let rawId = p.id;
 
@@ -88,13 +88,11 @@ module.exports = {
                         let pn = null;
                         
                         try {
-                            // 1. Signal DB එකෙන් බලනවා
                             if (socket.signalRepository && socket.signalRepository.lidMapping) {
                                 pn = await socket.signalRepository.lidMapping.getPNForLID(rawId);
                             }
                         } catch (err) {}
 
-                        // 2. ඒකෙන් බැරි වුණොත් Store එකෙන් බලනවා
                         if (!pn) {
                             let contactInfo = store?.contacts?.[rawId] || (store?.contacts && Object.values(store.contacts).find(c => c.lid === rawId));
                             if (contactInfo && contactInfo.id) {
@@ -102,19 +100,16 @@ module.exports = {
                             }
                         }
 
-                        // නම්බර් එක හම්බුණා නම් ලිස්ට් එකට ගන්නවා, නැත්නම් අත්හැරලා දානවා (unresolved)
                         if (pn) {
                             resolvedNumbers.push(pn.split('@')[0].split(':')[0]);
                         } else {
                             unresolvedCount++;
                         }
                     } else {
-                        // සාමාන්‍ය නම්බර් එකක් නම් කෙලින්ම ගන්නවා
                         resolvedNumbers.push(rawId.split('@')[0].split(':')[0]);
                     }
                 }
 
-                // ඔක්කොම LIDs වෙලා එකක්වත් Convert වුණේ නැත්නම්
                 if (resolvedNumbers.length === 0) {
                     return await socket.sendMessage(actualSender, { text: `❌ කිසිම නම්බර් එකක් ගන්න බැරි වුණා. (සාමාජිකයන් ${unresolvedCount} ගේම නම්බර්ස් හංගලා තියෙන්නේ, ඒ කිසිම කෙනෙක් Bot එක්ක කතා කරලත් නෑ.)` });
                 }
@@ -122,28 +117,11 @@ module.exports = {
                 const cleanName = metadata.subject.replace(/[^a-zA-Z0-9]/g, '_');
                 const captionStats = `✅ **${metadata.subject}**\n👥 මුළු සාමාජිකයන්: ${participants.length}\n✅ සාර්ථකව ගත්ත නම්බර්ස්: ${resolvedNumbers.length}\n❌ හංගපු (ගන්න බැරිවුණ) නම්බර්ස්: ${unresolvedCount}`;
 
-                // 📇 (1) VCF (Save Contacts) File එකක් විදිහට යැවීම
-                if (format === 'vcf') {
-                    let vcfData = '';
-                    resolvedNumbers.forEach((num, index) => {
-                        let contactName = `${metadata.subject} ${index + 1}`; 
-                        vcfData += 'BEGIN:VCARD\n' +
-                                   'VERSION:3.0\n' +
-                                   `FN:${contactName}\n` +
-                                   `TEL;type=CELL;type=VOICE;waid=${num}:+${num}\n` +
-                                   'END:VCARD\n';
-                    });
-
-                    const fileName = `Contacts_${cleanName}.vcf`;
-                    fs.writeFileSync(fileName, vcfData);
-
-                    await socket.sendMessage(actualSender, {
-                        document: fs.readFileSync(fileName),
-                        mimetype: 'text/vcard',
-                        fileName: fileName,
-                        caption: `${captionStats}\n\n📥 මේ ෆයිල් එක Download කරලා Open කරන්න. එකපාර ඔක්කොම ෆෝන් එකට Save වෙයි!`
-                    });
-                    fs.unlinkSync(fileName);
+                // ➖ (1) Line Message එකක් විදිහට යැවීම (එකම පේළියේ කොමා දාලා)
+                if (format === 'line') {
+                    let lineText = `${captionStats}\n\n`;
+                    lineText += resolvedNumbers.join(','); // කොමා දාලා වෙන් කරනවා
+                    await socket.sendMessage(actualSender, { text: lineText });
                 }
                 // 📄 (2) TXT File එකක් විදිහට යැවීම
                 else if (format === 'txt') {
