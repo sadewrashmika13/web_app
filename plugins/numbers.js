@@ -4,7 +4,6 @@ module.exports = {
     name: "group-scraper",
     category: 4, // Admin Menu
     description: "Get group members' numbers with format selection",
-    // අලුතින් getnumfmt කියන කමාන්ඩ් එකත් එකතු කළා Button වලට වැඩ කරන්න
     commands: ["getnumbers", "scrape", "getnumfmt"], 
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -42,7 +41,6 @@ module.exports = {
                 }
             }
 
-            // Button මැසේජ් එක හැදීම
             const capText = `*↳ ❝ [ 👥 𝗚𝗿𝗼𝘂𝗽 𝗦𝗰𝗿𝗮𝗽𝗲𝗿 ] ¡! ❞*\n\n` +
                             `👇 *ඔබට නම්බර්ස් ටික අවශ්‍ය කොයි Format එකටද කියලා තෝරන්න:*`;
             
@@ -59,7 +57,6 @@ module.exports = {
                 headerType: 1 
             });
 
-            // ගෲප් එකක ඉඳන් ගැහුවොත්
             if (sender !== actualSender) {
                 await reply("✅ ඔයාගේ Inbox එකට Format එක තෝරන්න මැසේජ් එකක් එව්වා! Inbox එක චෙක් කරන්න.");
             }
@@ -68,7 +65,7 @@ module.exports = {
 
         // ════════════ 2. BUTTON එක එබුවට පස්සේ වැඩ කරන කොටස ════════════
         if (command === "getnumfmt") {
-            const format = args[0]; // txt, list, හෝ line
+            const format = args[0];
             const targetJid = args[1];
 
             if (!format || !targetJid) return reply("❌ Invalid request.");
@@ -76,13 +73,20 @@ module.exports = {
             try {
                 await socket.sendMessage(actualSender, { text: "⏳ නම්බර්ස් ටික ගනිමින් පවතී..." });
                 
-                // Group ඩේටා ගැනීම
                 const metadata = await socket.groupMetadata(targetJid);
                 const participants = metadata.participants || [];
-                // @s.whatsapp.net කෑල්ල අයින් කරලා නම්බර්ස් ටික විතරක් අරගන්නවා
-                const numbers = participants.map(p => p.id.split('@')[0]);
+                
+                // 🔥 LID ද Normal Number ද කියලා බලලා හරියටම වෙන් කරනවා 🔥
+                const numbers = participants.map(p => {
+                    if (p.id.includes('@lid')) {
+                        // LID එකක් නම් අගට @lid කියලා දාලා එවනවා
+                        return p.id.split('@')[0].split(':')[0] + '@lid';
+                    } else {
+                        // සාමාන්‍ය නම්බර් එකක් නම් පිරිසිදු අංකය විතරක් එවනවා
+                        return p.id.split('@')[0].split(':')[0];
+                    }
+                });
 
-                // 📄 (1) TXT File එකක් විදිහට යැවීම
                 if (format === 'txt') {
                     let textData = `Group Name: ${metadata.subject}\nTotal Members: ${participants.length}\n\nPhone Numbers:\n===================\n`;
                     textData += numbers.join('\n');
@@ -99,15 +103,11 @@ module.exports = {
                     });
                     fs.unlinkSync(fileName);
                 } 
-                
-                // 📜 (2) List Message එකක් විදිහට යැවීම (යටින් යටින්)
                 else if (format === 'list') {
                     let listText = `✅ **${metadata.subject}**\n👥 සාමාජිකයන්: ${participants.length}\n\n`;
                     listText += numbers.join('\n');
                     await socket.sendMessage(actualSender, { text: listText });
                 } 
-                
-                // ➖ (3) Line Message එකක් විදිහට යැවීම (එකම පේළියේ කොමා දාලා)
                 else if (format === 'line') {
                     let lineText = `✅ **${metadata.subject}**\n👥 සාමාජිකයන්: ${participants.length}\n\n`;
                     lineText += numbers.join(',');
