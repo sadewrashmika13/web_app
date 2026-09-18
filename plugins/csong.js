@@ -1,15 +1,29 @@
-// ════════════ WHATSAPP CHANNEL SONG UPLOAD (VOICE NOTE) ════════════
+// ════════════ WHATSAPP CHANNEL SONG UPLOAD (COMMAND ARGS) ════════════
 
 case 'channelsong':
 case 'csong': {
     try {
-        // 🔥 ඔයාගේ WhatsApp Channel එකේ JID එක මෙතනට දාන්න (අගට @newsletter තියෙන්න ඕනේ) 🔥
-        const channelJID = "120363XXXXXXXXX@newsletter"; 
-        
-        const query = args.join(' ');
-        if (!query) return reply("🎵 *කරුණාකර සින්දුවක නමක් හෝ YouTube ලින්ක් එකක් ලබා දෙන්න!*\n💡 උදා: `.channelsong master sir`");
+        const fullQuery = args.join(' ');
+        if (!fullQuery) return reply("🎵 *කරුණාකර සින්දුවක නමක් සහ Channel ID එක ලබා දෙන්න!*\n💡 උදා: `.csong master sir, 120363XXXXX@newsletter`");
 
-        reply(`⏳ _Searching and downloading for Channel Upload..._`);
+        // 🟢 කමාවෙන් (,) වෙන් කරලා සින්දුවයි Channel ID එකයි හොයාගැනීම 🟢
+        let query = fullQuery;
+        let channelJID = "120363XXXXXXXXX@newsletter"; // මේකට ඔයාගේ ඩිෆෝල්ට් Channel එකේ JID එක දාන්න (ID එකක් නොදුන්නොත් යන්නේ මේකට)
+
+        if (fullQuery.includes(',')) {
+            const parts = fullQuery.split(',');
+            const possibleJID = parts[parts.length - 1].trim(); // අන්තිම කෑල්ල (ID එක)
+            
+            // ඒක ID එකක් වගේ නම් ඒක channelJID එකට දාගන්නවා
+            if (possibleJID.includes('@newsletter') || /^[0-9]+$/.test(possibleJID)) {
+                channelJID = possibleJID.includes('@newsletter') ? possibleJID : possibleJID + "@newsletter";
+                query = parts.slice(0, -1).join(',').trim(); // ඉතුරු ටික සින්දුවේ නම විදිහට ගන්නවා
+            }
+        }
+
+        if (!query) return reply("❌ සින්දුවේ නම සොයා ගැනීමට නොහැක!");
+
+        reply(`⏳ _Searching for "${query}" and preparing upload to ${channelJID}..._`);
 
         // ==========================================
         // 1. YouTube Search
@@ -82,20 +96,21 @@ case 'csong': {
             timeout: 30000 
         });
 
-        reply(`✅ _Uploading as a Voice Note to Channel..._`);
+        try {
+            await socket.sendMessage(channelJID, {
+                audio: { stream: responseStream.data }, 
+                mimetype: 'audio/mpeg', 
+                ptt: true 
+            });
 
-        // Channel එකට Voice Note එක යවනවා (ptt: true තමයි මැජික් එක)
-        await socket.sendMessage(channelJID, {
-            audio: { stream: responseStream.data }, 
-            mimetype: 'audio/mpeg', // සමහරවිට 'audio/ogg; codecs=opus' දාන්නත් වෙන්න පුළුවන් අවුලක් ආවොත්.
-            ptt: true // 🔥 මෙන්න මේකෙන් තමයි Voice Record එකක් විදිහට යවන්නේ 🔥
-        });
+            const captionMsg = `🎵 *${songTitle}*\n\n╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
+            await socket.sendMessage(channelJID, { text: captionMsg });
 
-        // සින්දුවේ නම වෙනම මැසේජ් එකක් විදිහට යවමු (මොකද Voice Note වලට Caption දාන්න බෑ)
-        const captionMsg = `🎵 *${songTitle}*\n\n╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
-        await socket.sendMessage(channelJID, { text: captionMsg });
-
-        reply("✅ *සින්දුව සාර්ථකව WhatsApp Channel එකට Voice Note එකක් විදිහට Upload කරන ලදී!*");
+            reply("✅ *සින්දුව සාර්ථකව අදාල WhatsApp Channel එකට Upload කරන ලදී!*");
+        } catch (sendErr) {
+            console.log("SEND ERROR:", sendErr);
+            reply("❌ *Error:* Channel එකට සින්දුව යැවීමට නොහැකි විය. බොට්ව මෙම Channel එකේ Admin කෙනෙක් කර ඇත්දැයි පරීක්ෂා කරන්න.");
+        }
 
     } catch (e) {
         console.log("CHANNEL SONG CMD ERROR:", e);
