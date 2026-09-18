@@ -4,7 +4,7 @@ const yts = require('yt-search');
 module.exports = {
     name: "channel-song",
     category: 1, 
-    description: "Download and upload songs to WhatsApp channels as Voice Notes.",
+    description: "Download and upload songs to WhatsApp channels with a Detail Card.",
     commands: ["csong", "channelsong"],
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -13,8 +13,7 @@ module.exports = {
             if (!fullQuery) return reply("🎵 *කරුණාකර සින්දුවක නමක් සහ Channel ID එක ලබා දෙන්න!*\n💡 උදා: `.csong master sir, 120363XXXXX@newsletter`");
 
             let query = fullQuery;
-            // 👇 ඔයාගේ Default Channel ID එක මෙතන දාන්න
-            let channelJID = "120363XXXXXXXXX@newsletter"; 
+            let channelJID = "120363XXXXXXXXX@newsletter"; // ඔයාගේ Default Channel ID එක
 
             if (fullQuery.includes(',')) {
                 const parts = fullQuery.split(',');
@@ -32,6 +31,10 @@ module.exports = {
 
             let youtubeUrl = null;
             let songTitle = "Sadew-MD Audio";
+            let thumbnail = "";
+            let ytChannel = "Unknown";
+            let views = "0";
+            let duration = "0:00";
 
             const isLink = /(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)[^\s?#]+)/i.test(query);
 
@@ -42,6 +45,10 @@ module.exports = {
                     if (videoIdMatch) {
                         const videoDetails = await yts({ videoId: videoIdMatch[1] });
                         songTitle = videoDetails.title;
+                        thumbnail = videoDetails.thumbnail || videoDetails.image;
+                        ytChannel = videoDetails.author.name;
+                        views = videoDetails.views || "N/A";
+                        duration = videoDetails.timestamp || "N/A";
                     }
                 } catch (e) {}
             } else {
@@ -50,14 +57,12 @@ module.exports = {
                     if (searchResults && searchResults.videos.length > 0) {
                         youtubeUrl = searchResults.videos[0].url;
                         songTitle = searchResults.videos[0].title;
+                        thumbnail = searchResults.videos[0].thumbnail || searchResults.videos[0].image;
+                        ytChannel = searchResults.videos[0].author.name;
+                        views = searchResults.videos[0].views;
+                        duration = searchResults.videos[0].timestamp;
                     }
-                } catch (err) {
-                     const searchRes = await axios.get(`https://kavindu-download-web.vercel.app/api/search?q=${encodeURIComponent(query)}`).catch(()=>null);
-                     if (searchRes && searchRes.data && searchRes.data.status && searchRes.data.result.length > 0) {
-                         youtubeUrl = searchRes.data.result[0].url;
-                         songTitle = searchRes.data.result[0].title;
-                     }
-                }
+                } catch (err) {}
             }
 
             if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
@@ -90,18 +95,28 @@ module.exports = {
             });
 
             try {
-                // Channel එකට Voice Note එක යවනවා (ptt: true)
+                // 1. මුලින්ම Detail Card එක (Thumbnail එකත් එක්ක) යවනවා!
+                const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
+                                   `📌 *Title:* ${songTitle}\n` +
+                                   `👤 *Channel:* ${ytChannel}\n` +
+                                   `👁️ *Views:* ${views.toLocaleString()}\n` +
+                                   `⏱️ *Duration:* ${duration}\n\n` +
+                                   `╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
+                
+                if (thumbnail) {
+                    await socket.sendMessage(channelJID, { image: { url: thumbnail }, caption: captionMsg });
+                } else {
+                    await socket.sendMessage(channelJID, { text: captionMsg });
+                }
+
+                // 2. ඊටපස්සේ ඕඩියෝ එක යවනවා (Audio / File Mode)
                 await socket.sendMessage(channelJID, {
                     audio: { stream: responseStream.data }, 
-                    mimetype: 'audio/mpeg', 
+                    mimetype: 'audio/mp4', // සමහරවිට mp4 දුන්නම ප්ලේයර් එකක් විදිහට යන්න චාන්ස් එකක් තියෙනවා
                     ptt: true 
                 });
 
-                // සින්දුවේ නම Caption එකක් විදිහට යටින් යවනවා
-                const captionMsg = `🎵 *${songTitle}*\n\n╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
-                await socket.sendMessage(channelJID, { text: captionMsg });
-
-                reply("✅ *සින්දුව සාර්ථකව අදාල WhatsApp Channel එකට Voice Note එකක් විදිහට Upload කරන ලදී!*");
+                reply("✅ *සින්දුව සහ Detail Card එක සාර්ථකව WhatsApp Channel එකට Upload කරන ලදී!*");
             } catch (sendErr) {
                 console.log("SEND ERROR:", sendErr);
                 reply("❌ *Error:* Channel එකට සින්දුව යැවීමට නොහැකි විය. බොට්ව මෙම Channel එකේ Admin කෙනෙක් කර ඇත්දැයි පරීක්ෂා කරන්න.");
