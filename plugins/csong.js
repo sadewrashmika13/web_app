@@ -172,7 +172,7 @@ module.exports = {
                 mimetype: 'audio/ogg; codecs=opus', 
                 ptt: true,
                 seconds: durationSeconds, 
-                waveform: fakeWaveform,
+                waveform: fakeWaveform
                 
             });
 
