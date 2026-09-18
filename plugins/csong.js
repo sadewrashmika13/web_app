@@ -3,88 +3,11 @@ const yts = require('yt-search');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { generateWAMessage, encodeNewsletterMessage, unixTimestampSeconds, generateMessageID } = require('@whiskeysockets/baileys');
 
 // NPM Packages හරහා FFmpeg ගෙන ඒම
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
-
-// 🔥 යාළුවාගේ කෝඩ් එකෙන් ගත්ත Channel Media යවන විශේෂිත Function එක 🔥
-async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
-    try {
-        const mediaSource = (typeof media === 'string' && (media.startsWith('http') || media.startsWith('./')))
-            ? { url: media }
-            : media;
-
-        let content = {};
-
-        if (type === 'image') {
-            content = { image: mediaSource, caption: caption };
-        } else if (type === 'video') {
-            content = { video: mediaSource, caption: caption };
-        } else if (type === 'audio') {
-            content = {
-                audio: mediaSource,
-                ptt: options.ptt || false,
-                mimetype: 'audio/ogg; codecs=opus'
-            };
-
-            if (options.ptt) {
-                content.waveform = options.waveform && options.waveform.length
-                    ? new Uint8Array(options.waveform)
-                    : new Uint8Array([0, 0, 50, 100, 150, 200, 150, 100, 50, 0, 120, 180, 250, 180, 120, 0]);
-            }
-        } else {
-            content = { document: mediaSource, caption: caption, mimetype: options.mimetype || 'application/pdf' };
-        }
-
-        const fullMsg = await generateWAMessage(jid, content, {
-            logger: sock.logger,
-            userJid: sock.user.id,
-            upload: async (readStream, opts) => {
-                return sock.waUploadToServer(readStream, {
-                    ...opts,
-                    newsletter: true
-                });
-            }
-        });
-
-        const msgId = generateMessageID();
-        const messageProto = fullMsg.message;
-        const encodedBytes = encodeNewsletterMessage(messageProto);
-
-        const stanza = {
-            tag: 'message',
-            attrs: {
-                to: jid,
-                id: msgId,
-                type: 'media'
-            },
-            content: [
-                {
-                    tag: 'plaintext',
-                    attrs: {
-                        mediatype: type === 'audio' ? 'audio' : type
-                    },
-                    content: encodedBytes
-                }
-            ]
-        };
-
-        await sock.sendNode(stanza);
-
-        return {
-            key: { remoteJid: jid, fromMe: true, id: msgId },
-            message: messageProto,
-            messageTimestamp: unixTimestampSeconds()
-        };
-
-    } catch (error) {
-        console.log('[csong] sendNewsletterMedia error:', error.message);
-        return null;
-    }
-}
 
 module.exports = {
     name: "channel-song",
@@ -152,7 +75,7 @@ module.exports = {
 
             if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
 
-            // 2. Get MP3 Download Link (ඔයාගේ API එකමයි)
+            // 2. Get MP3 Download Link (ඔයාගේ API එක)
             let audioDownloadUrl = null;
             try {
                 const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
@@ -173,7 +96,7 @@ module.exports = {
 
             if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
 
-            // 3. Detail Card එක යවනවා (මේකටත් Channel එකට යවන ලොජික් එක දැම්මා Error එනවා නම්)
+            // 3. Detail Card එක යවනවා
             const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
                                `📌 *Title:* ${songTitle}\n👤 *Channel:* ${ytChannel}\n` +
                                `👁️ *Views:* ${views.toLocaleString()}\n⏱️ *Duration:* ${duration}\n\n` +
@@ -181,14 +104,12 @@ module.exports = {
 
             try {
                 if (thumbnail) {
-                    // මෙතන අලුත් ලොජික් එකෙන් යවනවා
-                    await sendNewsletterMedia(socket, channelJID, thumbnail, 'image', captionMsg);
+                    await socket.sendMessage(channelJID, { image: { url: thumbnail }, caption: captionMsg });
                 } else {
                     await socket.sendMessage(channelJID, { text: captionMsg });
                 }
             } catch (err) {
-                // Image එක යවන්න බැරි වුණත් ඕඩියෝ එක යවන්න ඕනේ නිසා මේක නතර කරන්නේ නෑ
-                console.log("Card send error:", err);
+                return reply("❌ *Error:* Channel එකට යැවීමට නොහැකි විය. Admin කෙනෙක්දැයි පරීක්ෂා කරන්න.");
             }
 
             // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
@@ -245,16 +166,14 @@ module.exports = {
                 fakeWaveform[i] = Math.floor(Math.random() * 100); 
             }
 
-            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා (🔥 යාළුවාගේ ලොජික් එක පාවිච්චි කරලා 🔥)
-            const audioData = fs.readFileSync(tempOgg);
-            await sendNewsletterMedia(
-                socket, 
-                channelJID, 
-                audioData, 
-                'audio', 
-                '', 
-                { ptt: true, waveform: fakeWaveform }
-            );
+            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා (fileName අයින් කළා)
+            await socket.sendMessage(channelJID, {
+                audio: { url: tempOgg }, 
+                mimetype: 'audio/ogg; codecs=opus', 
+                ptt: true,
+                seconds: durationSeconds, 
+                waveform: fakeWaveform
+            });
 
             reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
 
