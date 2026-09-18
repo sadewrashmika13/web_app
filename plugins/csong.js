@@ -75,7 +75,7 @@ module.exports = {
 
             if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
 
-            // 2. Get MP3 Download Link
+            // 2. Get MP3 Download Link (ඔයාගේ API එක)
             let audioDownloadUrl = null;
             try {
                 const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
@@ -112,8 +112,6 @@ module.exports = {
                 return reply("❌ *Error:* Channel එකට යැවීමට නොහැකි විය. Admin කෙනෙක්දැයි පරීක්ෂා කරන්න.");
             }
 
-            reply(`✅ _Detail Card sent! Converting audio to Pure Voice Note (OPUS) using Fluent-FFmpeg..._`);
-
             // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
             const tempMp3 = path.join(os.tmpdir(), `song_${Date.now()}.mp3`);
             const tempOgg = path.join(os.tmpdir(), `voice_${Date.now()}.ogg`);
@@ -133,7 +131,7 @@ module.exports = {
                 writer.on('error', reject);
             });
 
-            // 🔥 Strict Voice Note Format එකට කන්වර්ට් කිරීම 🔥
+            // 🔥 NPM FFmpeg හරහා Strict Voice Note Format එකට කන්වර්ට් කිරීම 🔥
             await new Promise((resolve, reject) => {
                 ffmpeg(tempMp3)
                     .audioCodec('libopus')
@@ -174,7 +172,8 @@ module.exports = {
                 mimetype: 'audio/ogg; codecs=opus', 
                 ptt: true,
                 seconds: durationSeconds, 
-                waveform: fakeWaveform    
+                waveform: fakeWaveform,
+                fileName: `${songTitle}.opus` // අර කෝඩ් එකේ තිබ්බ අලුත් ට්‍රික් එක
             });
 
             reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
