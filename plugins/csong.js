@@ -1,10 +1,14 @@
 const axios = require('axios');
 const yts = require('yt-search');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { exec } = require('child_process');
 
 module.exports = {
     name: "channel-song",
     category: 1, 
-    description: "Download and upload songs to WhatsApp channels with a Detail Card.",
+    description: "Download and convert songs to pure Voice Notes for WhatsApp channels.",
     commands: ["csong", "channelsong"],
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -13,12 +17,11 @@ module.exports = {
             if (!fullQuery) return reply("🎵 *කරුණාකර සින්දුවක නමක් සහ Channel ID එක ලබා දෙන්න!*\n💡 උදා: `.csong master sir, 120363XXXXX@newsletter`");
 
             let query = fullQuery;
-            let channelJID = "120363XXXXXXXXX@newsletter"; // ඔයාගේ Default Channel ID එක
+            let channelJID = "120363XXXXXXXXX@newsletter"; 
 
             if (fullQuery.includes(',')) {
                 const parts = fullQuery.split(',');
                 const possibleJID = parts[parts.length - 1].trim(); 
-                
                 if (possibleJID.includes('@newsletter') || /^[0-9]+$/.test(possibleJID)) {
                     channelJID = possibleJID.includes('@newsletter') ? possibleJID : possibleJID + "@newsletter";
                     query = parts.slice(0, -1).join(',').trim(); 
@@ -26,9 +29,9 @@ module.exports = {
             }
 
             if (!query) return reply("❌ සින්දුවේ නම සොයා ගැනීමට නොහැක!");
-
             reply(`⏳ _Searching for "${query}" and preparing upload to ${channelJID}..._`);
 
+            // 1. YouTube Search
             let youtubeUrl = null;
             let songTitle = "Sadew-MD Audio";
             let thumbnail = "";
@@ -67,6 +70,7 @@ module.exports = {
 
             if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
 
+            // 2. Get MP3 Download Link
             let audioDownloadUrl = null;
             try {
                 const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
@@ -86,7 +90,29 @@ module.exports = {
             }
 
             if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
+
+            // 3. Detail Card එක යවනවා
+            const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
+                               `📌 *Title:* ${songTitle}\n👤 *Channel:* ${ytChannel}\n` +
+                               `👁️ *Views:* ${views.toLocaleString()}\n⏱️ *Duration:* ${duration}\n\n` +
+                               `╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
             
+            try {
+                if (thumbnail) {
+                    await socket.sendMessage(channelJID, { image: { url: thumbnail }, caption: captionMsg });
+                } else {
+                    await socket.sendMessage(channelJID, { text: captionMsg });
+                }
+            } catch (err) {
+                return reply("❌ *Error:* Channel එකට යැවීමට නොහැකි විය. Admin කෙනෙක්දැයි පරීක්ෂා කරන්න.");
+            }
+
+            reply(`✅ _Detail Card sent! Converting audio to Pure Voice Note (OPUS)..._`);
+
+            // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
+            const tempMp3 = path.join(os.tmpdir(), `song_${Date.now()}.mp3`);
+            const tempOgg = path.join(os.tmpdir(), `voice_${Date.now()}.ogg`);
+
             const responseStream = await axios({
                 url: audioDownloadUrl,
                 method: 'GET',
@@ -94,37 +120,38 @@ module.exports = {
                 timeout: 30000 
             });
 
-            try {
-                // 1. මුලින්ම Detail Card එක (Thumbnail එකත් එක්ක) යවනවා!
-                const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
-                                   `📌 *Title:* ${songTitle}\n` +
-                                   `👤 *Channel:* ${ytChannel}\n` +
-                                   `👁️ *Views:* ${views.toLocaleString()}\n` +
-                                   `⏱️ *Duration:* ${duration}\n\n` +
-                                   `╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
-                
-                if (thumbnail) {
-                    await socket.sendMessage(channelJID, { image: { url: thumbnail }, caption: captionMsg });
-                } else {
-                    await socket.sendMessage(channelJID, { text: captionMsg });
-                }
+            const writer = fs.createWriteStream(tempMp3);
+            responseStream.data.pipe(writer);
 
-                // 2. ඊටපස්සේ ඕඩියෝ එක යවනවා (Audio / File Mode)
-                await socket.sendMessage(channelJID, {
-                    audio: { stream: responseStream.data }, 
-                    mimetype: 'audio/mp4', // සමහරවිට mp4 දුන්නම ප්ලේයර් එකක් විදිහට යන්න චාන්ස් එකක් තියෙනවා
-                    ptt: true 
+            await new Promise((resolve, reject) => {
+                writer.on('finish', resolve);
+                writer.on('error', reject);
+            });
+
+            // FFmpeg එකෙන් Convert කරනවා
+            await new Promise((resolve, reject) => {
+                exec(`ffmpeg -i ${tempMp3} -c:a libopus -b:a 64k -vbr on -compression_level 10 ${tempOgg}`, (err) => {
+                    if (err) return reject(err);
+                    resolve();
                 });
+            });
 
-                reply("✅ *සින්දුව සහ Detail Card එක සාර්ථකව WhatsApp Channel එකට Upload කරන ලදී!*");
-            } catch (sendErr) {
-                console.log("SEND ERROR:", sendErr);
-                reply("❌ *Error:* Channel එකට සින්දුව යැවීමට නොහැකි විය. බොට්ව මෙම Channel එකේ Admin කෙනෙක් කර ඇත්දැයි පරීක්ෂා කරන්න.");
-            }
+            // 5. Convert කරපු එක Voice Note එකක් විදිහට Channel එකට යවනවා
+            await socket.sendMessage(channelJID, {
+                audio: fs.readFileSync(tempOgg), 
+                mimetype: 'audio/ogg; codecs=opus', 
+                ptt: true 
+            });
+
+            reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
+
+            // Server එකේ ඉඩ පිරෙන්නේ නැති වෙන්න Temp ෆයිල්ස් මකලා දානවා
+            try { fs.unlinkSync(tempMp3); } catch (e) {}
+            try { fs.unlinkSync(tempOgg); } catch (e) {}
 
         } catch (e) {
             console.log("CHANNEL SONG CMD ERROR:", e);
-            reply("❌ *Internal Error:* " + e.message);
+            reply("❌ *Internal Error (FFmpeg නැති වෙන්න පුළුවන්):* " + e.message);
         }
     }
 };
