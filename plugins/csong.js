@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-// 🔥 අලුතින් ගෙනාපු FFmpeg කෑලි ටික 🔥
+// NPM Packages හරහා FFmpeg ගෙන ඒම
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -23,6 +23,7 @@ module.exports = {
             let query = fullQuery;
             let channelJID = "120363XXXXXXXXX@newsletter"; 
 
+            // Channel JID එක වෙන් කරගැනීම
             if (fullQuery.includes(',')) {
                 const parts = fullQuery.split(',');
                 const possibleJID = parts[parts.length - 1].trim(); 
@@ -113,7 +114,7 @@ module.exports = {
 
             reply(`✅ _Detail Card sent! Converting audio to Pure Voice Note (OPUS) using Fluent-FFmpeg..._`);
 
-            // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම (NPM Package එක හරහා)
+            // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
             const tempMp3 = path.join(os.tmpdir(), `song_${Date.now()}.mp3`);
             const tempOgg = path.join(os.tmpdir(), `voice_${Date.now()}.ogg`);
 
@@ -131,17 +132,18 @@ module.exports = {
                 writer.on('finish', resolve);
                 writer.on('error', reject);
             });
-            // 🔥 අලුත් FFmpeg කන්වර්ටර් එක (Strict Voice Note Format) 🔥
+
+            // 🔥 Strict Voice Note Format එකට කන්වර්ට් කිරීම 🔥
             await new Promise((resolve, reject) => {
                 ffmpeg(tempMp3)
                     .audioCodec('libopus')
-                    .audioChannels(1)       // අනිවාර්යයි: Mono (තනි චැනල් එකක් වෙන්න ඕනේ)
-                    .audioFrequency(48000)  // අනිවාර්යයි: 48kHz වෙන්න ඕනේ
-                    .audioBitrate('32k')    // Voice note එකකට ගැලපෙන Bitrate එක
+                    .audioChannels(1)       // Mono
+                    .audioFrequency(48000)  // 48kHz
+                    .audioBitrate('32k')    // Voice Note Bitrate
                     .outputOptions([
                         '-vbr on',
                         '-compression_level 10',
-                        '-avoid_negative_ts make_zero' // WhatsApp වලට Time එක හදාගන්න වැදගත්
+                        '-avoid_negative_ts make_zero' // වැදගත්
                     ])
                     .toFormat('ogg')
                     .save(tempOgg)
@@ -149,11 +151,30 @@ module.exports = {
                     .on('error', (err) => reject(err));
             });
 
-            // 5. Convert කරපු එක Voice Note එකක් විදිහට Channel එකට යවනවා
+            // 5. සින්දුවේ තත්පර ගාණ (Duration) ගණනය කිරීම
+            let durationSeconds = 180; 
+            if (duration && duration.includes(':')) {
+                const timeParts = duration.split(':').map(Number);
+                if (timeParts.length === 2) {
+                    durationSeconds = timeParts[0] * 60 + timeParts[1];
+                } else if (timeParts.length === 3) {
+                    durationSeconds = timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2];
+                }
+            }
+
+            // 6. Fake Waveform (තරංග රටාවක්) නිර්මාණය කිරීම
+            const fakeWaveform = new Uint8Array(64);
+            for (let i = 0; i < 64; i++) {
+                fakeWaveform[i] = Math.floor(Math.random() * 100); 
+            }
+
+            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා
             await socket.sendMessage(channelJID, {
-                audio: { url: tempOgg }, // fs.readFileSync වෙනුවට මෙහෙම දීම Baileys වලට ලේසියි
+                audio: { url: tempOgg }, 
                 mimetype: 'audio/ogg; codecs=opus', 
-                ptt: true 
+                ptt: true,
+                seconds: durationSeconds, 
+                waveform: fakeWaveform    
             });
 
             reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
