@@ -9,7 +9,7 @@ const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// 🔥 යාළුවාගේ Channel Media යවන විශේෂිත Function එක (Baileys Stanza Handler) 🔥
+// 🔥 Channel Media යවන විශේෂිත Function එක (Baileys Stanza Handler) 🔥
 async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
     const {
         generateWAMessage,
@@ -161,48 +161,52 @@ module.exports = {
             // 2. Get MP3 Download Link (Multi-API Backup System 🚀)
             let audioDownloadUrl = null;
 
-            // 🌟 Try API 1 (යාළුවාගේ API එක - Primary)
+            // 🌟 Try API 1 (ඔයාගේ David Cyril API - Primary Priority)
             try {
-                const apiResp = await axios.get('https://mr-thinuzz-api-build.zone.id/api/ytmp3/download', {
-                    params: {
-                        url: youtubeUrl,
-                        apiKey: 'key_094bb23f6672ed25'
-                    },
-                    timeout: 25000
-                });
-                const data = apiResp.data;
-                if (data?.status && data?.data?.links?.audio) {
-                    audioDownloadUrl = data.data.links.audio;
-                    if (songTitle === "Sadew-MD Audio" && data?.data?.title) songTitle = data.data.title;
+                const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
+                if (res1.data?.success && res1.data?.result?.download_url) {
+                    audioDownloadUrl = res1.data.result.download_url;
+                    if (songTitle === "Sadew-MD Audio") songTitle = res1.data.result.title;
                 }
             } catch (e1) {
-                console.log('[csong] Primary API failed, trying backup...');
+                console.log('[csong] David Cyril API 1 failed, trying v2...');
             }
 
-            // 🌟 Try API 2 (ඔයාගේ David Cyril API එක - Backup 1)
-            if (!audioDownloadUrl) {
-                try {
-                    const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
-                    if (res1.data?.success && res1.data?.result?.download_url) {
-                        audioDownloadUrl = res1.data.result.download_url;
-                        if (songTitle === "Sadew-MD Audio") songTitle = res1.data.result.title;
-                    }
-                } catch (e2) {}
-            }
-
-            // 🌟 Try API 3 (David Cyril v2 API - Backup 2)
+            // 🌟 Try API 2 (ඔයාගේ David Cyril v2 API - Backup 1)
             if (!audioDownloadUrl) {
                 try {
                     const res2 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp3v2?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
                     if (res2.data?.success && res2.data?.result?.download_url) {
                         audioDownloadUrl = res2.data.result.download_url;
                     }
-                } catch (e3) {}
+                } catch (e2) {
+                    console.log('[csong] David Cyril v2 failed, trying external backup...');
+                }
+            }
+
+            // 🌟 Try API 3 (යාළුවාගේ API එක - Final Backup)
+            if (!audioDownloadUrl) {
+                try {
+                    const apiResp = await axios.get('https://mr-thinuzz-api-build.zone.id/api/ytmp3/download', {
+                        params: {
+                            url: youtubeUrl,
+                            apiKey: 'key_094bb23f6672ed25'
+                        },
+                        timeout: 25000
+                    });
+                    const data = apiResp.data;
+                    if (data?.status && data?.data?.links?.audio) {
+                        audioDownloadUrl = data.data.links.audio;
+                        if (songTitle === "Sadew-MD Audio" && data?.data?.title) songTitle = data.data.title;
+                    }
+                } catch (e3) {
+                    console.log('[csong] All APIs failed.');
+                }
             }
 
             if (!audioDownloadUrl) return reply("❌ *Error:* සියලුම සේවාදායකයන් (APIs) කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
 
-            // 3. Detail Card එක යවනවා (යාළුවාගේ sendNewsletterMedia හරහා)
+            // 3. Detail Card එක යවනවා (Block වෙන්නෙ නැති විදිහට)
             const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
                                `📌 *Title:* ${songTitle}\n👤 *Channel:* ${ytChannel}\n` +
                                `👁️ *Views:* ${views.toLocaleString()}\n⏱️ *Duration:* ${duration}\n\n` +
@@ -216,7 +220,8 @@ module.exports = {
                     await socket.sendMessage(channelJID, { text: captionMsg });
                 }
             } catch (err) {
-                return reply("❌ *Error:* Channel එකට යැවීමට නොහැකි විය. Admin කෙනෙක්දැයි පරීක්ෂා කරන්න.");
+                // මෙතන Error ආවත් Code එක නවතින්නෙ නෑ! ඊළඟට ඕඩියෝ එක යවනවා.
+                console.log("[csong] Thumbnail send warning:", err.message);
             }
 
             // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
@@ -273,7 +278,7 @@ module.exports = {
                 fakeWaveform[i] = Math.floor(Math.random() * 100); 
             }
 
-            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා (යාළුවාගේ sendNewsletterMedia හරහා - No filename error!)
+            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා 
             await sendNewsletterMedia(
                 socket,
                 channelJID,
