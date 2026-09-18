@@ -9,12 +9,95 @@ const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+// 🔥 යාළුවාගේ Channel Media යවන විශේෂිත Function එක (Baileys Stanza Handler) 🔥
+async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
+    const {
+        generateWAMessage,
+        encodeNewsletterMessage,
+        unixTimestampSeconds,
+        generateMessageID
+    } = await import('@whiskeysockets/baileys');
+
+    try {
+        const mediaSource = (typeof media === 'string' && (media.startsWith('http') || media.startsWith('./')))
+            ? { url: media }
+            : media;
+
+        let content = {};
+
+        if (type === 'image') {
+            content = { image: mediaSource, caption: caption };
+        } else if (type === 'video') {
+            content = { video: mediaSource, caption: caption };
+        } else if (type === 'audio') {
+            content = {
+                audio: mediaSource,
+                ptt: options.ptt || false,
+                mimetype: 'audio/ogg; codecs=opus'
+            };
+
+            if (options.ptt) {
+                content.waveform = options.waveform && options.waveform.length
+                    ? new Uint8Array(options.waveform)
+                    : new Uint8Array([0, 0, 50, 100, 150, 200, 150, 100, 50, 0, 120, 180, 250, 180, 120, 0]);
+            }
+        } else {
+            content = { document: mediaSource, caption: caption, mimetype: options.mimetype || 'application/pdf' };
+        }
+
+        const fullMsg = await generateWAMessage(jid, content, {
+            logger: sock.logger,
+            userJid: sock.user.id,
+            upload: async (readStream, opts) => {
+                return sock.waUploadToServer(readStream, {
+                    ...opts,
+                    newsletter: true
+                });
+            }
+        });
+
+        const msgId = generateMessageID();
+        const messageProto = fullMsg.message;
+        const encodedBytes = encodeNewsletterMessage(messageProto);
+
+        const stanza = {
+            tag: 'message',
+            attrs: {
+                to: jid,
+                id: msgId,
+                type: 'media'
+            },
+            content: [
+                {
+                    tag: 'plaintext',
+                    attrs: {
+                        mediatype: type === 'audio' ? 'audio' : type
+                    },
+                    content: encodedBytes
+                }
+            ]
+        };
+
+        await sock.sendNode(stanza);
+
+        return {
+            key: { remoteJid: jid, fromMe: true, id: msgId },
+            message: messageProto,
+            messageTimestamp: unixTimestampSeconds()
+        };
+
+    } catch (error) {
+        console.log('[csong] sendNewsletterMedia error:', error.message);
+        return null;
+    }
+}
+
 module.exports = {
     name: "channel-song",
     category: 1, 
-    description: "Download and convert songs to pure Voice Notes for WhatsApp channels.",
+    description: "Download and convert songs to pure Voice Notes for WhatsApp channels with Multi-API Backup.",
     commands: ["csong", "channelsong"],
-    
+
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         try {
             const fullQuery = args.join(' ');
@@ -75,37 +158,61 @@ module.exports = {
 
             if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
 
-            // 2. Get MP3 Download Link (ඔයාගේ API එක)
+            // 2. Get MP3 Download Link (Multi-API Backup System 🚀)
             let audioDownloadUrl = null;
-            try {
-                const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
-                if (res1.data?.success && res1.data?.result?.download_url) {
-                    audioDownloadUrl = res1.data.result.download_url;
-                    if (songTitle === "Sadew-MD Audio") songTitle = res1.data.result.title;
-                }
-            } catch (e1) {}
 
+            // 🌟 Try API 1 (යාළුවාගේ API එක - Primary)
+            try {
+                const apiResp = await axios.get('https://mr-thinuzz-api-build.zone.id/api/ytmp3/download', {
+                    params: {
+                        url: youtubeUrl,
+                        apiKey: 'key_094bb23f6672ed25'
+                    },
+                    timeout: 25000
+                });
+                const data = apiResp.data;
+                if (data?.status && data?.data?.links?.audio) {
+                    audioDownloadUrl = data.data.links.audio;
+                    if (songTitle === "Sadew-MD Audio" && data?.data?.title) songTitle = data.data.title;
+                }
+            } catch (e1) {
+                console.log('[csong] Primary API failed, trying backup...');
+            }
+
+            // 🌟 Try API 2 (ඔයාගේ David Cyril API එක - Backup 1)
+            if (!audioDownloadUrl) {
+                try {
+                    const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
+                    if (res1.data?.success && res1.data?.result?.download_url) {
+                        audioDownloadUrl = res1.data.result.download_url;
+                        if (songTitle === "Sadew-MD Audio") songTitle = res1.data.result.title;
+                    }
+                } catch (e2) {}
+            }
+
+            // 🌟 Try API 3 (David Cyril v2 API - Backup 2)
             if (!audioDownloadUrl) {
                 try {
                     const res2 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp3v2?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
                     if (res2.data?.success && res2.data?.result?.download_url) {
                         audioDownloadUrl = res2.data.result.download_url;
                     }
-                } catch (e2) {}
+                } catch (e3) {}
             }
 
-            if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
+            if (!audioDownloadUrl) return reply("❌ *Error:* සියලුම සේවාදායකයන් (APIs) කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
 
-            // 3. Detail Card එක යවනවා
+            // 3. Detail Card එක යවනවා (යාළුවාගේ sendNewsletterMedia හරහා)
             const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
                                `📌 *Title:* ${songTitle}\n👤 *Channel:* ${ytChannel}\n` +
                                `👁️ *Views:* ${views.toLocaleString()}\n⏱️ *Duration:* ${duration}\n\n` +
                                `╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
-            
+
             try {
                 if (thumbnail) {
-                    await socket.sendMessage(channelJID, { image: { url: thumbnail }, caption: captionMsg });
+                    await sendNewsletterMedia(socket, channelJID, thumbnail, "image", captionMsg);
                 } else {
+                    // Thumbnail නැත්නම් සාමාන්‍ය ටෙක්ස්ට් එකක් යවන්න පුළුවන්
                     await socket.sendMessage(channelJID, { text: captionMsg });
                 }
             } catch (err) {
@@ -141,7 +248,7 @@ module.exports = {
                     .outputOptions([
                         '-vbr on',
                         '-compression_level 10',
-                        '-avoid_negative_ts make_zero' // වැදගත්
+                        '-avoid_negative_ts make_zero'
                     ])
                     .toFormat('ogg')
                     .save(tempOgg)
@@ -166,17 +273,17 @@ module.exports = {
                 fakeWaveform[i] = Math.floor(Math.random() * 100); 
             }
 
-            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා
-            await socket.sendMessage(channelJID, {
-                audio: { url: tempOgg }, 
-                mimetype: 'audio/ogg; codecs=opus', 
-                ptt: true,
-                seconds: durationSeconds, 
-                waveform: fakeWaveform,
-                fileName: `${songTitle}.opus` // අර කෝඩ් එකේ තිබ්බ අලුත් ට්‍රික් එක
-            });
+            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා (යාළුවාගේ sendNewsletterMedia හරහා - No filename error!)
+            await sendNewsletterMedia(
+                socket,
+                channelJID,
+                fs.readFileSync(tempOgg),
+                "audio",
+                '',
+                { ptt: true, waveform: fakeWaveform }
+            );
 
-            reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
+            reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Channel එකට Upload කළා!*");
 
             // Server එකේ ඉඩ පිරෙන්නේ නැති වෙන්න Temp ෆයිල්ස් මකලා දානවා
             try { fs.unlinkSync(tempMp3); } catch (e) {}
