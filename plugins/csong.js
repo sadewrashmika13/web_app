@@ -3,7 +3,11 @@ const yts = require('yt-search');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { exec } = require('child_process');
+
+// 🔥 අලුතින් ගෙනාපු FFmpeg කෑලි ටික 🔥
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const ffmpeg = require('fluent-ffmpeg');
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 module.exports = {
     name: "channel-song",
@@ -107,9 +111,9 @@ module.exports = {
                 return reply("❌ *Error:* Channel එකට යැවීමට නොහැකි විය. Admin කෙනෙක්දැයි පරීක්ෂා කරන්න.");
             }
 
-            reply(`✅ _Detail Card sent! Converting audio to Pure Voice Note (OPUS)..._`);
+            reply(`✅ _Detail Card sent! Converting audio to Pure Voice Note (OPUS) using Fluent-FFmpeg..._`);
 
-            // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
+            // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම (NPM Package එක හරහා)
             const tempMp3 = path.join(os.tmpdir(), `song_${Date.now()}.mp3`);
             const tempOgg = path.join(os.tmpdir(), `voice_${Date.now()}.ogg`);
 
@@ -128,12 +132,19 @@ module.exports = {
                 writer.on('error', reject);
             });
 
-            // FFmpeg එකෙන් Convert කරනවා
+            // 🔥 අලුත් FFmpeg කන්වර්ටර් එක 🔥
             await new Promise((resolve, reject) => {
-                exec(`ffmpeg -i ${tempMp3} -c:a libopus -b:a 64k -vbr on -compression_level 10 ${tempOgg}`, (err) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
+                ffmpeg(tempMp3)
+                    .audioCodec('libopus')
+                    .audioBitrate('64k')
+                    .outputOptions([
+                        '-vbr on',
+                        '-compression_level 10'
+                    ])
+                    .toFormat('ogg')
+                    .save(tempOgg)
+                    .on('end', resolve)
+                    .on('error', (err) => reject(err));
             });
 
             // 5. Convert කරපු එක Voice Note එකක් විදිහට Channel එකට යවනවා
@@ -151,7 +162,7 @@ module.exports = {
 
         } catch (e) {
             console.log("CHANNEL SONG CMD ERROR:", e);
-            reply("❌ *Internal Error (FFmpeg නැති වෙන්න පුළුවන්):* " + e.message);
+            reply("❌ *Internal Error:* " + e.message);
         }
     }
 };
