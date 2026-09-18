@@ -1,4 +1,4 @@
-const axios = require('axios');
+Const axios = require('axios');
 const yts = require('yt-search');
 const fs = require('fs');
 const path = require('path');
@@ -172,7 +172,8 @@ module.exports = {
                 mimetype: 'audio/ogg; codecs=opus', 
                 ptt: true,
                 seconds: durationSeconds, 
-                waveform: fakeWaveform
+                waveform: fakeWaveform,
+                
             });
 
             reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
