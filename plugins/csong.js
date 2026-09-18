@@ -131,15 +131,17 @@ module.exports = {
                 writer.on('finish', resolve);
                 writer.on('error', reject);
             });
-
-            // 🔥 අලුත් FFmpeg කන්වර්ටර් එක 🔥
+            // 🔥 අලුත් FFmpeg කන්වර්ටර් එක (Strict Voice Note Format) 🔥
             await new Promise((resolve, reject) => {
                 ffmpeg(tempMp3)
                     .audioCodec('libopus')
-                    .audioBitrate('64k')
+                    .audioChannels(1)       // අනිවාර්යයි: Mono (තනි චැනල් එකක් වෙන්න ඕනේ)
+                    .audioFrequency(48000)  // අනිවාර්යයි: 48kHz වෙන්න ඕනේ
+                    .audioBitrate('32k')    // Voice note එකකට ගැලපෙන Bitrate එක
                     .outputOptions([
                         '-vbr on',
-                        '-compression_level 10'
+                        '-compression_level 10',
+                        '-avoid_negative_ts make_zero' // WhatsApp වලට Time එක හදාගන්න වැදගත්
                     ])
                     .toFormat('ogg')
                     .save(tempOgg)
@@ -149,7 +151,7 @@ module.exports = {
 
             // 5. Convert කරපු එක Voice Note එකක් විදිහට Channel එකට යවනවා
             await socket.sendMessage(channelJID, {
-                audio: fs.readFileSync(tempOgg), 
+                audio: { url: tempOgg }, // fs.readFileSync වෙනුවට මෙහෙම දීම Baileys වලට ලේසියි
                 mimetype: 'audio/ogg; codecs=opus', 
                 ptt: true 
             });
