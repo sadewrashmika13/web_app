@@ -1,23 +1,30 @@
-// ════════════ WHATSAPP CHANNEL SONG UPLOAD (COMMAND ARGS) ════════════
+const { cmd, commands } = require('../command');
+const axios = require('axios');
+const yts = require('yt-search');
 
-case 'channelsong':
-case 'csong': {
+cmd({
+    pattern: "csong",
+    alias: ["channelsong"],
+    desc: "Download and upload songs to WhatsApp channels as Voice Notes.",
+    category: "download",
+    react: "🔎",
+    filename: __filename
+},
+async (conn, mek, m, { from, q, reply, sender }) => {
     try {
-        const fullQuery = args.join(' ');
-        if (!fullQuery) return reply("🎵 *කරුණාකර සින්දුවක නමක් සහ Channel ID එක ලබා දෙන්න!*\n💡 උදා: `.csong master sir, 120363XXXXX@newsletter`");
+        if (!q) return reply("🎵 *කරුණාකර සින්දුවක නමක් සහ Channel ID එක ලබා දෙන්න!*\n💡 උදා: `.csong master sir, 120363XXXXX@newsletter`");
 
-        // 🟢 කමාවෙන් (,) වෙන් කරලා සින්දුවයි Channel ID එකයි හොයාගැනීම 🟢
-        let query = fullQuery;
-        let channelJID = "120363XXXXXXXXX@newsletter"; // මේකට ඔයාගේ ඩිෆෝල්ට් Channel එකේ JID එක දාන්න (ID එකක් නොදුන්නොත් යන්නේ මේකට)
+        let query = q;
+        // 👇 ඔයාගේ Default Channel ID එක මෙතන දාන්න
+        let channelJID = "120363XXXXXXXXX@newsletter"; 
 
-        if (fullQuery.includes(',')) {
-            const parts = fullQuery.split(',');
-            const possibleJID = parts[parts.length - 1].trim(); // අන්තිම කෑල්ල (ID එක)
+        if (q.includes(',')) {
+            const parts = q.split(',');
+            const possibleJID = parts[parts.length - 1].trim(); 
             
-            // ඒක ID එකක් වගේ නම් ඒක channelJID එකට දාගන්නවා
             if (possibleJID.includes('@newsletter') || /^[0-9]+$/.test(possibleJID)) {
                 channelJID = possibleJID.includes('@newsletter') ? possibleJID : possibleJID + "@newsletter";
-                query = parts.slice(0, -1).join(',').trim(); // ඉතුරු ටික සින්දුවේ නම විදිහට ගන්නවා
+                query = parts.slice(0, -1).join(',').trim(); 
             }
         }
 
@@ -25,9 +32,6 @@ case 'csong': {
 
         reply(`⏳ _Searching for "${query}" and preparing upload to ${channelJID}..._`);
 
-        // ==========================================
-        // 1. YouTube Search
-        // ==========================================
         let youtubeUrl = null;
         let songTitle = "Sadew-MD Audio";
 
@@ -36,7 +40,6 @@ case 'csong': {
         if (isLink) {
             youtubeUrl = query.match(/(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)[^\s?#]+)/i)[0].trim();
             try {
-                const yts = require('yt-search');
                 const videoIdMatch = youtubeUrl.match(/(?:v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
                 if (videoIdMatch) {
                     const videoDetails = await yts({ videoId: videoIdMatch[1] });
@@ -45,7 +48,6 @@ case 'csong': {
             } catch (e) {}
         } else {
             try {
-                const yts = require('yt-search');
                 const searchResults = await yts(query);
                 if (searchResults && searchResults.videos.length > 0) {
                     youtubeUrl = searchResults.videos[0].url;
@@ -62,9 +64,6 @@ case 'csong': {
 
         if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
 
-        // ==========================================
-        // 2. Download MP3 
-        // ==========================================
         let audioDownloadUrl = null;
         try {
             const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
@@ -84,10 +83,6 @@ case 'csong': {
         }
 
         if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
-
-        // ==========================================
-        // 3. Upload to WHATSAPP CHANNEL as VOICE NOTE (PTT)
-        // ==========================================
         
         const responseStream = await axios({
             url: audioDownloadUrl,
@@ -97,16 +92,18 @@ case 'csong': {
         });
 
         try {
-            await socket.sendMessage(channelJID, {
+            // Channel එකට Voice Note එක යවනවා (ptt: true)
+            await conn.sendMessage(channelJID, {
                 audio: { stream: responseStream.data }, 
                 mimetype: 'audio/mpeg', 
                 ptt: true 
             });
 
+            // සින්දුවේ නම Caption එකක් විදිහට යටින් යවනවා
             const captionMsg = `🎵 *${songTitle}*\n\n╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
-            await socket.sendMessage(channelJID, { text: captionMsg });
+            await conn.sendMessage(channelJID, { text: captionMsg });
 
-            reply("✅ *සින්දුව සාර්ථකව අදාල WhatsApp Channel එකට Upload කරන ලදී!*");
+            reply("✅ *සින්දුව සාර්ථකව අදාල WhatsApp Channel එකට Voice Note එකක් විදිහට Upload කරන ලදී!*");
         } catch (sendErr) {
             console.log("SEND ERROR:", sendErr);
             reply("❌ *Error:* Channel එකට සින්දුව යැවීමට නොහැකි විය. බොට්ව මෙම Channel එකේ Admin කෙනෙක් කර ඇත්දැයි පරීක්ෂා කරන්න.");
@@ -116,5 +113,4 @@ case 'csong': {
         console.log("CHANNEL SONG CMD ERROR:", e);
         reply("❌ *Internal Error:* " + e.message);
     }
-    break;
-}
+});
