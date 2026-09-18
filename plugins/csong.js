@@ -3,20 +3,14 @@ const yts = require('yt-search');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { generateWAMessage, encodeNewsletterMessage, unixTimestampSeconds, generateMessageID } = require('@whiskeysockets/baileys');
 
 // NPM Packages හරහා FFmpeg ගෙන ඒම
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// 🔥 Error එක ආපු තැන (import වෙනුවට require පාවිච්චි කර ඇත) 🔥
-const {
-    generateWAMessage,
-    encodeNewsletterMessage,
-    unixTimestampSeconds,
-    generateMessageID
-} = require('@whiskeysockets/baileys');
-
+// 🔥 යාළුවාගේ කෝඩ් එකෙන් ගත්ත Channel Media යවන විශේෂිත Function එක 🔥
 async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
     try {
         const mediaSource = (typeof media === 'string' && (media.startsWith('http') || media.startsWith('./')))
@@ -95,7 +89,7 @@ async function sendNewsletterMedia(sock, jid, media, type, caption = '', options
 module.exports = {
     name: "channel-song",
     category: 1, 
-    description: "Download and convert songs to pure Voice Notes for WhatsApp channels with Multi-API Backup.",
+    description: "Download and convert songs to pure Voice Notes for WhatsApp channels.",
     commands: ["csong", "channelsong"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -158,55 +152,28 @@ module.exports = {
 
             if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
 
-            // 2. Get MP3 Download Link (Multi-API Backup System 🚀)
+            // 2. Get MP3 Download Link (ඔයාගේ API එකමයි)
             let audioDownloadUrl = null;
-
-            // 🌟 Try API 1 (ඔයාගේ David Cyril API - Primary Priority)
             try {
                 const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
                 if (res1.data?.success && res1.data?.result?.download_url) {
                     audioDownloadUrl = res1.data.result.download_url;
                     if (songTitle === "Sadew-MD Audio") songTitle = res1.data.result.title;
                 }
-            } catch (e1) {
-                console.log('[csong] David Cyril API 1 failed, trying v2...');
-            }
+            } catch (e1) {}
 
-            // 🌟 Try API 2 (ඔයාගේ David Cyril v2 API - Backup 1)
             if (!audioDownloadUrl) {
                 try {
                     const res2 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp3v2?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
                     if (res2.data?.success && res2.data?.result?.download_url) {
                         audioDownloadUrl = res2.data.result.download_url;
                     }
-                } catch (e2) {
-                    console.log('[csong] David Cyril v2 failed, trying external backup...');
-                }
+                } catch (e2) {}
             }
 
-            // 🌟 Try API 3 (යාළුවාගේ API එක - Final Backup)
-            if (!audioDownloadUrl) {
-                try {
-                    const apiResp = await axios.get('https://mr-thinuzz-api-build.zone.id/api/ytmp3/download', {
-                        params: {
-                            url: youtubeUrl,
-                            apiKey: 'key_094bb23f6672ed25'
-                        },
-                        timeout: 25000
-                    });
-                    const data = apiResp.data;
-                    if (data?.status && data?.data?.links?.audio) {
-                        audioDownloadUrl = data.data.links.audio;
-                        if (songTitle === "Sadew-MD Audio" && data?.data?.title) songTitle = data.data.title;
-                    }
-                } catch (e3) {
-                    console.log('[csong] All APIs failed.');
-                }
-            }
+            if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
 
-            if (!audioDownloadUrl) return reply("❌ *Error:* සියලුම සේවාදායකයන් (APIs) කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
-
-            // 3. Detail Card එක යවනවා (Block වෙන්නෙ නැති විදිහට)
+            // 3. Detail Card එක යවනවා (මේකටත් Channel එකට යවන ලොජික් එක දැම්මා Error එනවා නම්)
             const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
                                `📌 *Title:* ${songTitle}\n👤 *Channel:* ${ytChannel}\n` +
                                `👁️ *Views:* ${views.toLocaleString()}\n⏱️ *Duration:* ${duration}\n\n` +
@@ -214,12 +181,14 @@ module.exports = {
 
             try {
                 if (thumbnail) {
-                    await sendNewsletterMedia(socket, channelJID, thumbnail, "image", captionMsg);
+                    // මෙතන අලුත් ලොජික් එකෙන් යවනවා
+                    await sendNewsletterMedia(socket, channelJID, thumbnail, 'image', captionMsg);
                 } else {
                     await socket.sendMessage(channelJID, { text: captionMsg });
                 }
             } catch (err) {
-                console.log("[csong] Thumbnail send warning:", err.message);
+                // Image එක යවන්න බැරි වුණත් ඕඩියෝ එක යවන්න ඕනේ නිසා මේක නතර කරන්නේ නෑ
+                console.log("Card send error:", err);
             }
 
             // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
@@ -251,7 +220,7 @@ module.exports = {
                     .outputOptions([
                         '-vbr on',
                         '-compression_level 10',
-                        '-avoid_negative_ts make_zero'
+                        '-avoid_negative_ts make_zero' // වැදගත්
                     ])
                     .toFormat('ogg')
                     .save(tempOgg)
@@ -259,6 +228,7 @@ module.exports = {
                     .on('error', (err) => reject(err));
             });
 
+            // 5. සින්දුවේ තත්පර ගාණ (Duration) ගණනය කිරීම
             let durationSeconds = 180; 
             if (duration && duration.includes(':')) {
                 const timeParts = duration.split(':').map(Number);
@@ -269,23 +239,26 @@ module.exports = {
                 }
             }
 
+            // 6. Fake Waveform (තරංග රටාවක්) නිර්මාණය කිරීම
             const fakeWaveform = new Uint8Array(64);
             for (let i = 0; i < 64; i++) {
                 fakeWaveform[i] = Math.floor(Math.random() * 100); 
             }
 
-            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා 
+            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා (🔥 යාළුවාගේ ලොජික් එක පාවිච්චි කරලා 🔥)
+            const audioData = fs.readFileSync(tempOgg);
             await sendNewsletterMedia(
-                socket,
-                channelJID,
-                fs.readFileSync(tempOgg),
-                "audio",
-                '',
+                socket, 
+                channelJID, 
+                audioData, 
+                'audio', 
+                '', 
                 { ptt: true, waveform: fakeWaveform }
             );
 
-            reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Channel එකට Upload කළා!*");
+            reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
 
+            // Server එකේ ඉඩ පිරෙන්නේ නැති වෙන්න Temp ෆයිල්ස් මකලා දානවා
             try { fs.unlinkSync(tempMp3); } catch (e) {}
             try { fs.unlinkSync(tempOgg); } catch (e) {}
 
