@@ -9,15 +9,15 @@ const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// 🔥 Channel Media යවන විශේෂිත Function එක (Baileys Stanza Handler) 🔥
-async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
-    const {
-        generateWAMessage,
-        encodeNewsletterMessage,
-        unixTimestampSeconds,
-        generateMessageID
-    } = await import('@whiskeysockets/baileys');
+// 🔥 Error එක ආපු තැන (import වෙනුවට require පාවිච්චි කර ඇත) 🔥
+const {
+    generateWAMessage,
+    encodeNewsletterMessage,
+    unixTimestampSeconds,
+    generateMessageID
+} = require('@whiskeysockets/baileys');
 
+async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
     try {
         const mediaSource = (typeof media === 'string' && (media.startsWith('http') || media.startsWith('./')))
             ? { url: media }
@@ -216,11 +216,9 @@ module.exports = {
                 if (thumbnail) {
                     await sendNewsletterMedia(socket, channelJID, thumbnail, "image", captionMsg);
                 } else {
-                    // Thumbnail නැත්නම් සාමාන්‍ය ටෙක්ස්ට් එකක් යවන්න පුළුවන්
                     await socket.sendMessage(channelJID, { text: captionMsg });
                 }
             } catch (err) {
-                // මෙතන Error ආවත් Code එක නවතින්නෙ නෑ! ඊළඟට ඕඩියෝ එක යවනවා.
                 console.log("[csong] Thumbnail send warning:", err.message);
             }
 
@@ -261,7 +259,6 @@ module.exports = {
                     .on('error', (err) => reject(err));
             });
 
-            // 5. සින්දුවේ තත්පර ගාණ (Duration) ගණනය කිරීම
             let durationSeconds = 180; 
             if (duration && duration.includes(':')) {
                 const timeParts = duration.split(':').map(Number);
@@ -272,7 +269,6 @@ module.exports = {
                 }
             }
 
-            // 6. Fake Waveform (තරංග රටාවක්) නිර්මාණය කිරීම
             const fakeWaveform = new Uint8Array(64);
             for (let i = 0; i < 64; i++) {
                 fakeWaveform[i] = Math.floor(Math.random() * 100); 
@@ -290,7 +286,6 @@ module.exports = {
 
             reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Channel එකට Upload කළා!*");
 
-            // Server එකේ ඉඩ පිරෙන්නේ නැති වෙන්න Temp ෆයිල්ස් මකලා දානවා
             try { fs.unlinkSync(tempMp3); } catch (e) {}
             try { fs.unlinkSync(tempOgg); } catch (e) {}
 
