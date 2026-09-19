@@ -8,18 +8,14 @@ const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// 🔥 යාලුවගේ කෝඩ් එකෙන් ගත්ත අලුත් රහස් Function එක (අවුලක් ආවොත් එරර් එක පෙන්නනවා) 🔥
+// 🔥 යාලුවගේ කෝඩ් එකෙන් ගත්ත අලුත් රහස් Function එක (ඔයාගේ Baileys නමට හැදුවා) 🔥
 async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
-    // Bot ගේ Library එක හරියටම හොයාගන්නවා
+    // 👈 ඔයාගේ package.json එකේ තියෙන නියම නම දැම්මා
     let Baileys;
     try { 
-        Baileys = require('@whiskeysockets/baileys'); 
+        Baileys = require('baileys'); 
     } catch (e1) {
-        try { 
-            Baileys = require('bail'); 
-        } catch (e2) {
-            throw new Error('Baileys library එක හොයාගන්න බැරි වුණා!');
-        }
+        throw new Error('Baileys library එක හොයාගන්න බැරි වුණා!');
     }
 
     const {
@@ -145,7 +141,7 @@ module.exports = {
 
             if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
 
-            // 2. Get MP3 Download Link (ඔයාගේ API එක)
+            // 2. Get MP3 Download Link
             let audioDownloadUrl = null;
             try {
                 const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
@@ -223,7 +219,7 @@ module.exports = {
 
         } catch (e) {
             console.log("CHANNEL SONG CMD ERROR:", e);
-            reply("❌ *Internal Error:* " + e.message); // අලුත් ක්‍රමය Fail වුණොත් මේකෙන් හරියටම හේතුව කියයි!
+            reply("❌ *Internal Error:* " + e.message);
         }
     }
 };
