@@ -8,81 +8,76 @@ const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// 🔥 යාලුවගේ කෝඩ් එකෙන් ගත්ත අලුත් රහස් Function එක 🔥
+// 🔥 යාලුවගේ කෝඩ් එකෙන් ගත්ත අලුත් රහස් Function එක (අවුලක් ආවොත් එරර් එක පෙන්නනවා) 🔥
 async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
+    // Bot ගේ Library එක හරියටම හොයාගන්නවා
+    let Baileys;
+    try { 
+        Baileys = require('@whiskeysockets/baileys'); 
+    } catch (e1) {
+        try { 
+            Baileys = require('bail'); 
+        } catch (e2) {
+            throw new Error('Baileys library එක හොයාගන්න බැරි වුණා!');
+        }
+    }
+
     const {
         generateWAMessage,
         encodeNewsletterMessage,
-        unixTimestampSeconds,
         generateMessageID
-    } = require('@whiskeysockets/baileys');
+    } = Baileys;
 
-    try {
-        const mediaSource = (typeof media === 'string' && (media.startsWith('http') || media.startsWith('./')))
-            ? { url: media }
-            : media;
+    const mediaSource = (typeof media === 'string' && (media.startsWith('http') || media.startsWith('./')))
+        ? { url: media }
+        : media;
 
-        let content = {};
-
-        if (type === 'image') {
-            content = { image: mediaSource, caption: caption };
-        } else if (type === 'video') {
-            content = { video: mediaSource, caption: caption };
-        } else if (type === 'audio') {
-            content = {
-                audio: mediaSource,
-                ptt: options.ptt || false,
-                mimetype: 'audio/ogg; codecs=opus'
-            };
-
-            if (options.ptt) {
-                // යාලුවගේ කෝඩ් එකේ තියෙන Fake Waveform එකම දානවා
-                content.waveform = new Uint8Array([0, 0, 50, 100, 150, 200, 150, 100, 50, 0, 120, 180, 250, 180, 120, 0]);
-            }
-        } else {
-            content = { document: mediaSource, caption: caption, mimetype: options.mimetype || 'application/pdf' };
-        }
-
-        const fullMsg = await generateWAMessage(jid, content, {
-            logger: sock.logger,
-            userJid: sock.user.id,
-            upload: async (readStream, opts) => {
-                return sock.waUploadToServer(readStream, {
-                    ...opts,
-                    newsletter: true // 👈 මේක තමයි මැජික් එක!
-                });
-            }
-        });
-
-        const msgId = generateMessageID();
-        const messageProto = fullMsg.message;
-        const encodedBytes = encodeNewsletterMessage(messageProto);
-
-        const stanza = {
-            tag: 'message',
-            attrs: {
-                to: jid,
-                id: msgId,
-                type: 'media'
-            },
-            content: [
-                {
-                    tag: 'plaintext',
-                    attrs: {
-                        mediatype: type === 'audio' ? 'audio' : type
-                    },
-                    content: encodedBytes
-                }
-            ]
+    let content = {};
+    if (type === 'audio') {
+        content = {
+            audio: mediaSource,
+            ptt: options.ptt || false,
+            mimetype: 'audio/ogg; codecs=opus'
         };
 
-        await sock.sendNode(stanza);
-
-        return true;
-    } catch (error) {
-        console.log('[csong] sendNewsletterMedia error:', error.message);
-        return null;
+        if (options.ptt) {
+            content.waveform = new Uint8Array([0, 0, 50, 100, 150, 200, 150, 100, 50, 0, 120, 180, 250, 180, 120, 0]);
+        }
     }
+
+    const fullMsg = await generateWAMessage(jid, content, {
+        logger: sock.logger,
+        userJid: sock.user.id,
+        upload: async (readStream, opts) => {
+            return sock.waUploadToServer(readStream, {
+                ...opts,
+                newsletter: true // මැජික් එක
+            });
+        }
+    });
+
+    const msgId = generateMessageID();
+    const messageProto = fullMsg.message;
+    const encodedBytes = encodeNewsletterMessage(messageProto);
+
+    const stanza = {
+        tag: 'message',
+        attrs: {
+            to: jid,
+            id: msgId,
+            type: 'media'
+        },
+        content: [
+            {
+                tag: 'plaintext',
+                attrs: { mediatype: 'audio' },
+                content: encodedBytes
+            }
+        ]
+    };
+
+    await sock.sendNode(stanza);
+    return true;
 }
 
 module.exports = {
@@ -171,7 +166,7 @@ module.exports = {
 
             if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
 
-            // 3. Detail Card එක යවනවා (අලුත් Function එක හරහා)
+            // 3. Detail Card එක සාමාන්‍ය විදිහට යවනවා
             const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
                                `📌 *Title:* ${songTitle}\n👤 *Channel:* ${ytChannel}\n` +
                                `👁️ *Views:* ${views.toLocaleString()}\n⏱️ *Duration:* ${duration}\n\n` +
@@ -179,12 +174,12 @@ module.exports = {
             
             try {
                 if (thumbnail) {
-                    await sendNewsletterMedia(socket, channelJID, thumbnail, "image", captionMsg);
+                    await socket.sendMessage(channelJID, { image: { url: thumbnail }, caption: captionMsg });
                 } else {
                     await socket.sendMessage(channelJID, { text: captionMsg });
                 }
             } catch (err) {
-                return reply("❌ *Error:* Channel එකට යැවීමට නොහැකි විය.");
+                return reply("❌ *Error:* Detail Card යැවීමට නොහැකි විය. Admin කෙනෙක්දැයි පරීක්ෂා කරන්න.");
             }
 
             // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
@@ -228,7 +223,7 @@ module.exports = {
 
         } catch (e) {
             console.log("CHANNEL SONG CMD ERROR:", e);
-            reply("❌ *Internal Error:* " + e.message);
+            reply("❌ *Internal Error:* " + e.message); // අලුත් ක්‍රමය Fail වුණොත් මේකෙන් හරියටම හේතුව කියයි!
         }
     }
 };
