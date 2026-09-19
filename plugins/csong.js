@@ -8,9 +8,8 @@ const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// 🔥 යාලුවගේ කෝඩ් එකෙන් ගත්ත අලුත් රහස් Function එක (ඔයාගේ Baileys නමට හැදුවා) 🔥
+// 🔥 Channel එකට Media යවන විශේෂ Function එක 🔥
 async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
-    // 👈 ඔයාගේ package.json එකේ තියෙන නියම නම දැම්මා
     let Baileys;
     try { 
         Baileys = require('baileys'); 
@@ -29,7 +28,13 @@ async function sendNewsletterMedia(sock, jid, media, type, caption = '', options
         : media;
 
     let content = {};
-    if (type === 'audio') {
+    
+    // ෆොටෝ දාන කොටස
+    if (type === 'image') {
+        content = { image: mediaSource, caption: caption };
+    } 
+    // Audio දාන කොටස
+    else if (type === 'audio') {
         content = {
             audio: mediaSource,
             ptt: options.ptt || false,
@@ -47,7 +52,7 @@ async function sendNewsletterMedia(sock, jid, media, type, caption = '', options
         upload: async (readStream, opts) => {
             return sock.waUploadToServer(readStream, {
                 ...opts,
-                newsletter: true // මැජික් එක
+                newsletter: true 
             });
         }
     });
@@ -66,7 +71,7 @@ async function sendNewsletterMedia(sock, jid, media, type, caption = '', options
         content: [
             {
                 tag: 'plaintext',
-                attrs: { mediatype: 'audio' },
+                attrs: { mediatype: type === 'audio' ? 'audio' : 'image' },
                 content: encodedBytes
             }
         ]
@@ -104,7 +109,7 @@ module.exports = {
 
             // 1. YouTube Search
             let youtubeUrl = null;
-            let songTitle = "Sadew-MD Audio";
+            let songTitle = "Unknown Audio";
             let thumbnail = "";
             let ytChannel = "Unknown";
             let views = "0";
@@ -147,7 +152,7 @@ module.exports = {
                 const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
                 if (res1.data?.success && res1.data?.result?.download_url) {
                     audioDownloadUrl = res1.data.result.download_url;
-                    if (songTitle === "Sadew-MD Audio") songTitle = res1.data.result.title;
+                    if (songTitle === "Unknown Audio") songTitle = res1.data.result.title;
                 }
             } catch (e1) {}
 
@@ -162,20 +167,21 @@ module.exports = {
 
             if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
 
-            // 3. Detail Card එක සාමාන්‍ය විදිහට යවනවා
-            const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
-                               `📌 *Title:* ${songTitle}\n👤 *Channel:* ${ytChannel}\n` +
-                               `👁️ *Views:* ${views.toLocaleString()}\n⏱️ *Duration:* ${duration}\n\n` +
-                               `╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
+            // 3. Detail Card එක යවනවා (නම අයින් කරලා, අලුත් Function එක හරහා)
+            const captionMsg = `🎵 *Music Downloader* 🎵\n\n` +
+                               `📌 *Title:* ${songTitle}\n` +
+                               `👤 *Channel:* ${ytChannel}\n` +
+                               `👁️ *Views:* ${views.toLocaleString()}\n` +
+                               `⏱️ *Duration:* ${duration}\n\n` +
+                               `╰┈⪼ _Uploaded Successfully_ ⪻`;
             
             try {
                 if (thumbnail) {
-                    await socket.sendMessage(channelJID, { image: { url: thumbnail }, caption: captionMsg });
-                } else {
-                    await socket.sendMessage(channelJID, { text: captionMsg });
+                    // Image එකත් අලුත් ක්‍රමයටම යවනවා
+                    await sendNewsletterMedia(socket, channelJID, thumbnail, "image", captionMsg);
                 }
             } catch (err) {
-                return reply("❌ *Error:* Detail Card යැවීමට නොහැකි විය. Admin කෙනෙක්දැයි පරීක්ෂා කරන්න.");
+                console.log("Image send error:", err);
             }
 
             // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
@@ -207,13 +213,13 @@ module.exports = {
                     .on('error', (err) => reject(err));
             });
 
-            // 5. 🔥 අලුත් Function එකෙන් Channel එකට Voice Note යැවීම 🔥
+            // 5. Voice Note එක අලුත් Function එක හරහා යැවීම
             const opusBuffer = fs.readFileSync(tempOpus);
             await sendNewsletterMedia(socket, channelJID, opusBuffer, "audio", '', { ptt: true });
 
             reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
 
-            // Server එකේ ඉඩ පිරෙන්නේ නැති වෙන්න Temp ෆයිල්ස් මකලා දානවා
+            // Temp ෆයිල්ස් මකා දැමීම
             try { fs.unlinkSync(tempMp3); } catch (e) {}
             try { fs.unlinkSync(tempOpus); } catch (e) {}
 
