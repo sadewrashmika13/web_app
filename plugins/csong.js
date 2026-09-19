@@ -1,20 +1,96 @@
-Const axios = require('axios');
+const axios = require('axios');
 const yts = require('yt-search');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-// NPM Packages හරහා FFmpeg ගෙන ඒම
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
+
+// 🔥 යාලුවගේ කෝඩ් එකෙන් ගත්ත අලුත් රහස් Function එක 🔥
+async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
+    const {
+        generateWAMessage,
+        encodeNewsletterMessage,
+        unixTimestampSeconds,
+        generateMessageID
+    } = require('@whiskeysockets/baileys');
+
+    try {
+        const mediaSource = (typeof media === 'string' && (media.startsWith('http') || media.startsWith('./')))
+            ? { url: media }
+            : media;
+
+        let content = {};
+
+        if (type === 'image') {
+            content = { image: mediaSource, caption: caption };
+        } else if (type === 'video') {
+            content = { video: mediaSource, caption: caption };
+        } else if (type === 'audio') {
+            content = {
+                audio: mediaSource,
+                ptt: options.ptt || false,
+                mimetype: 'audio/ogg; codecs=opus'
+            };
+
+            if (options.ptt) {
+                // යාලුවගේ කෝඩ් එකේ තියෙන Fake Waveform එකම දානවා
+                content.waveform = new Uint8Array([0, 0, 50, 100, 150, 200, 150, 100, 50, 0, 120, 180, 250, 180, 120, 0]);
+            }
+        } else {
+            content = { document: mediaSource, caption: caption, mimetype: options.mimetype || 'application/pdf' };
+        }
+
+        const fullMsg = await generateWAMessage(jid, content, {
+            logger: sock.logger,
+            userJid: sock.user.id,
+            upload: async (readStream, opts) => {
+                return sock.waUploadToServer(readStream, {
+                    ...opts,
+                    newsletter: true // 👈 මේක තමයි මැජික් එක!
+                });
+            }
+        });
+
+        const msgId = generateMessageID();
+        const messageProto = fullMsg.message;
+        const encodedBytes = encodeNewsletterMessage(messageProto);
+
+        const stanza = {
+            tag: 'message',
+            attrs: {
+                to: jid,
+                id: msgId,
+                type: 'media'
+            },
+            content: [
+                {
+                    tag: 'plaintext',
+                    attrs: {
+                        mediatype: type === 'audio' ? 'audio' : type
+                    },
+                    content: encodedBytes
+                }
+            ]
+        };
+
+        await sock.sendNode(stanza);
+
+        return true;
+    } catch (error) {
+        console.log('[csong] sendNewsletterMedia error:', error.message);
+        return null;
+    }
+}
 
 module.exports = {
     name: "channel-song",
     category: 1, 
     description: "Download and convert songs to pure Voice Notes for WhatsApp channels.",
     commands: ["csong", "channelsong"],
-
+    
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         try {
             const fullQuery = args.join(' ');
@@ -23,7 +99,6 @@ module.exports = {
             let query = fullQuery;
             let channelJID = "120363XXXXXXXXX@newsletter"; 
 
-            // Channel JID එක වෙන් කරගැනීම
             if (fullQuery.includes(',')) {
                 const parts = fullQuery.split(',');
                 const possibleJID = parts[parts.length - 1].trim(); 
@@ -96,25 +171,25 @@ module.exports = {
 
             if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
 
-            // 3. Detail Card එක යවනවා
+            // 3. Detail Card එක යවනවා (අලුත් Function එක හරහා)
             const captionMsg = `✨ *_🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⊹ ˚₊ 𝜗𝜚_ Music System* ✨\n\n` +
                                `📌 *Title:* ${songTitle}\n👤 *Channel:* ${ytChannel}\n` +
                                `👁️ *Views:* ${views.toLocaleString()}\n⏱️ *Duration:* ${duration}\n\n` +
                                `╰┈⪼ 𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘉𝘺 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮⪻`;
-
+            
             try {
                 if (thumbnail) {
-                    await socket.sendMessage(channelJID, { image: { url: thumbnail }, caption: captionMsg });
+                    await sendNewsletterMedia(socket, channelJID, thumbnail, "image", captionMsg);
                 } else {
                     await socket.sendMessage(channelJID, { text: captionMsg });
                 }
             } catch (err) {
-                return reply("❌ *Error:* Channel එකට යැවීමට නොහැකි විය. Admin කෙනෙක්දැයි පරීක්ෂා කරන්න.");
+                return reply("❌ *Error:* Channel එකට යැවීමට නොහැකි විය.");
             }
 
             // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
             const tempMp3 = path.join(os.tmpdir(), `song_${Date.now()}.mp3`);
-            const tempOgg = path.join(os.tmpdir(), `voice_${Date.now()}.ogg`);
+            const tempOpus = path.join(os.tmpdir(), `voice_${Date.now()}.opus`);
 
             const responseStream = await axios({
                 url: audioDownloadUrl,
@@ -131,56 +206,25 @@ module.exports = {
                 writer.on('error', reject);
             });
 
-            // 🔥 NPM FFmpeg හරහා Strict Voice Note Format එකට කන්වර්ට් කිරීම 🔥
             await new Promise((resolve, reject) => {
                 ffmpeg(tempMp3)
+                    .audioBitrate('64k')
                     .audioCodec('libopus')
-                    .audioChannels(1)       // Mono
-                    .audioFrequency(48000)  // 48kHz
-                    .audioBitrate('32k')    // Voice Note Bitrate
-                    .outputOptions([
-                        '-vbr on',
-                        '-compression_level 10',
-                        '-avoid_negative_ts make_zero' // වැදගත්
-                    ])
-                    .toFormat('ogg')
-                    .save(tempOgg)
+                    .format('opus')
+                    .save(tempOpus)
                     .on('end', resolve)
                     .on('error', (err) => reject(err));
             });
 
-            // 5. සින්දුවේ තත්පර ගාණ (Duration) ගණනය කිරීම
-            let durationSeconds = 180; 
-            if (duration && duration.includes(':')) {
-                const timeParts = duration.split(':').map(Number);
-                if (timeParts.length === 2) {
-                    durationSeconds = timeParts[0] * 60 + timeParts[1];
-                } else if (timeParts.length === 3) {
-                    durationSeconds = timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2];
-                }
-            }
-
-            // 6. Fake Waveform (තරංග රටාවක්) නිර්මාණය කිරීම
-            const fakeWaveform = new Uint8Array(64);
-            for (let i = 0; i < 64; i++) {
-                fakeWaveform[i] = Math.floor(Math.random() * 100); 
-            }
-
-            // 7. Voice Note එකක් විදිහට Channel එකට යවනවා
-            await socket.sendMessage(channelJID, {
-                audio: { url: tempOgg }, 
-                mimetype: 'audio/ogg; codecs=opus', 
-                ptt: true,
-                seconds: durationSeconds, 
-                waveform: fakeWaveform
-                
-            });
+            // 5. 🔥 අලුත් Function එකෙන් Channel එකට Voice Note යැවීම 🔥
+            const opusBuffer = fs.readFileSync(tempOpus);
+            await sendNewsletterMedia(socket, channelJID, opusBuffer, "audio", '', { ptt: true });
 
             reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
 
             // Server එකේ ඉඩ පිරෙන්නේ නැති වෙන්න Temp ෆයිල්ස් මකලා දානවා
             try { fs.unlinkSync(tempMp3); } catch (e) {}
-            try { fs.unlinkSync(tempOgg); } catch (e) {}
+            try { fs.unlinkSync(tempOpus); } catch (e) {}
 
         } catch (e) {
             console.log("CHANNEL SONG CMD ERROR:", e);
