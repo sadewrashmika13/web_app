@@ -2293,15 +2293,13 @@ if (global.cartoonNumHandler) {
                 }
             }
         }
-        // 💖 AKIRA AI GIRLFRIEND (EXTERNAL FILE) 💖
-        if (!isCmd && !msg.key.fromMe && !isGroup) {
-            require('./akira_ai')(socket, msg, text, sender, isGroup);
-            return;
+        // 💖 AKIRA AI UNIFIED SYSTEM 💖
+        if (!msg.key.fromMe) {
+            const isAiHandled = await require('./akira_ai')(socket, msg, text, sender, isGroup, botNumber, sessionConfig, activeSockets);
+            if (isAiHandled) return; // කමාන්ඩ් එකක් හරි චැට් එකක් හරි අල්ලගත්තොත් මෙතනින් නවතිනවා
         }
 
-        if (!isCmd) return; // 👈 මේක කලින් ඉඳන්ම තිබ්බ පේළිය
-
-        if (!isCmd) return; // 👈 ඔයාගේ ෆයිල් එකේ දැනටමත් මේ පේළිය තියෙනවා (මේකට උඩින් තමයි අර කෑල්ල දැම්මේ)
+        if (!isCmd) return; // 👈 මේ පේළිය ඔයාගේ ෆයිල් එකේ කලින් ඉඳන්ම තියෙනවා
  
 
   
