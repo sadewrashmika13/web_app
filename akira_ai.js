@@ -7,7 +7,7 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
     // 👑 1. PREMIUM ID / LID LIST
     // ==========================================
     const PREMIUM_IDS = [
-        "94754879431", 
+        "94705236769", 
         "194601394663437@lid" // ඔයාගේ LID එක
     ];
 
