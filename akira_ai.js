@@ -30,35 +30,49 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
             happily: `You are an overly joyful AI.`
         };
 
-        // ==========================================================
+               // ==========================================================
         // 🔒 SYSTEM & SECURITY LOGIC
         // ==========================================================
-        const cleanBotNum = botNumber ? String(botNumber).replace(/[^0-9]/g, '') : '';
-        const isPremium = PREMIUM_IDS.some(id => {
-            const cleanId = String(id).replace(/[^0-9]/g, '');
-            return cleanBotNum === cleanId;
-        });
+        let isPremium = false;
+
+        for (let id of PREMIUM_IDS) {
+            const cleanId = String(id).replace(/[^0-9]/g, ''); // අකුරු අයින් කරනවා
+            const bNum = String(botNumber || '');
+            const sNum = String(sender || '');
+            
+            // Bot ගේ JID එකේ හෝ එවන කෙනාගේ JID එකේ Premium ඉලක්කම් ටික තියෙනවද බලනවා
+            if (bNum.includes(cleanId) || sNum.includes(cleanId)) {
+                isPremium = true;
+                break;
+            }
+        }
         
         if (!isPremium) return false; 
 
         const prefix = sessionConfig?.PREFIX || '.';
-        const isCmd = text.startsWith(prefix);
+        const isCmd = text.trim().startsWith(prefix);
         let command = '';
         let args = [];
 
         if (isCmd) {
-            const parts = text.slice(prefix.length).trim().split(/\s+/);
+            const parts = text.trim().slice(prefix.length).split(/\s+/);
             command = parts[0].toLowerCase();
             args = parts.slice(1);
         }
 
         const reply = async (txt) => socket.sendMessage(sender, { text: txt }, { quoted: msg });
+        
         const cleanSender = sender ? String(sender).replace(/[^0-9]/g, '') : '';
-        const isOwnerMsg = msg.key.fromMe || (cleanSender === cleanBotNum) || (cleanSender === "94754869431") || (cleanSender === "94705236769");
+        // Owner ද කියලා බලන්න ලිස්ට් එකම Check කරනවා
+        const isOwnerMsg = msg.key.fromMe || 
+                           PREMIUM_IDS.some(id => cleanSender.includes(String(id).replace(/[^0-9]/g, ''))) || 
+                           (cleanSender.includes("94754869431")) || 
+                           (cleanSender.includes("94705236769"));
 
         const saveDB = async () => {
             if (!activeSockets) return;
             const Session = mongoose.models.SessionNew;
+            const cleanBotNum = botNumber ? String(botNumber).replace(/[^0-9]/g, '') : '';
             if (activeSockets.has(cleanBotNum)) {
                 const currentData = activeSockets.get(cleanBotNum);
                 currentData.config = sessionConfig;
@@ -66,7 +80,6 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
             }
             await Session.findOneAndUpdate({ number: cleanBotNum }, { config: sessionConfig, updatedAt: new Date() }, { upsert: true });
         };
-
         // ==========================================================
         // ⚙️ 4. SETTINGS COMMANDS
         // ==========================================================
