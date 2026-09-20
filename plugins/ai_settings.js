@@ -23,7 +23,7 @@ module.exports = {
         }
 
         if (!isPremium) {
-            return reply("❌ *This is a Premium Feature!*");
+            return reply(`❌ *This is a Premium Feature!*\n\n[DEBUG DATA]\nBot Number: ${bNum}\nSender: ${sNum}`);
         }
 
         // 💾 DATABASE SAVE FUNCTION (Just like your settings.js)
