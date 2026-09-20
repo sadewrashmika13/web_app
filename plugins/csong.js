@@ -4,24 +4,21 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+// 🔥 ffmpeg-static පැකේජ් එක භාවිතා කිරීම 🔥
+const ffmpegPath = require('ffmpeg-static');
 const ffmpeg = require('fluent-ffmpeg');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// 🔥 Channel එකට Media යවන විශේෂ Function එක 🔥
+// 🔥 Channel එකට Media යවන විශේෂ Function එක (Wrong File මඟහරින) 🔥
 async function sendNewsletterMedia(sock, jid, media, type, caption = '', options = {}) {
     let Baileys;
     try { 
         Baileys = require('baileys'); 
-    } catch (e1) {
+    } catch (e) {
         throw new Error('Baileys library එක හොයාගන්න බැරි වුණා!');
     }
 
-    const {
-        generateWAMessage,
-        encodeNewsletterMessage,
-        generateMessageID
-    } = Baileys;
+    const { generateWAMessage, encodeNewsletterMessage, generateMessageID } = Baileys;
 
     const mediaSource = (typeof media === 'string' && (media.startsWith('http') || media.startsWith('./')))
         ? { url: media }
@@ -29,12 +26,9 @@ async function sendNewsletterMedia(sock, jid, media, type, caption = '', options
 
     let content = {};
     
-    // ෆොටෝ දාන කොටස
     if (type === 'image') {
         content = { image: mediaSource, caption: caption };
-    } 
-    // Audio දාන කොටස
-    else if (type === 'audio') {
+    } else if (type === 'audio') {
         content = {
             audio: mediaSource,
             ptt: options.ptt || false,
@@ -84,145 +78,172 @@ async function sendNewsletterMedia(sock, jid, media, type, caption = '', options
 module.exports = {
     name: "channel-song",
     category: 1, 
-    description: "Download and convert songs to pure Voice Notes for WhatsApp channels.",
-    commands: ["csong", "channelsong"],
+    description: "Search and upload songs to WhatsApp Channels.",
+    commands: ["csong", "channelsong", "csongdown"], // csongdown එක අලුතින් එකතු කළා Button Click එකට
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         try {
-            const fullQuery = args.join(' ');
-            if (!fullQuery) return reply("🎵 *කරුණාකර සින්දුවක නමක් සහ Channel ID එක ලබා දෙන්න!*\n💡 උදා: `.csong master sir, 120363XXXXX@newsletter`");
+            const actualSender = msg.key.participant || msg.key.remoteJid || sender;
 
-            let query = fullQuery;
-            let channelJID = "120363XXXXXXXXX@newsletter"; 
+            // ════════════ 1. MAIN COMMAND (.csong) ════════════
+            if (command === "csong" || command === "channelsong") {
+                let fullQuery = args.join(' ');
+                if (!fullQuery) return reply("🎵 *කරුණාකර සින්දුවක නමක් සහ Channel Link/JID එක ලබා දෙන්න!*\n💡 උදා: `.csong https://whatsapp.com/channel/... සින්දුවේ නම`");
 
-            if (fullQuery.includes(',')) {
-                const parts = fullQuery.split(',');
-                const possibleJID = parts[parts.length - 1].trim(); 
-                if (possibleJID.includes('@newsletter') || /^[0-9]+$/.test(possibleJID)) {
-                    channelJID = possibleJID.includes('@newsletter') ? possibleJID : possibleJID + "@newsletter";
-                    query = parts.slice(0, -1).join(',').trim(); 
-                }
-            }
+                let channelJid = null;
+                let query = fullQuery;
 
-            if (!query) return reply("❌ සින්දුවේ නම සොයා ගැනීමට නොහැක!");
-            reply(`⏳ _Searching for "${query}" and preparing upload to ${channelJID}..._`);
+                // 🔍 Channel Link එකක් තියෙනවද බලනවා
+                const linkMatch = fullQuery.match(/(?:whatsapp\.com\/channel\/)([A-Za-z0-9]+)/i);
+                // 🔍 JID එකක් තියෙනවද බලනවා
+                const jidMatch = fullQuery.match(/([0-9]+@newsletter)/i);
 
-            // 1. YouTube Search
-            let youtubeUrl = null;
-            let songTitle = "Unknown Audio";
-            let thumbnail = "";
-            let ytChannel = "Unknown";
-            let views = "0";
-            let duration = "0:00";
-
-            const isLink = /(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)[^\s?#]+)/i.test(query);
-
-            if (isLink) {
-                youtubeUrl = query.match(/(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)[^\s?#]+)/i)[0].trim();
-                try {
-                    const videoIdMatch = youtubeUrl.match(/(?:v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-                    if (videoIdMatch) {
-                        const videoDetails = await yts({ videoId: videoIdMatch[1] });
-                        songTitle = videoDetails.title;
-                        thumbnail = videoDetails.thumbnail || videoDetails.image;
-                        ytChannel = videoDetails.author.name;
-                        views = videoDetails.views || "N/A";
-                        duration = videoDetails.timestamp || "N/A";
+                if (linkMatch) {
+                    const inviteCode = linkMatch[1];
+                    try {
+                        reply("⏳ _Channel Link එක Check කරමින් පවතී..._");
+                        const meta = await socket.newsletterMetadata("invite", inviteCode);
+                        channelJid = meta.id;
+                    } catch (e) {
+                        return reply("❌ *Error:* Channel Link එක හරහා විස්තර ගත නොහැක. (Link එක වැරදියි හෝ අවලංගුයි).");
                     }
-                } catch (e) {}
-            } else {
-                try {
-                    const searchResults = await yts(query);
-                    if (searchResults && searchResults.videos.length > 0) {
-                        youtubeUrl = searchResults.videos[0].url;
-                        songTitle = searchResults.videos[0].title;
-                        thumbnail = searchResults.videos[0].thumbnail || searchResults.videos[0].image;
-                        ytChannel = searchResults.videos[0].author.name;
-                        views = searchResults.videos[0].views;
-                        duration = searchResults.videos[0].timestamp;
-                    }
-                } catch (err) {}
-            }
-
-            if (!youtubeUrl) return reply("❌ *Error:* සින්දුව සොයා ගැනීමට නොහැකි විය!");
-
-            // 2. Get MP3 Download Link
-            let audioDownloadUrl = null;
-            try {
-                const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
-                if (res1.data?.success && res1.data?.result?.download_url) {
-                    audioDownloadUrl = res1.data.result.download_url;
-                    if (songTitle === "Unknown Audio") songTitle = res1.data.result.title;
+                    query = fullQuery.replace(linkMatch[0], '').replace('https://', '').replace('http://', '').trim();
+                } 
+                else if (jidMatch) {
+                    channelJid = jidMatch[1];
+                    query = fullQuery.replace(jidMatch[0], '').trim();
+                } 
+                else {
+                    return reply("❌ *Error:* කරුණාකර Channel JID එකක් හෝ Channel Link එකක් ලබා දෙන්න!");
                 }
-            } catch (e1) {}
 
-            if (!audioDownloadUrl) {
-                try {
-                    const res2 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp3v2?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
-                    if (res2.data?.success && res2.data?.result?.download_url) {
-                        audioDownloadUrl = res2.data.result.download_url;
-                    }
-                } catch (e2) {}
-            }
+                // කොමා (,) සහ වැඩිපුර හිස්තැන් අයින් කරලා පිරිසිදු සින්දුවේ නම ගන්නවා
+                query = query.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+                if (!query) return reply("❌ සින්දුවේ නම සොයා ගැනීමට නොහැක. කරුණාකර සින්දුවේ නමද ඇතුලත් කරන්න.");
 
-            if (!audioDownloadUrl) return reply("❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය.");
+                reply(`🔍 _Searching for "${query}" on YouTube..._`);
 
-            // 3. Detail Card එක යවනවා (නම අයින් කරලා, අලුත් Function එක හරහා)
-            const captionMsg = `🎵 *Music Downloader* 🎵\n\n` +
-                               `📌 *Title:* ${songTitle}\n` +
-                               `👤 *Channel:* ${ytChannel}\n` +
-                               `👁️ *Views:* ${views.toLocaleString()}\n` +
-                               `⏱️ *Duration:* ${duration}\n\n` +
-                               `╰┈⪼ _Uploaded Successfully_ ⪻`;
-            
-            try {
-                if (thumbnail) {
-                    // Image එකත් අලුත් ක්‍රමයටම යවනවා
-                    await sendNewsletterMedia(socket, channelJID, thumbnail, "image", captionMsg);
+                // YouTube Search එක
+                const searchResults = await yts(query);
+                if (!searchResults || !searchResults.videos.length) return reply("❌ කිසිම සින්දුවක් සොයාගත නොහැකි විය.");
+
+                // 📌 Top 5 Results වලින් Buttons හැදීම
+                let cap = `*🔍 සෙවුම් ප්‍රතිඵල (Top 5)*\n\n📌 *සෙවූ නම:* ${query}\n📢 *Channel:* ${channelJid.split('@')[0]}\n\n👇 *පහළින් ඇති බට්න් මගින් ඔබට අවශ්‍ය ගීතය තෝරන්න:*\n\n`;
+                let buttons = [];
+
+                for (let i = 0; i < 5 && i < searchResults.videos.length; i++) {
+                    const v = searchResults.videos[i];
+                    cap += `*${i+1}.* ${v.title}\n⏱️ Duration: ${v.timestamp} | 👁️ Views: ${v.views}\n\n`;
+                    
+                    buttons.push({
+                        buttonId: `.csongdown ${channelJid} ${v.videoId}`,
+                        buttonText: { displayText: `🎵 Song ${i+1}` },
+                        type: 1
+                    });
                 }
-            } catch (err) {
-                console.log("Image send error:", err);
+
+                // 🖼️ ඔයා දුන්න Photo එකත් එක්ක Result එක යවනවා
+                await socket.sendMessage(actualSender, {
+                    image: { url: 'https://res.cloudinary.com/p6lu5bpe/image/upload/v1789870165/Gemini_Generated_Image_89j6hx89j6hx89j6_qpx9rn.jpg' },
+                    caption: cap,
+                    buttons: buttons,
+                    headerType: 4
+                });
             }
 
-            // 4. MP3 එක Download කරලා OPUS (Voice Note) එකකට Convert කිරීම
-            const tempMp3 = path.join(os.tmpdir(), `song_${Date.now()}.mp3`);
-            const tempOpus = path.join(os.tmpdir(), `voice_${Date.now()}.opus`);
+            // ════════════ 2. BUTTON CLICK COMMAND (.csongdown) ════════════
+            else if (command === "csongdown") {
+                if (args.length < 2) return reply("❌ Invalid Request.");
+                const channelJid = args[0];
+                const videoId = args[1];
 
-            const responseStream = await axios({
-                url: audioDownloadUrl,
-                method: 'GET',
-                responseType: 'stream',
-                timeout: 30000 
-            });
+                await socket.sendMessage(actualSender, { text: "⏳ _සින්දුව Download කර Channel එක වෙත Upload කරමින් පවතී..._" });
 
-            const writer = fs.createWriteStream(tempMp3);
-            responseStream.data.pipe(writer);
+                // Video ID එකෙන් විස්තර ගන්නවා
+                let videoDetails;
+                try {
+                    videoDetails = await yts({ videoId: videoId });
+                } catch (e) {
+                    return reply("❌ සින්දුවේ විස්තර ලබාගැනීමට නොහැකි විය.");
+                }
 
-            await new Promise((resolve, reject) => {
-                writer.on('finish', resolve);
-                writer.on('error', reject);
-            });
+                const songTitle = videoDetails.title;
+                const thumbnail = videoDetails.thumbnail || videoDetails.image;
+                const ytChannel = videoDetails.author.name;
+                const views = videoDetails.views;
+                const duration = videoDetails.timestamp;
+                const youtubeUrl = videoDetails.url;
 
-            await new Promise((resolve, reject) => {
-                ffmpeg(tempMp3)
-                    .audioBitrate('64k')
-                    .audioCodec('libopus')
-                    .format('opus')
-                    .save(tempOpus)
-                    .on('end', resolve)
-                    .on('error', (err) => reject(err));
-            });
+                // API එකෙන් Audio ලින්ක් එක ගන්නවා
+                let audioDownloadUrl = null;
+                try {
+                    const res1 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp33?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
+                    if (res1.data?.success && res1.data?.result?.download_url) audioDownloadUrl = res1.data.result.download_url;
+                } catch (e1) {}
 
-            // 5. Voice Note එක අලුත් Function එක හරහා යැවීම
-            const opusBuffer = fs.readFileSync(tempOpus);
-            await sendNewsletterMedia(socket, channelJID, opusBuffer, "audio", '', { ptt: true });
+                if (!audioDownloadUrl) {
+                    try {
+                        const res2 = await axios.get(`https://apis.davidcyril.name.ng/download/ytmp3v2?url=${encodeURIComponent(youtubeUrl)}`, { timeout: 25000 });
+                        if (res2.data?.success && res2.data?.result?.download_url) audioDownloadUrl = res2.data.result.download_url;
+                    } catch (e2) {}
+                }
 
-            reply("✅ *සින්දුව සාර්ථකව Voice Note එකක් විදිහට Upload කළා!*");
+                if (!audioDownloadUrl) return await socket.sendMessage(actualSender, { text: "❌ *Error:* සේවාදායකයන් කාර්යබහුල බැවින් ඕඩියෝ එක ලබා ගැනීමට නොහැකි විය." });
 
-            // Temp ෆයිල්ස් මකා දැමීම
-            try { fs.unlinkSync(tempMp3); } catch (e) {}
-            try { fs.unlinkSync(tempOpus); } catch (e) {}
+                // 📸 Detail Card එක Channel එකට යැවීම
+                const captionMsg = `🎵 *Music Downloader* 🎵\n\n` +
+                                   `📌 *Title:* ${songTitle}\n` +
+                                   `👤 *Channel:* ${ytChannel}\n` +
+                                   `👁️ *Views:* ${views.toLocaleString()}\n` +
+                                   `⏱️ *Duration:* ${duration}\n\n` +
+                                   `╰┈⪼ _Uploaded Successfully_ ⪻`;
+                try {
+                    if (thumbnail) {
+                        await sendNewsletterMedia(socket, channelJid, thumbnail, "image", captionMsg);
+                    }
+                } catch (err) {
+                    console.log("Image send error:", err);
+                }
 
+                // 🎵 MP3 බාගෙන OPUS (Voice Note) බවට පත් කිරීම
+                const tempMp3 = path.join(os.tmpdir(), `song_${Date.now()}.mp3`);
+                const tempOpus = path.join(os.tmpdir(), `voice_${Date.now()}.opus`);
+
+                const responseStream = await axios({
+                    url: audioDownloadUrl,
+                    method: 'GET',
+                    responseType: 'stream',
+                    timeout: 30000 
+                });
+
+                const writer = fs.createWriteStream(tempMp3);
+                responseStream.data.pipe(writer);
+
+                await new Promise((resolve, reject) => {
+                    writer.on('finish', resolve);
+                    writer.on('error', reject);
+                });
+
+                await new Promise((resolve, reject) => {
+                    ffmpeg(tempMp3)
+                        .audioBitrate('64k')
+                        .audioCodec('libopus')
+                        .format('opus')
+                        .save(tempOpus)
+                        .on('end', resolve)
+                        .on('error', (err) => reject(err));
+                });
+
+                // 🎙️ Voice Note එක Channel එකට යැවීම
+                const opusBuffer = fs.readFileSync(tempOpus);
+                await sendNewsletterMedia(socket, channelJid, opusBuffer, "audio", '', { ptt: true });
+
+                await socket.sendMessage(actualSender, { text: `✅ *"${songTitle}"* සාර්ථකව Channel එකට Upload කළා!` });
+
+                // Temp ෆයිල්ස් මකා දැමීම
+                try { fs.unlinkSync(tempMp3); } catch (e) {}
+                try { fs.unlinkSync(tempOpus); } catch (e) {}
+            }
         } catch (e) {
             console.log("CHANNEL SONG CMD ERROR:", e);
             reply("❌ *Internal Error:* " + e.message);
