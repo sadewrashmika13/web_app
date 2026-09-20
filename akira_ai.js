@@ -19,8 +19,9 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
     }
     
         // 🛑 DEBUG CATCHER
+    // 🛑 DEBUG CATCHER
     if (query === 'aitest') {
-        await socket.sendMessage(sender, { text: `[DEBUG]\nPremium: ${isPremium}\nState: ${sessionConfig?.AI_STATE}` });
+        await socket.sendMessage(sender, { text: `[DEBUG]\nPremium: ${isPremium}\nState: ${sessionConfig?.AI_STATE}\nBot Number: ${bNum}` });
         return;
     }   // Premium නැත්නම් හරි, Database එකේ Off කරලා නම් හරි මෙතනින් නවතිනවා
     if (!isPremium) return;
