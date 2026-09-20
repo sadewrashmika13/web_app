@@ -7,8 +7,8 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
     // 👑 1. PREMIUM ID / LID LIST
     // ==========================================
     const PREMIUM_IDS = [
-        "94754869431", 
-        "68509778325678@lid"
+        "94754879431", 
+        "194601394663437@lid" // ඔයාගේ LID එක
     ];
 
     // ==========================================================
@@ -33,11 +33,14 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
     // ---------------------------------------------------------
     // 🔒 SYSTEM & SECURITY LOGIC
     // ---------------------------------------------------------
-    const cleanBotNum = botNumber.replace(/[^0-9]/g, '');
-    const isPremium = PREMIUM_IDS.some(id => botNumber.includes(id) || cleanBotNum.includes(id));
+    const cleanBotNum = botNumber ? String(botNumber).replace(/[^0-9]/g, '') : '';
     
-    // Premium නැත්නම් මෙතනින්ම false යවනවා (Bot එක සාමාන්‍ය විදිහට අනිත් වැඩ ටික කරගෙන යනවා)
-    if (!isPremium) return false; 
+    const isPremium = PREMIUM_IDS.some(id => {
+        const cleanId = String(id).replace(/[^0-9]/g, '');
+        return cleanBotNum === cleanId;
+    });
+    
+    if (!isPremium) return false; // Premium Bot කෙනෙක් නෙමෙයි නම් අයින් වෙනවා
 
     const prefix = sessionConfig.PREFIX || '.';
     const isCmd = text.startsWith(prefix);
@@ -51,7 +54,10 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
     }
 
     const reply = async (txt) => socket.sendMessage(sender, { text: txt }, { quoted: msg });
-    const isOwnerMsg = (sender.split('@')[0] === cleanBotNum) || (sender.split('@')[0] === "94754869431");
+    
+    // Owner ද කියලා Check කරනවා (fromMe එකෙනුත් Owner ව අල්ලනවා)
+    const cleanSender = sender ? String(sender).replace(/[^0-9]/g, '') : '';
+    const isOwnerMsg = msg.key.fromMe || (cleanSender === cleanBotNum) || (cleanSender === "94754869431");
 
     const saveDB = async () => {
         const Session = mongoose.models.SessionNew;
@@ -63,6 +69,7 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
         await Session.findOneAndUpdate({ number: cleanBotNum }, { config: sessionConfig, updatedAt: new Date() }, { upsert: true });
     };
 
+    // ඊටපස්සේ පල්ලෙහා තියෙන AI SETTINGS COMMANDS ටික එහෙම්මම තියන්න...
     // ==========================================================
     // ⚙️ 4. AI SETTINGS COMMANDS (aisettings, aion, setmode)
     // ==========================================================
