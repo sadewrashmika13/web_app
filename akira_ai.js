@@ -5,7 +5,7 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
     if (!query || /^[.\/!]/.test(query)) return;
 
     // 👑 PREMIUM CHECK
-    const PREMIUM_IDS = ["94705236769", "194601394663437@lid"];
+    const PREMIUM_IDS = ["94705236759", "194601394663437@lid"];
     let isPremium = false;
     const bNum = String(botNumber || '').replace(/[^0-9]/g, '');
     const sNum = String(sender || '').replace(/[^0-9]/g, '');
