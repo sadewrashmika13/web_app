@@ -2294,10 +2294,8 @@ if (global.cartoonNumHandler) {
             }
         }
         // 💖 AKIRA AI UNIFIED SYSTEM 💖
-        if (!msg.key.fromMe) {
-            const isAiHandled = await require('./akira_ai')(socket, msg, text, sender, isGroup, botNumber, sessionConfig, activeSockets);
-            if (isAiHandled) return; // කමාන්ඩ් එකක් හරි චැට් එකක් හරි අල්ලගත්තොත් මෙතනින් නවතිනවා
-        }
+        const isAiHandled = await require('./akira_ai')(socket, msg, text, sender, isGroup, botNumber, sessionConfig, activeSockets);
+        if (isAiHandled) return;
 
         if (!isCmd) return; // 👈 මේ පේළිය ඔයාගේ ෆයිල් එකේ කලින් ඉඳන්ම තියෙනවා
  
