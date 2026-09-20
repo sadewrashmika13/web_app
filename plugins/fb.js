@@ -3,7 +3,7 @@ const axios = require('axios');
 module.exports = {
     name: "facebook-dl",
     category: 1, 
-    description: "Download Facebook Videos in HD/SD.",
+    description: "Download Facebook Videos using KCeY API.",
     commands: ["fb", "fbdl", "facebook"],
     
     handler: async ({ socket, msg, sender, command, args, reply }) => {
@@ -19,7 +19,7 @@ module.exports = {
         await socket.sendMessage(actualSender, { text: "⏳ _Video එක Download කරමින් පවතී... කරුණාකර රැඳී සිටින්න._" });
 
         try {
-            // ලින්ක් එකේ ජාතිය අනුව API එකට යවන Parameter එක තෝරාගැනීම
+            // API URL එක තෝරාගැනීම (ඔයා කිව්ව විදිහට)
             let apiUrl = "";
             if (url.includes('fb.watch')) {
                 apiUrl = `https://fbdl.kcey.workers.dev/?url=${encodeURIComponent(url)}`;
@@ -29,20 +29,37 @@ module.exports = {
 
             const { data } = await axios.get(apiUrl, { timeout: 20000 });
 
-            // API එකෙන් එන Data අල්ලගැනීම
-            const result = data.result || data.data || data;
-            
-            // HD හෝ SD ලින්ක් එක වෙන් කරගැනීම
-            const hd = result.hd || result.hd_url || result.HD || result.video_hd || result.url_hd;
-            const sd = result.sd || result.sd_url || result.SD || result.video_sd || result.url_sd || result.video || result.url;
+            if (!data || !data.status) {
+                return reply("❌ *Error:* API එකෙන් Video එක සොයාගත නොහැකි විය.");
+            }
 
-            const videoUrl = hd || sd;
-            const quality = hd ? 'HD' : 'SD';
-            const title = result.title || result.desc || "Facebook Video";
+            // 📌 ඔයා එවපු ලොග් එකට හරියටම ගැලපෙන විදිහට Data අල්ලගැනීම 📌
+            const title = data.metadata?.title || "Facebook Video";
+            let videoUrl = null;
+            let quality = "SD";
+
+            // Links array එකෙන් HD හෝ SD හොයාගැනීම
+            if (data.downloads && Array.isArray(data.downloads.links) && data.downloads.links.length > 0) {
+                const links = data.downloads.links;
+
+                // 1. Array එක ඇතුලේ HD තියෙනවද කියලා බලනවා
+                const hdObj = links.find(l => JSON.stringify(l).toUpperCase().includes('HD'));
+                
+                if (hdObj) {
+                    // API එකේ Key එක මොකක් වුණත් ලින්ක් එක අල්ලගන්න පුළුවන් විදිහට හැදුවා
+                    videoUrl = hdObj.url || hdObj.download || Object.values(hdObj).find(v => typeof v === 'string' && v.startsWith('http'));
+                    quality = "HD";
+                }
+
+                // 2. HD නැත්නම් මුලින්ම තියෙන ලින්ක් එක (SD) ගන්නවා
+                if (!videoUrl) {
+                    const first = links[0];
+                    videoUrl = first.url || first.download || Object.values(first).find(v => typeof v === 'string' && v.startsWith('http'));
+                }
+            }
 
             if (!videoUrl) {
-                console.log("KCEY API Error Data:", data); 
-                return reply("❌ *Error:* API එකෙන් Video ලින්ක් එක ලබාගැනීමට නොහැකි විය. (Link එක Private විය හැක).");
+                return reply("❌ *Error:* API එකෙන් Video ලින්ක් එක ලබාගැනීමට නොහැකි විය.");
             }
 
             // ✅ වීඩියෝ එක යැවීම
