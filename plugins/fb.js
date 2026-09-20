@@ -10,7 +10,7 @@ module.exports = {
         const actualSender = msg.key.participant || msg.key.remoteJid || sender;
         const url = args.join(" ");
 
-        if (!url) return reply("📌 *කරුණාකර Facebook Video ලින්ක් එකක් ලබා දෙන්න!*\n💡 උදා: `.fb https://www.facebook.com/watch/?v=123456789`");
+        if (!url) return reply("📌 *කරුණාකර Facebook Video ලින්ක් එකක් ලබා දෙන්න!*\n💡 උදා: `.fb https://www.facebook.com/watch/?v=...`");
 
         if (!url.includes('facebook.com') && !url.includes('fb.watch')) {
             return reply("❌ *Error:* කරුණාකර නිවැරදි Facebook Video ලින්ක් එකක් ලබා දෙන්න.");
@@ -18,72 +18,38 @@ module.exports = {
 
         await socket.sendMessage(actualSender, { text: "⏳ _Video එක Download කරමින් පවතී... කරුණාකර රැඳී සිටින්න._" });
 
-        let videoUrl = null;
-        let quality = 'SD';
-        let title = "Facebook Video";
-
-        // 🟢 1. උත්සාහය: @bochilteam/scraper (ඔයාගේ NPM Package එක)
         try {
-            const { facebookdl, facebookdlv2 } = require('@bochilteam/scraper');
-            let res = await facebookdl(url).catch(() => facebookdlv2(url));
-            if (res && res.length > 0) {
-                const hd = res.find(v => v.resolution === '720p (HD)' || v.resolution.includes('HD'));
-                if (hd) {
-                    videoUrl = hd.url;
-                    quality = 'HD';
-                } else {
-                    videoUrl = res[0].url;
-                    quality = 'SD';
-                }
+            // ඔයා දුන්න අලුත් API එක (kcey.workers.dev) භාවිතා කිරීම
+            const apiUrl = `https://fbdl.kcey.workers.dev/?url=${encodeURIComponent(url)}`;
+            const { data } = await axios.get(apiUrl, { timeout: 20000 });
+
+            // API එකෙන් එන Data Structure එක මොකක් වුණත් අල්ලගන්න පුළුවන් විදිහට හැදුවා
+            const result = data.result || data.data || data;
+            
+            // HD හෝ SD ලින්ක් එක වෙන් කරගැනීම (Format කීපයක්ම චෙක් කරනවා)
+            const hd = result.hd || result.hd_url || result.HD || result.video_hd || result.url_hd;
+            const sd = result.sd || result.sd_url || result.SD || result.video_sd || result.url_sd || result.video || result.url;
+
+            const videoUrl = hd || sd;
+            const quality = hd ? 'HD' : 'SD';
+            const title = result.title || result.desc || "Facebook Video";
+
+            if (!videoUrl) {
+                console.log("KCEY API Error Data:", data); // Error එකක් ආවොත් Terminal එකෙන් බලාගන්න පුළුවන්
+                return reply("❌ *Error:* API එකෙන් Video ලින්ක් එක ලබාගැනීමට නොහැකි විය. (Link එක Private විය හැක).");
             }
-        } catch (e1) {
-            console.log("Bochilteam FB Scraper Failed:", e1.message);
-        }
 
-        // 🟡 2. උත්සාහය: BK9 API (ලෝකේ තියෙන හොඳම Public API එකක්)
-        if (!videoUrl) {
-            try {
-                const { data } = await axios.get(`https://bk9.fun/scraper/fb?url=${encodeURIComponent(url)}`);
-                if (data && data.status && data.BK9) {
-                    videoUrl = data.BK9.HD || data.BK9.SD;
-                    quality = data.BK9.HD ? 'HD' : 'SD';
-                    title = data.BK9.title || title;
-                }
-            } catch (e2) {
-                console.log("BK9 FB API Failed:", e2.message);
-            }
-        }
+            // ✅ වීඩියෝ එක යැවීම
+            const caption = `🎬 *Facebook Downloader*\n\n📌 *Title:* ${title}\n✨ *Quality:* ${quality}\n\n╰┈⪼ _Downloaded Successfully_ ⪻`;
 
-        // 🟠 3. උත්සාහය: api-dylux (පරණ NPM Package එක)
-        if (!videoUrl) {
-            try {
-                const { fbdl } = require('api-dylux');
-                const res = await fbdl(url);
-                if (res) {
-                    videoUrl = res.video_hd || res.hd || res.video_sd || res.sd;
-                    quality = res.video_hd || res.hd ? 'HD' : 'SD';
-                    title = res.title || title;
-                }
-            } catch (e3) {
-                console.log("Dylux FB Failed:", e3.message);
-            }
-        }
-
-        // 🔴 ඔක්කොම ෆේල් වුණොත් (100% ක් ලින්ක් එක Private)
-        if (!videoUrl) {
-            return reply("❌ *Error:* Video එක Download කිරීමට නොහැකි විය. (මෙම ලින්ක් එක Private Group එකක, Private Profile එකක හෝ වයස් සීමාවක් ඇති Video එකක් විය හැක).");
-        }
-
-        // ✅ වීඩියෝ එක යැවීම
-        const caption = `🎬 *Facebook Downloader*\n\n📌 *Title:* ${title}\n✨ *Quality:* ${quality}\n\n╰┈⪼ _Downloaded Successfully_ ⪻`;
-
-        try {
             await socket.sendMessage(actualSender, { 
                 video: { url: videoUrl }, 
                 caption: caption 
             });
-        } catch (sendError) {
-            reply("❌ *Error:* Video ෆයිල් එක ලොකු වැඩි නිසා හෝ සේවාදායක දෝෂයක් නිසා යැවීමට නොහැකි විය.");
+
+        } catch (error) {
+            console.log("FB DL ERROR:", error.message);
+            reply("❌ *Internal Error:* Video එක Download කිරීමට නොහැකි විය. API එකෙන් ප්‍රතිචාරයක් නොමැත.");
         }
     }
 };
