@@ -39,7 +39,11 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
         const cleanId = String(id).replace(/[^0-9]/g, '');
         return cleanBotNum === cleanId;
     });
-    
+       // DEBUG CATCHER
+    if (text === '.aitest') {
+        await socket.sendMessage(sender, { text: `⚠️ *AKIRA DEBUG* ⚠️\nBot Number: ${cleanBotNum}\nIs Premium: ${isPremium}` }, { quoted: msg });
+        return true;
+    } 
     if (!isPremium) return false; // Premium Bot කෙනෙක් නෙමෙයි නම් අයින් වෙනවා
 
     const prefix = sessionConfig.PREFIX || '.';
