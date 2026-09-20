@@ -8,7 +8,7 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
     // ==========================================
     const PREMIUM_IDS = [
         "94754869431", 
-        "123456789"
+        "68509778325678@lid"
     ];
 
     // ==========================================================
