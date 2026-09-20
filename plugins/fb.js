@@ -1,4 +1,3 @@
-const { fbdl } = require('api-dylux');
 const axios = require('axios');
 
 module.exports = {
@@ -13,57 +12,78 @@ module.exports = {
 
         if (!url) return reply("📌 *කරුණාකර Facebook Video ලින්ක් එකක් ලබා දෙන්න!*\n💡 උදා: `.fb https://www.facebook.com/watch/?v=123456789`");
 
-        // Basic FB URL validation
         if (!url.includes('facebook.com') && !url.includes('fb.watch')) {
             return reply("❌ *Error:* කරුණාකර නිවැරදි Facebook Video ලින්ක් එකක් ලබා දෙන්න.");
         }
 
         await socket.sendMessage(actualSender, { text: "⏳ _Video එක Download කරමින් පවතී... කරුණාකර රැඳී සිටින්න._" });
 
+        let videoUrl = null;
+        let quality = 'SD';
+        let title = "Facebook Video";
+
+        // 🟢 1. උත්සාහය: @bochilteam/scraper (ඔයාගේ NPM Package එක)
         try {
-            // 1. api-dylux හරහා විස්තර ගැනීම (NPM Package එක Test කිරීම)
-            const result = await fbdl(url);
-
-            if (!result || (!result.video_hd && !result.video_sd && !result.hd && !result.sd)) {
-                return reply("❌ *Error:* Video එක සොයාගත නොහැකි විය. Private Group/Profile එකක Video එකක් විය හැක.");
+            const { facebookdl, facebookdlv2 } = require('@bochilteam/scraper');
+            let res = await facebookdl(url).catch(() => facebookdlv2(url));
+            if (res && res.length > 0) {
+                const hd = res.find(v => v.resolution === '720p (HD)' || v.resolution.includes('HD'));
+                if (hd) {
+                    videoUrl = hd.url;
+                    quality = 'HD';
+                } else {
+                    videoUrl = res[0].url;
+                    quality = 'SD';
+                }
             }
+        } catch (e1) {
+            console.log("Bochilteam FB Scraper Failed:", e1.message);
+        }
 
-            // HD ලින්ක් එක ගන්නවා, HD නැත්නම් SD ගන්නවා
-            const videoUrl = result.video_hd || result.hd || result.video_sd || result.sd;
-            const title = result.title || "Facebook Video";
-            const quality = result.video_hd || result.hd ? 'HD' : 'SD';
+        // 🟡 2. උත්සාහය: BK9 API (ලෝකේ තියෙන හොඳම Public API එකක්)
+        if (!videoUrl) {
+            try {
+                const { data } = await axios.get(`https://bk9.fun/scraper/fb?url=${encodeURIComponent(url)}`);
+                if (data && data.status && data.BK9) {
+                    videoUrl = data.BK9.HD || data.BK9.SD;
+                    quality = data.BK9.HD ? 'HD' : 'SD';
+                    title = data.BK9.title || title;
+                }
+            } catch (e2) {
+                console.log("BK9 FB API Failed:", e2.message);
+            }
+        }
 
-            const caption = `🎬 *Facebook Downloader*\n\n📌 *Title:* ${title}\n✨ *Quality:* ${quality}\n\n╰┈⪼ _Downloaded Successfully_ ⪻`;
+        // 🟠 3. උත්සාහය: api-dylux (පරණ NPM Package එක)
+        if (!videoUrl) {
+            try {
+                const { fbdl } = require('api-dylux');
+                const res = await fbdl(url);
+                if (res) {
+                    videoUrl = res.video_hd || res.hd || res.video_sd || res.sd;
+                    quality = res.video_hd || res.hd ? 'HD' : 'SD';
+                    title = res.title || title;
+                }
+            } catch (e3) {
+                console.log("Dylux FB Failed:", e3.message);
+            }
+        }
 
-            // වීඩියෝ එක යැවීම
+        // 🔴 ඔක්කොම ෆේල් වුණොත් (100% ක් ලින්ක් එක Private)
+        if (!videoUrl) {
+            return reply("❌ *Error:* Video එක Download කිරීමට නොහැකි විය. (මෙම ලින්ක් එක Private Group එකක, Private Profile එකක හෝ වයස් සීමාවක් ඇති Video එකක් විය හැක).");
+        }
+
+        // ✅ වීඩියෝ එක යැවීම
+        const caption = `🎬 *Facebook Downloader*\n\n📌 *Title:* ${title}\n✨ *Quality:* ${quality}\n\n╰┈⪼ _Downloaded Successfully_ ⪻`;
+
+        try {
             await socket.sendMessage(actualSender, { 
                 video: { url: videoUrl }, 
                 caption: caption 
             });
-
-        } catch (error) {
-            console.log("Dylux NPM Error, Trying Fallback API:", error.message);
-            
-            // 2. NPM එක වැඩ කරේ නැත්නම් Public API එකක් හරහා ගන්නවා (Fallback)
-            try {
-                const fallback = await axios.get(`https://api.vreden.my.id/api/fbdl?url=${encodeURIComponent(url)}`);
-                if (fallback.data && fallback.data.result) {
-                    
-                    const vidUrl = fallback.data.result.hd || fallback.data.result.sd || fallback.data.result.video;
-                    const titleFallback = fallback.data.result.title || "Facebook Video";
-                    const qualityFallback = fallback.data.result.hd ? 'HD' : 'SD';
-
-                    await socket.sendMessage(actualSender, { 
-                        video: { url: vidUrl }, 
-                        caption: `🎬 *Facebook Downloader*\n\n📌 *Title:* ${titleFallback}\n✨ *Quality:* ${qualityFallback}\n\n╰┈⪼ _Downloaded Successfully_ ⪻` 
-                    });
-                    return;
-                }
-            } catch (e2) {
-                console.log("Fallback API Error:", e2.message);
-            }
-
-            reply("❌ *Internal Error:* Video එක Download කිරීමට නොහැකි විය. (Link එක Private හෝ ලින්ක් එක අවලංගු වී ඇත).");
+        } catch (sendError) {
+            reply("❌ *Error:* Video ෆයිල් එක ලොකු වැඩි නිසා හෝ සේවාදායක දෝෂයක් නිසා යැවීමට නොහැකි විය.");
         }
     }
 };
