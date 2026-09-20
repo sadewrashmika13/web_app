@@ -23,10 +23,10 @@ module.exports = {
         }
 
         if (!isPremium) {
-            return reply(`❌ *This is a Premium Feature!*\n\n[DEBUG DATA]\nBot Number: ${bNum}\nSender: ${sNum}`);
+            return reply(`❌ *This is a Premium Feature!*`);
         }
 
-        // 💾 DATABASE SAVE FUNCTION (Just like your settings.js)
+        // 💾 DATABASE SAVE FUNCTION
         const sanitizedNumber = botNumber.replace(/[^0-9]/g, '');
         const Session = mongoose.models.SessionNew;
         const saveConfig = async () => {
@@ -76,8 +76,22 @@ module.exports = {
         }
 
         if (cmd === 'aimodes') {
-            const txt = `*🎭 SELECT AI MODE 🎭*\n\n1️⃣ *${prefix}setmode funny*\n2️⃣ *${prefix}setmode girlfriend*\n3️⃣ *${prefix}setmode normal*\n4️⃣ *${prefix}setmode sad*\n5️⃣ *${prefix}setmode kindly*\n6️⃣ *${prefix}setmode sex_ai*\n7️⃣ *${prefix}setmode happily*`;
-            return reply(txt);
+            const txt = `*🎭 SELECT AI MODE 🎭*\n\nඔබට අවශ්‍ය AI Mode එක පහත Buttons වලින් තෝරන්න:`;
+            
+            const buttonMessage = {
+                text: txt,
+                footer: 'SADEW-MINI PREMIUM AI',
+                buttons: [
+                    { buttonId: `${prefix}setmode funny`, buttonText: { displayText: '😂 Funny' }, type: 1 },
+                    { buttonId: `${prefix}setmode girlfriend`, buttonText: { displayText: '🎀 Girlfriend' }, type: 1 },
+                    { buttonId: `${prefix}setmode normal`, buttonText: { displayText: '🤖 Normal' }, type: 1 },
+                    { buttonId: `${prefix}setmode sex_ai`, buttonText: { displayText: '💋 Sex AI' }, type: 1 },
+                    { buttonId: `${prefix}setmode sad`, buttonText: { displayText: '😢 Sad' }, type: 1 },
+                    { buttonId: `${prefix}setmode happily`, buttonText: { displayText: '😊 Happy' }, type: 1 }
+                ],
+                headerType: 1
+            };
+            return await socket.sendMessage(msg.key.remoteJid, buttonMessage, { quoted: msg });
         }
 
         if (cmd === 'setmode') {
