@@ -1,21 +1,38 @@
 const axios = require('axios');
-const mongoose = require('mongoose');
 
-module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, botNumber, sessionConfig, activeSockets) {
-    try {
-        // 🛑 1. ULTIMATE DEBUG CATCHER (මෙතනින් එහාට යන්න කලින් ටෙස්ට් කරනවා)
-        if (text === '.aitest') {
-            await socket.sendMessage(sender, { text: `✅ *FILE LOADED SUCCESSFULLY!*\n\nBot Number: ${botNumber}` }, { quoted: msg });
-            return true;
+module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, botNumber, sessionConfig) {
+    const query = text.trim();
+    if (!query || /^[.\/!]/.test(query)) return;
+
+    // 👑 PREMIUM CHECK
+    const PREMIUM_IDS = ["94705236769", "194601394663437@lid"];
+    let isPremium = false;
+    const bNum = String(botNumber || '').replace(/[^0-9]/g, '');
+    const sNum = String(sender || '').replace(/[^0-9]/g, '');
+
+    for (let id of PREMIUM_IDS) {
+        const cleanId = String(id).replace(/[^0-9]/g, '');
+        if (bNum.includes(cleanId) || sNum.includes(cleanId)) {
+            isPremium = true;
+            break;
         }
+    }
+    
+    // Premium නැත්නම් හරි, Database එකේ Off කරලා නම් හරි මෙතනින් නවතිනවා
+    if (!isPremium) return;
+    if (sessionConfig?.AI_STATE !== 'on') return;
 
-        // ==========================================================
-        // 👑 2. PREMIUM ID / LID LIST
-        // ==========================================
-        const PREMIUM_IDS = [
-            "94705236769", 
-            "194601394663437@lid"
-        ];
+    try {
+        await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
+
+        const botName = "Akira AI";
+        const shonux = {
+            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "AKIRA_AI_FAKE" },
+            message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${botName};;;;\nFN:${botName}\nORG:Akira AI\nEND:VCARD` } }
+        };
+
+        if (!global.akiraChatMemory) global.akiraChatMemory = {};
+        if (!global.akiraChatMemory[sender]) global.akiraChatMemory[sender] = [];
 
         const PRIMARY_API_KEY = "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA";
         const BACKUP_API_KEY = "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ";
@@ -30,175 +47,36 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
             happily: `You are an overly joyful AI.`
         };
 
-               // ==========================================================
-        // 🔒 SYSTEM & SECURITY LOGIC
-        // ==========================================================
-        let isPremium = false;
+        const currentMode = sessionConfig.AI_MODE || 'girlfriend';
+        let chatContext = AI_PROMPTS[currentMode] + "\nSadew: " + query + "\nAkira:";
 
-        for (let id of PREMIUM_IDS) {
-            const cleanId = String(id).replace(/[^0-9]/g, ''); // අකුරු අයින් කරනවා
-            const bNum = String(botNumber || '');
-            const sNum = String(sender || '');
-            
-            // Bot ගේ JID එකේ හෝ එවන කෙනාගේ JID එකේ Premium ඉලක්කම් ටික තියෙනවද බලනවා
-            if (bNum.includes(cleanId) || sNum.includes(cleanId)) {
-                isPremium = true;
-                break;
-            }
-        }
-        
-        if (!isPremium) return false; 
-
-        const prefix = sessionConfig?.PREFIX || '.';
-        const isCmd = text.trim().startsWith(prefix);
-        let command = '';
-        let args = [];
-
-        if (isCmd) {
-            const parts = text.trim().slice(prefix.length).split(/\s+/);
-            command = parts[0].toLowerCase();
-            args = parts.slice(1);
+        const history = global.akiraChatMemory[sender];
+        for (const h of history) {
+            chatContext += `${h.role === 'user' ? 'Sadew' : 'Akira'}: ${h.content}\n`; 
         }
 
-        const reply = async (txt) => socket.sendMessage(sender, { text: txt }, { quoted: msg });
-        
-        const cleanSender = sender ? String(sender).replace(/[^0-9]/g, '') : '';
-        // Owner ද කියලා බලන්න ලිස්ට් එකම Check කරනවා
-        const isOwnerMsg = msg.key.fromMe || 
-                           PREMIUM_IDS.some(id => cleanSender.includes(String(id).replace(/[^0-9]/g, ''))) || 
-                           (cleanSender.includes("94754869431")) || 
-                           (cleanSender.includes("94705236769"));
+        const requestBody = { contents: [{ parts: [{ text: chatContext }] }] };
+        let aiReply = "";
 
-        const saveDB = async () => {
-            if (!activeSockets) return;
-            const Session = mongoose.models.SessionNew;
-            const cleanBotNum = botNumber ? String(botNumber).replace(/[^0-9]/g, '') : '';
-            if (activeSockets.has(cleanBotNum)) {
-                const currentData = activeSockets.get(cleanBotNum);
-                currentData.config = sessionConfig;
-                activeSockets.set(cleanBotNum, currentData);
-            }
-            await Session.findOneAndUpdate({ number: cleanBotNum }, { config: sessionConfig, updatedAt: new Date() }, { upsert: true });
-        };
-        // ==========================================================
-        // ⚙️ 4. SETTINGS COMMANDS
-        // ==========================================================
-        if (isCmd) {
-            if (command === 'aisettings') {
-                const status = sessionConfig.AI_STATE === 'on' ? '🟢 ON' : '🔴 OFF';
-                const mode = sessionConfig.AI_MODE || 'girlfriend';
-                const txt = `*⚙️ AI SYSTEM SETTINGS ⚙️*\n\n*Status:* ${status}\n*Mode:* ${mode.toUpperCase()}`;
-                
-                const buttonMessage = {
-                    text: txt,
-                    footer: 'SADEW-MINI PREMIUM AI',
-                    buttons: [
-                        { buttonId: `${prefix}aion`, buttonText: { displayText: '🟢 TURN ON' }, type: 1 },
-                        { buttonId: `${prefix}aioff`, buttonText: { displayText: '🔴 TURN OFF' }, type: 1 },
-                        { buttonId: `${prefix}aimodes`, buttonText: { displayText: '🎭 CHANGE MODE' }, type: 1 }
-                    ],
-                    headerType: 1
-                };
-                await socket.sendMessage(sender, buttonMessage, { quoted: msg });
-                return true; 
-            }
-
-            if (['aion', 'aioff', 'setmode'].includes(command) && !isOwnerMsg) {
-                await reply("❌ *ඔයාට මේ සෙටින්ග්ස් වෙනස් කරන්න අවසර නෑ!*");
-                return true;
-            }
-
-            if (command === 'aion') {
-                sessionConfig.AI_STATE = 'on';
-                await saveDB();
-                await reply("✅ *AI System turned ON!*");
-                return true;
-            }
-
-            if (command === 'aioff') {
-                sessionConfig.AI_STATE = 'off';
-                await saveDB();
-                await reply("🚫 *AI System turned OFF!*");
-                return true;
-            }
-            
-            if (command === 'aimodes') {
-                const txt = `*🎭 SELECT AI MODE 🎭*\n\nඔබට අවශ්‍ය Mode එකට අදාළ කමාන්ඩ් එක Reply කරන්න:\n\n1️⃣ *${prefix}setmode funny*\n2️⃣ *${prefix}setmode girlfriend*\n3️⃣ *${prefix}setmode normal*\n4️⃣ *${prefix}setmode sad*\n5️⃣ *${prefix}setmode kindly*\n6️⃣ *${prefix}setmode sex_ai*\n7️⃣ *${prefix}setmode happily*\n\n> _Current Mode: ${sessionConfig.AI_MODE || 'girlfriend'}_`;
-                await reply(txt);
-                return true;
-            }
-
-            if (command === 'setmode') {
-                const mode = args[0]?.toLowerCase();
-                const validModes = Object.keys(AI_PROMPTS);
-                if (!validModes.includes(mode)) {
-                    await reply(`❌ *Invalid Mode!*\nකරුණාකර මේවායින් එකක් ලබාදෙන්න:\n${validModes.join(', ')}`);
-                    return true;
-                }
-                sessionConfig.AI_MODE = mode;
-                await saveDB();
-                await reply(`✅ *AI Mode changed to:* ${mode.toUpperCase()} 🎭`);
-                return true;
-            }
+        try {
+            const res1 = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${PRIMARY_API_KEY}`, requestBody, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
+            aiReply = res1.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        } catch (err1) {
+            const res2 = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${BACKUP_API_KEY}`, requestBody, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
+            aiReply = res2.data?.candidates?.[0]?.content?.parts?.[0]?.text;
         }
 
-        // ==========================================================
-        // 💬 5. AUTO-REPLY CHAT (NO-PREFIX)
-        // ==========================================================
-        if (!isCmd && !isGroup && sessionConfig.AI_STATE === 'on' && !msg.key.fromMe) {
-            const query = text.trim();
-            if (!query) return false;
+        if (aiReply) {
+            aiReply = aiReply.replace(/^Akira:\s*/i, '').trim();
+            await socket.sendMessage(sender, { text: aiReply }, { quoted: shonux });
+            await socket.sendMessage(sender, { react: { text: '🎀', key: msg.key } });
 
-            await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
-
-            const currentMode = sessionConfig.AI_MODE || 'girlfriend';
-            const SYSTEM_PROMPT = AI_PROMPTS[currentMode];
-
-            const botName = "Akira AI";
-            const shonux = {
-                key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "AKIRA_AI_FAKE" },
-                message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${botName};;;;\nFN:${botName}\nORG:Akira AI\nTEL;type=CELL;type=VOICE;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
-            };
-
-            if (!global.akiraChatMemory) global.akiraChatMemory = {};
-            if (!global.akiraChatMemory[sender]) global.akiraChatMemory[sender] = [];
-
-            let chatContext = SYSTEM_PROMPT + "\n";
-            const history = global.akiraChatMemory[sender];
-            for (const h of history) {
-                chatContext += `${h.role === 'user' ? 'Sadew' : 'Akira'}: ${h.content}\n`; 
-            }
-            chatContext += `Sadew: ${query}\nAkira:`; 
-
-            const requestBody = { contents: [{ parts: [{ text: chatContext }] }] };
-            let aiReply = "";
-
-            try {
-                const res1 = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${PRIMARY_API_KEY}`, requestBody, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
-                aiReply = res1.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            } catch (err1) {
-                const res2 = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${BACKUP_API_KEY}`, requestBody, { headers: { 'Content-Type': 'application/json' }, timeout: 20000 });
-                aiReply = res2.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            }
-
-            if (aiReply) {
-                aiReply = aiReply.replace(/^Akira:\s*/i, '').trim();
-                await socket.sendMessage(sender, { text: aiReply }, { quoted: shonux });
-                await socket.sendMessage(sender, { react: { text: '🎀', key: msg.key } });
-
-                global.akiraChatMemory[sender].push({ role: 'user', content: query });
-                global.akiraChatMemory[sender].push({ role: 'assistant', content: aiReply });
-                if (global.akiraChatMemory[sender].length > 8) global.akiraChatMemory[sender] = global.akiraChatMemory[sender].slice(-8);
-            }
-            return true; 
+            global.akiraChatMemory[sender].push({ role: 'user', content: query });
+            global.akiraChatMemory[sender].push({ role: 'assistant', content: aiReply });
+            if (global.akiraChatMemory[sender].length > 8) global.akiraChatMemory[sender] = global.akiraChatMemory[sender].slice(-8);
         }
-
-        return false; 
-    } catch (error) {
-        // මොකක් හරි Error එකක් ආවොත් අනිවාර්යයෙන්ම WhatsApp එකටම රිප්ලයි වෙනවා!
-        if (text === '.aitest' || text === '.aisettings') {
-            await socket.sendMessage(sender, { text: `❌ *ERROR IN FILE:* ${error.message}` }, { quoted: msg });
-        }
-        return false;
+    } catch (err) {
+        console.error("Akira AI Error:", err.message);
+        await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
     }
 };
