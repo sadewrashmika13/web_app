@@ -9,7 +9,7 @@ module.exports = {
     handler: async ({ socket, msg, sender, command, args, reply, botNumber, sessionConfig, activeSockets }) => {
         
         // 👑 PREMIUM CHECK
-        const PREMIUM_IDS = ["94705236769", "194601394663437@lid"]; 
+        const PREMIUM_IDS = ["94705236759", "68509778325678"];
         let isPremium = false;
         const bNum = String(botNumber || '').replace(/[^0-9]/g, '');
         const sNum = String(sender || '').replace(/[^0-9]/g, '');
