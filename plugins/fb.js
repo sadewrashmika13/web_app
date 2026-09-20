@@ -19,14 +19,20 @@ module.exports = {
         await socket.sendMessage(actualSender, { text: "⏳ _Video එක Download කරමින් පවතී... කරුණාකර රැඳී සිටින්න._" });
 
         try {
-            // ඔයා දුන්න අලුත් API එක (kcey.workers.dev) භාවිතා කිරීම
-            const apiUrl = `https://fbdl.kcey.workers.dev/?url=${encodeURIComponent(url)}`;
+            // ලින්ක් එකේ ජාතිය අනුව API එකට යවන Parameter එක තෝරාගැනීම
+            let apiUrl = "";
+            if (url.includes('fb.watch')) {
+                apiUrl = `https://fbdl.kcey.workers.dev/?url=${encodeURIComponent(url)}`;
+            } else {
+                apiUrl = `https://fbdl.kcey.workers.dev/?fb=${encodeURIComponent(url)}`;
+            }
+
             const { data } = await axios.get(apiUrl, { timeout: 20000 });
 
-            // API එකෙන් එන Data Structure එක මොකක් වුණත් අල්ලගන්න පුළුවන් විදිහට හැදුවා
+            // API එකෙන් එන Data අල්ලගැනීම
             const result = data.result || data.data || data;
             
-            // HD හෝ SD ලින්ක් එක වෙන් කරගැනීම (Format කීපයක්ම චෙක් කරනවා)
+            // HD හෝ SD ලින්ක් එක වෙන් කරගැනීම
             const hd = result.hd || result.hd_url || result.HD || result.video_hd || result.url_hd;
             const sd = result.sd || result.sd_url || result.SD || result.video_sd || result.url_sd || result.video || result.url;
 
@@ -35,7 +41,7 @@ module.exports = {
             const title = result.title || result.desc || "Facebook Video";
 
             if (!videoUrl) {
-                console.log("KCEY API Error Data:", data); // Error එකක් ආවොත් Terminal එකෙන් බලාගන්න පුළුවන්
+                console.log("KCEY API Error Data:", data); 
                 return reply("❌ *Error:* API එකෙන් Video ලින්ක් එක ලබාගැනීමට නොහැකි විය. (Link එක Private විය හැක).");
             }
 
