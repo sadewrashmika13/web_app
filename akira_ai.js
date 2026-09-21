@@ -122,7 +122,7 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
         const API_KEYS = [
             "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA", // 1 වෙනි එක
             "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ", // 2 වෙනි එක
-            "METHANATA_3_VENI_KEY_EKA_DANNA",                        // 3 වෙනි එක (තිබ්බොත්)
+            "AQ.Ab8RN6IMIGwHe7iM4N6ao40c9m8rTOPkJNyr5CPKKH1bnfEz2g",                        // 3 වෙනි එක (තිබ්බොත්)
             "METHANATA_4_VENI_KEY_EKA_DANNA"                         // 4 වෙනි එක (තිබ්බොත්)
         ];
 
