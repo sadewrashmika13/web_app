@@ -346,7 +346,7 @@ async function connectMongoDB() {
     try {
         const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://sadewrashmika577_db_user:bKyIDz8UNMtkRRic@cluster0.sxlaxuj.mongodb.net/?appName=Cluster0';
         await mongoose.connect(mongoUri, {
-            bufferCommands: false,
+            bufferCommands: true,
             serverSelectionTimeoutMS: 5000,
             // 🔥 අලුත් DB Optimizations 🔥
             maxPoolSize: 50,
