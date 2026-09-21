@@ -12,15 +12,12 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
             return { type: 'text', content: text.trim() }; 
         }
         if (m.imageMessage) {
-            // ෆොටෝ එකක් දාලා මුකුත් ටයිප් කරේ නැත්නම් මේක ඔටෝ යනවා
             return { type: 'image', content: m.imageMessage.caption || "මේ ෆොටෝ එක හොඳට බලලා, මේකේ තියෙන දේ පැහැදිලිව විස්තර කරන්න.", msgNode: m.imageMessage, mime: m.imageMessage.mimetype };
         }
         if (m.audioMessage) {
-            // කවුරු හරි Voice දැම්මොත්
             return { type: 'audio', content: "මේ voice මැසේජ් එක අහලා තේරුම් අරගෙන, ඒකට ගැලපෙන හොඳ උත්තරයක් දෙන්න.", msgNode: m.audioMessage, mime: m.audioMessage.mimetype };
         }
         if (m.documentMessage) {
-            // PDF එකක් දැම්මොත්
             return { type: 'document', content: m.documentMessage.caption || "මේ Document එකේ තියෙන දේවල් කියවලා සාරාංශ කරලා දෙන්න.", msgNode: m.documentMessage, mime: m.documentMessage.mimetype };
         }
         return { type: 'unknown', content: text.trim() };
@@ -96,15 +93,19 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
         const parts = [{ text: chatContext }];
 
         if (msgDetails.type !== 'text' && msgDetails.type !== 'unknown' && msgDetails.msgNode) {
-            // PDF වලට පමණක් සීමා කිරීම (අනෙක් Documents යැව්වොත් Error එන නිසා)
+            // PDF වලට පමණක් සීමා කිරීම
             if (msgDetails.type === 'document' && !msgDetails.mime.includes('pdf')) {
-                // Not a PDF
+                // Not a PDF, ignore media portion
             } else {
                 try {
                     const base64Data = await downloadMedia(msgDetails.msgNode, msgDetails.type);
+                    
+                    // 🔥 WhatsApp වල එන දිග Audio ෆෝමැට් එක Gemini ට තේරෙන්න කෙටි කරනවා
+                    let cleanMime = msgDetails.mime.split(';')[0]; 
+                    
                     parts.push({
                         inline_data: {
-                            mime_type: msgDetails.mime,
+                            mime_type: cleanMime,
                             data: base64Data
                         }
                     });
@@ -119,8 +120,10 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
 
         // 🔑 API Keys
         const API_KEYS = [
-            "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA", 
-            "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ"
+            "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA", // 1 වෙනි එක
+            "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ", // 2 වෙනි එක
+            "METHANATA_3_VENI_KEY_EKA_DANNA",                        // 3 වෙනි එක (තිබ්බොත්)
+            "METHANATA_4_VENI_KEY_EKA_DANNA"                         // 4 වෙනි එක (තිබ්බොත්)
         ];
 
         for (const key of API_KEYS) {
