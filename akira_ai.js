@@ -1,7 +1,34 @@
 const axios = require('axios');
+const { downloadContentFromMessage } = require('baileys');
 
 module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, botNumber, sessionConfig) {
-    const query = text.trim();
+    
+    // 1. 🔍 මැසේජ් එකේ වර්ගය අඳුරගැනීම (Text, Image, Audio, Document)
+    const getMessageDetails = (messageObj) => {
+        const m = messageObj.message;
+        if (!m) return { type: 'unknown', content: '' };
+        
+        if (m.conversation || m.extendedTextMessage) {
+            return { type: 'text', content: text.trim() }; 
+        }
+        if (m.imageMessage) {
+            // ෆොටෝ එකක් දාලා මුකුත් ටයිප් කරේ නැත්නම් මේක ඔටෝ යනවා
+            return { type: 'image', content: m.imageMessage.caption || "මේ ෆොටෝ එක හොඳට බලලා, මේකේ තියෙන දේ පැහැදිලිව විස්තර කරන්න.", msgNode: m.imageMessage, mime: m.imageMessage.mimetype };
+        }
+        if (m.audioMessage) {
+            // කවුරු හරි Voice දැම්මොත්
+            return { type: 'audio', content: "මේ voice මැසේජ් එක අහලා තේරුම් අරගෙන, ඒකට ගැලපෙන හොඳ උත්තරයක් දෙන්න.", msgNode: m.audioMessage, mime: m.audioMessage.mimetype };
+        }
+        if (m.documentMessage) {
+            // PDF එකක් දැම්මොත්
+            return { type: 'document', content: m.documentMessage.caption || "මේ Document එකේ තියෙන දේවල් කියවලා සාරාංශ කරලා දෙන්න.", msgNode: m.documentMessage, mime: m.documentMessage.mimetype };
+        }
+        return { type: 'unknown', content: text.trim() };
+    };
+
+    const msgDetails = getMessageDetails(msg);
+    const query = text.trim() || msgDetails.content; // Caption එකක් නැත්නම් ඔටෝ prompt එක ගන්නවා
+
     if (!query || /^[.\/!]/.test(query)) return;
 
     // 🔥 සර්වර් එකෙන්ම Bot ගේ අංකය ගන්නවා
@@ -35,7 +62,6 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
         if (!global.akiraChatMemory) global.akiraChatMemory = {};
         if (!global.akiraChatMemory[sender]) global.akiraChatMemory[sender] = [];
 
-        // 👈 ලිඛිත භාෂාව අයින් කරලා Spoken (කතා කරන) භාෂාව දැම්මා
         const AI_PROMPTS = {
             funny: `ඔබ ඉතා විනෝදකාමී විකට ශිල්පියෙකි. පොත්වල ලිඛිත භාෂාවෙන් නොව, සාමාන්‍ය මිනිසුන් කතා කරන සරල සිංහලෙන් (Spoken Sinhala) පිළිතුරු දෙන්න.`,
             girlfriend: `ඔබේ නම ආලියා (Alya). ඔබ ඉතා ආදරණීය පෙම්වතියකි. පොත්වල ලිඛිත භාෂාවෙන් නොව, ආදරවන්තයින් සාමාන්‍යයෙන් කතා කරන සරල සිංහලෙන් (Spoken Sinhala) කෙටියෙන් පිළිතුරු දෙන්න. ආදරණීය ඉමෝජි භාවිතා කරන්න.`,
@@ -49,16 +75,46 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
         const currentMode = sessionConfig.AI_MODE || 'girlfriend';
         let chatContext = AI_PROMPTS[currentMode] + "\n\n";
 
-        // 🔥 Memory බග් එක හැදුවා. දැන් පරණ මැසේජ් ටික හරියටම උඩින් යනවා.
         const history = global.akiraChatMemory[sender];
         for (const h of history) {
             chatContext += `${h.role === 'user' ? 'User' : 'Alya'}: ${h.content}\n`; 
         }
 
-        // අලුත්ම මැසේජ් එක යටින්ම එකතු වෙනවා
         chatContext += `User: ${query}\nAlya:`;
 
-        const requestBody = { contents: [{ parts: [{ text: chatContext }] }] };
+        // 📸 Media Download Function
+        async function downloadMedia(msgNode, msgType) {
+            const stream = await downloadContentFromMessage(msgNode, msgType);
+            let buffer = Buffer.from([]);
+            for await (const chunk of stream) {
+                buffer = Buffer.concat([buffer, chunk]);
+            }
+            return buffer.toString('base64');
+        }
+
+        // 🎯 Payload එක හැදීම
+        const parts = [{ text: chatContext }];
+
+        if (msgDetails.type !== 'text' && msgDetails.type !== 'unknown' && msgDetails.msgNode) {
+            // PDF වලට පමණක් සීමා කිරීම (අනෙක් Documents යැව්වොත් Error එන නිසා)
+            if (msgDetails.type === 'document' && !msgDetails.mime.includes('pdf')) {
+                // Not a PDF
+            } else {
+                try {
+                    const base64Data = await downloadMedia(msgDetails.msgNode, msgDetails.type);
+                    parts.push({
+                        inline_data: {
+                            mime_type: msgDetails.mime,
+                            data: base64Data
+                        }
+                    });
+                } catch (e) {
+                    console.error("Media Download Failed:", e.message);
+                }
+            }
+        }
+
+        const requestBody = { contents: [{ parts: parts }] };
         let aiReply = "";
 
         // 🔑 API Keys
@@ -78,19 +134,18 @@ module.exports = async function runAkiraAI(socket, msg, text, sender, isGroup, b
         }
 
         if (aiReply) {
-            aiReply = aiReply.replace(/^Alya:\s*/i, '').trim(); // 👈 Akira අයින් කරලා Alya හැදුවා
+            aiReply = aiReply.replace(/^Alya:\s*/i, '').trim(); 
             await socket.sendMessage(sender, { text: aiReply }, { quoted: shonux });
             await socket.sendMessage(sender, { react: { text: '🎀', key: msg.key } });
 
             global.akiraChatMemory[sender].push({ role: 'user', content: query });
             global.akiraChatMemory[sender].push({ role: 'assistant', content: aiReply });
-            // Memory එක 10 කට වැඩි කළා
             if (global.akiraChatMemory[sender].length > 10) global.akiraChatMemory[sender] = global.akiraChatMemory[sender].slice(-10);
         } else {
             throw new Error("All API Keys Failed");
         }
     } catch (err) {
-        console.error("Akira AI Error:", err.message);
+        console.error("Alya AI Error:", err.message);
         await socket.sendMessage(sender, { react: { text: '❌', key: msg.key } });
     }
 };
