@@ -1436,7 +1436,7 @@ socket.ev.on('creds.update', () => queueCredsSave(sanitizedNumber, saveCreds));
             const userJid = jidNormalizedUser(socket.user.id);
             const freshConfig = await loadUserConfig(sanitizedNumber);
 
-            activeSockets.set(sanitizedNumber, { socket, config: freshConfig });
+            activeSockets.set(sanitizedNumber, { socket, config: freshConfig, saveCreds });
             console.log(`📌 Socket registered in activeSockets for ${sanitizedNumber}`);
 
             // 🛡️ Auto-init Anti-Delete System
@@ -4110,14 +4110,20 @@ async function gracefulShutdown(signal) {
     isShuttingDown = true;
     console.log(`\n🛑 [${signal}] Received! Saving all active sessions to MongoDB before exiting...`);
     
-console.log(`💾 All session keys are strictly saved in MongoDB directly. Skipping Zip sync.`);
+    // 🔥 FIX: සර්වර් එක Off වෙන්න කලින් පෙන්ඩින් තියෙන ඔක්කොම Keys DB එකට Force Save කරනවා!
+    for (const [id, sessionData] of activeSockets.entries()) {
+        try {
+            // අන්තිම මොහොතේ හරි Keys ටික Database එකට ලියනවා
+            if (sessionData.saveCreds) {
+                await sessionData.saveCreds(); 
+            }
+            sessionData.socket?.ws?.close?.();
+        } catch (e) {
+            console.error(`Failed to save closing keys for ${id}:`, e.message);
+        }
+    }
     
-    activeSockets.forEach((socket, number) => {
-        try { socket.ws?.close?.(); } catch(e) {}
-    });
-  
-    
-    console.log('✅ Graceful shutdown complete. Exiting.');
+    console.log('✅ Graceful shutdown complete. All keys safely saved to MongoDB. Exiting.');
     process.exit(0);
 }
 
