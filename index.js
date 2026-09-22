@@ -128,34 +128,41 @@ app.get('/follow', async (req, res) => {
     }
 });
 
-// ════════════ 🎬 CINESUBZ MOVIE SENDER API ════════════
+/// ════════════ 🎬 CINESUBZ MOVIE SENDER API ════════════
 const CZ_API = "https://cz-dnuz.vercel.app";
-const GROUP_JID = '1234567890-123456@g.us'; // 🔴 ඔයාගේ මූවි ගෲප් එකේ JID එක මෙතන දාන්න
-const BOT_NUMBER = '94754869431'; // 🔴 ඔයාගේ බොට්ගේ නම්බර් එක මෙතන දාන්න
+const GROUP_JID = '120363425721300928@g.us'; // 🔴 ඔයා කිව්ව අලුත් මූවි ගෲප් JID එක
+const BOT_NUMBER = '94705236759'; // 🔴 ඔයාගේ බොට්ගේ නම්බර් එක
 
+// 1. Web එකෙන් Search කරද්දී (Results 6ක් යවයි)
 app.post('/api/search', async (req, res) => {
     const { query } = req.body;
     try {
-        console.log(`🔍 Web Dashboard: Searching for "${query}"`);
         const searchRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`);
-        
         if (searchRes.data.success && searchRes.data.result?.length > 0) {
-            const movie = searchRes.data.result[0];
-            const dlRes = await axios.get(`${CZ_API}/movidl?url=${encodeURIComponent(movie.url)}`);
-            const downloads = dlRes.data.result?.downloads || [];
-
-            res.json({ success: true, title: movie.title, img: movie.img, downloads: downloads });
+            // මුල් ෆිල්ම් 6 විතරක් වෙබ් එකට යවනවා
+            res.json({ success: true, results: searchRes.data.result.slice(0, 6) });
         } else {
             res.json({ success: false });
         }
     } catch (error) {
-        console.error("CZ Web Search Error:", error.message);
         res.json({ success: false });
     }
 });
 
+// 2. ෆිල්ම් එක ඇතුළට ගියාම Download Links අදින API එක
+app.post('/api/links', async (req, res) => {
+    const { url } = req.body;
+    try {
+        const dlRes = await axios.get(`${CZ_API}/movidl?url=${encodeURIComponent(url)}`);
+        res.json({ success: true, downloads: dlRes.data.result?.downloads || [] });
+    } catch (error) {
+        res.json({ success: false });
+    }
+});
+
+// 3. Web එකෙන් Quality එක තෝරලා Send එබුවම ගෲප් එකට අප්ලෝඩ් වෙන කෑල්ල
 app.post('/api/send-movie', async (req, res) => {
-    const { title, url, quality } = req.body;
+    const { title, url, quality, reqName, reqNum } = req.body; // වෙබ් එකෙන් එන නමයි නම්බර් එකයි ගන්නවා
     const activeSockets = global.activeSockets;
     
     if (!activeSockets || !activeSockets.has(BOT_NUMBER)) {
@@ -165,8 +172,14 @@ app.post('/api/send-movie', async (req, res) => {
 
     try {
         res.json({ success: true, message: 'Upload started' });
-        console.log(`📤 Uploading ${title} (${quality}) from Web...`);
 
+        // 🔥 පියවර 1: ඔයාගේ Inbox එකට (Yourself) Notification එකක් යැවීම
+        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_මෙම චිත්‍රපටය Group එකට Upload වෙමින් පවතී..._`;
+        
+        await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { text: ownerMessage });
+        console.log(`📩 Notification sent to Owner Inbox`);
+
+        // 🔥 පියවර 2: Direct URL එක හොයාගෙන Stream එක ගන්නවා
         let resolvedUrl = url.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
         if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) {
             resolvedUrl = resolvedUrl.replace(/\.mp4$/, '?ext=mp4');
@@ -176,19 +189,22 @@ app.post('/api/send-movie', async (req, res) => {
         const dlRes = await axios.get(dlApiUrl);
         const httpUrl = dlRes.data.result?.downloadUrls?.find(u => u.url?.startsWith('http') && !u.url.includes('t.me'));
         
-        if (!httpUrl?.url) return console.log("❌ Direct download link not found from API!");
+        if (!httpUrl?.url) return console.log("❌ Direct download link not found!");
 
         const streamRes = await axios({
             method: 'GET', url: httpUrl.url, responseType: 'stream', timeout: 300000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+            headers: { 'User-Agent': 'Mozilla/5.0' }
         });
 
+        // 🔥 පියවර 3: ගෲප් එකට මූවි එක යැවීම (Caption එකේ ඉල්ලපු කෙනාගේ නම දාලා)
         const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
+        const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
+
         await sock.sendMessage(GROUP_JID, {
             document: { stream: streamRes.data },
             mimetype: "video/mp4", 
             fileName: fileName,
-            caption: `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`
+            caption: groupCaption
         });
 
         console.log(`✅ Movie successfully sent to Group!`);
@@ -201,26 +217,11 @@ app.post('/api/send-movie', async (req, res) => {
 
 // ════════════ 🌐 WEB PAGE ROUTES ════════════
 app.use('/code', code);
+app.use('/pair', async (req, res, next) => { res.sendFile(__path + '/pair.html'); });
+app.use('/settings', async (req, res, next) => { res.sendFile(__path + '/settings.html'); });
+app.use('/movie', async (req, res, next) => { res.sendFile(__path + '/movie.html'); });
+app.use('/', async (req, res, next) => { res.sendFile(__path + '/main.html'); });
 
-app.use('/pair', async (req, res, next) => {
-    res.sendFile(__path + '/pair.html');
-});
-
-app.use('/settings', async (req, res, next) => {
-    res.sendFile(__path + '/settings.html');
-});
-
-// 🔴 Movie Web Dashboard එක Load වෙන තැන
-app.use('/movie', async (req, res, next) => {
-    res.sendFile(__path + '/movie.html');
-});
-
-// මේක හැමදේටම පස්සේ යටින්ම තියෙන්න ඕනේ (Catch-all)
-app.use('/', async (req, res, next) => {
-    res.sendFile(__path + '/main.html');
-});
-
-// ════════════ 🚀 SERVER STARTUP ════════════
 app.listen(PORT, () => {
   console.log(`╔═══════════════════════════╗`);
   console.log(`║  Akira Bot — ONLINE  Port: ${PORT}   ║`);
