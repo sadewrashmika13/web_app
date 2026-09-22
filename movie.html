@@ -3,87 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sadew Movie Panel</title>
+    <title>Sadew x Mini Movie Sender</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background-color: #1e1e2f; color: white; padding: 50px; }
-        input, select, button { padding: 10px; font-size: 16px; margin: 10px; border-radius: 5px; border: none; }
-        button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
-        .movie-card { background: #2a2a40; padding: 20px; border-radius: 10px; margin-top: 20px; display: none; }
-        img { border-radius: 10px; max-width: 200px; margin-top: 10px; }
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        
+        body { 
+            margin: 0; font-family: 'Poppins', sans-serif; 
+            background-color: #000; color: #fff; overflow-x: hidden;
+        }
+
+        /* 🔴 Red Lightning Effect */
+        .lightning-bg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: transparent; pointer-events: none; z-index: -1;
+            animation: lightning 6s infinite;
+        }
+        @keyframes lightning {
+            0%, 94%, 98%, 100% { background: transparent; }
+            95%, 99% { background: rgba(255, 0, 0, 0.15); box-shadow: inset 0 0 150px rgba(255, 0, 0, 0.3); }
+            96% { background: rgba(255, 0, 0, 0.4); }
+        }
+
+        /* 🪟 Glass Effect Box */
+        .glass-panel {
+            background: rgba(20, 0, 0, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+            box-shadow: 0 4px 30px rgba(255, 0, 0, 0.2);
+            border-radius: 15px; padding: 20px;
+        }
+
+        /* ✨ Neon Title */
+        .neon-text {
+            text-align: center; font-size: 2.5rem; font-weight: 800; margin-top: 30px;
+            color: #fff; text-shadow: 0 0 5px #fff, 0 0 10px #ff0000, 0 0 20px #ff0000, 0 0 40px #ff0000;
+        }
+
+        .container { max-width: 1000px; margin: 30px auto; padding: 20px; text-align: center; }
+        
+        .search-box {
+            width: 70%; padding: 15px; font-size: 18px; border-radius: 30px;
+            border: 2px solid #ff0000; background: rgba(0,0,0,0.6); color: white;
+            outline: none; text-align: center; box-shadow: 0 0 15px rgba(255,0,0,0.3);
+        }
+        .search-btn {
+            padding: 15px 30px; font-size: 18px; border-radius: 30px; border: none;
+            background: #ff0000; color: white; cursor: pointer; font-weight: bold;
+            box-shadow: 0 0 15px #ff0000; transition: 0.3s;
+        }
+        .search-btn:hover { background: #cc0000; box-shadow: 0 0 25px #ff0000; }
+
+        /* 🎞️ Movie Grid (6 Results) */
+        .movie-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px; margin-top: 40px;
+        }
+        .movie-card {
+            cursor: pointer; transition: 0.3s;
+        }
+        .movie-card:hover { transform: translateY(-10px); box-shadow: 0 10px 30px rgba(255, 0, 0, 0.4); }
+        .movie-card img { width: 100%; border-radius: 10px; }
+
+        /* 🗔 Popup Modal (Inside Movie) */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); z-index: 999; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            width: 90%; max-width: 500px; text-align: center; position: relative;
+        }
+        .close-btn {
+            position: absolute; top: 10px; right: 20px; font-size: 30px; color: #ff0000; cursor: pointer;
+        }
+        
+        .input-field {
+            width: 80%; padding: 10px; margin: 10px 0; border-radius: 10px;
+            border: 1px solid #ff0000; background: rgba(0,0,0,0.5); color: white;
+        }
+
+        /* 🔄 Spinning Pop-up Buttons */
+        .quality-btn {
+            display: inline-block; padding: 10px 20px; margin: 10px; border-radius: 8px;
+            background: #28a745; color: white; cursor: pointer; font-weight: bold; border: none;
+            animation: popUp 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            opacity: 0; transform: translateY(40px); transition: transform 0.5s ease, box-shadow 0.3s;
+        }
+        .quality-btn:hover {
+            transform: rotate(360deg) scale(1.1);
+            box-shadow: 0 0 20px #28a745;
+        }
+        @keyframes popUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
 
-    <h2>🎬 Sadew-Mini Web Sender</h2>
-    <input type="text" id="movieName" placeholder="Movie නම ගහන්න...">
-    <button onclick="searchMovie()">Search</button>
+    <div class="lightning-bg"></div>
 
-    <div class="movie-card" id="movieCard">
-        <h3 id="mTitle">Title</h3>
-        <img id="mImg" src="" alt="Movie Poster">
-        <p>Quality එක තෝරන්න:</p>
-        
-        <!-- API එකෙන් එන Qualities මෙතනට වැටෙයි -->
-        <select id="qualitySelect"></select> 
-        <br>
-        <button onclick="sendToGroup()" style="background: #28a745;">🚀 Send to Group</button>
-    </div>
+    <h1 class="neon-text">SADEW x MINI MOVIE SENDER</h1>
     
-    <p id="statusMsg"></p>
+    <div class="container">
+        <input type="text" id="movieName" class="search-box" placeholder="🎬 ෆිල්ම් එකේ නම ගහන්න...">
+        <button class="search-btn" onclick="searchMovie()">🔍 Search</button>
+        <p id="statusMsg" style="color: #ff4d4d; font-weight: bold; margin-top: 20px;"></p>
+        
+        <!-- Results Grid -->
+        <div class="movie-grid" id="movieGrid"></div>
+    </div>
+
+    <!-- 🗔 Inside Movie Modal -->
+    <div class="modal" id="movieModal">
+        <div class="glass-panel modal-content">
+            <span class="close-btn" onclick="closeModal()">×</span>
+            <h3 id="modalTitle" style="color: #ff0000; text-shadow: 0 0 10px red;">Movie Title</h3>
+            <img id="modalImg" src="" style="width: 150px; border-radius: 10px; margin-bottom: 15px;">
+            
+            <div>
+                <input type="text" id="reqName" class="input-field" placeholder="👤 ඉල්ලපු කෙනාගේ නම (Requester Name)">
+                <input type="text" id="reqNum" class="input-field" placeholder="📞 නම්බර් එක (උදා: 0771234567)">
+            </div>
+
+            <p id="modalStatus" style="color: yellow; font-size: 14px;"></p>
+            <div id="qualityButtons"></div>
+        </div>
+    </div>
 
     <script>
-        let availableDownloads = []; 
+        let currentDownloads = [];
+        let currentMovieUrl = "";
 
         async function searchMovie() {
             const query = document.getElementById('movieName').value;
-            document.getElementById('statusMsg').innerText = "🔍 Searching Cinesubz...";
-            document.getElementById('movieCard').style.display = "none";
+            if(!query) return;
             
-            const response = await fetch('/api/search', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            document.getElementById('statusMsg').innerText = "⏳ සෙවුම් කරමින් පවතී... (Searching)";
+            document.getElementById('movieGrid').innerHTML = "";
+
+            const res = await fetch('/api/search', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query })
             });
-            const data = await response.json();
+            const data = await res.json();
 
             if(data.success) {
-                document.getElementById('mTitle').innerText = data.title;
-                document.getElementById('mImg').src = data.img;
-                
-                availableDownloads = data.downloads;
-                
-                // Dropdown එකට qualities ටික දානවා
-                const select = document.getElementById('qualitySelect');
-                select.innerHTML = "";
-                availableDownloads.forEach((dl, index) => {
-                    if(dl.resolvedUrl) {
-                        select.innerHTML += `<option value="${index}">${dl.meta}</option>`;
-                    }
+                document.getElementById('statusMsg').innerText = `✅ Results Found!`;
+                // Grid එකට මුල් 6 දානවා
+                data.results.forEach((mv) => {
+                    const card = document.createElement('div');
+                    card.className = "glass-panel movie-card";
+                    card.innerHTML = `
+                        <img src="${mv.img}" alt="poster">
+                        <h4>${mv.title}</h4>
+                        <p style="font-size:12px;">⭐ ${mv.imdb || 'N/A'}</p>
+                    `;
+                    card.onclick = () => openModal(mv.title, mv.img, mv.url);
+                    document.getElementById('movieGrid').appendChild(card);
                 });
-
-                document.getElementById('movieCard').style.display = "block";
-                document.getElementById('statusMsg').innerText = "✅ Movie found!";
             } else {
-                document.getElementById('statusMsg').innerText = "❌ Not found!";
+                document.getElementById('statusMsg').innerText = "❌ ෆිල්ම් එකක් හමුවූයේ නැත!";
             }
         }
 
-        async function sendToGroup() {
-            const index = document.getElementById('qualitySelect').value;
-            const selectedDl = availableDownloads[index];
-            const title = document.getElementById('mTitle').innerText;
+        async function openModal(title, img, url) {
+            document.getElementById('movieModal').style.display = "flex";
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalImg').src = img;
+            document.getElementById('qualityButtons').innerHTML = "";
+            document.getElementById('modalStatus').innerText = "⏳ ලින්ක් හොයනවා... රැඳී සිටින්න!";
             
-            document.getElementById('statusMsg').innerText = "📤 Uploading to WhatsApp... Check Group!";
+            currentMovieUrl = url;
+
+            // ෆිල්ම් එක එබුවම Quality ලින්ක්ස් ටික අදිනවා
+            const res = await fetch('/api/links', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            const data = await res.json();
+
+            if(data.success && data.downloads.length > 0) {
+                document.getElementById('modalStatus').innerText = "✅ Quality එකක් තෝරන්න:";
+                data.downloads.forEach((dl, index) => {
+                    if(dl.resolvedUrl) {
+                        const btn = document.createElement('button');
+                        btn.className = "quality-btn";
+                        // Button එකට Animation Delay එකක් දෙනවා ලස්සනට උඩට එන්න
+                        btn.style.animationDelay = `${index * 0.2}s`; 
+                        btn.innerText = `🎥 ${dl.meta}`;
+                        btn.onclick = () => sendMovie(dl.resolvedUrl, dl.meta);
+                        document.getElementById('qualityButtons').appendChild(btn);
+                    }
+                });
+            } else {
+                document.getElementById('modalStatus').innerText = "❌ Links හමුවූයේ නැත!";
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('movieModal').style.display = "none";
+        }
+
+        async function sendMovie(url, quality) {
+            const reqName = document.getElementById('reqName').value.trim();
+            const reqNum = document.getElementById('reqNum').value.trim();
+            const title = document.getElementById('modalTitle').innerText;
+
+            if(!reqName || !reqNum) {
+                alert("⚠️ කරුණාකර ඉල්ලපු කෙනාගේ නම සහ නම්බර් එක ඇතුලත් කරන්න!");
+                return;
+            }
+
+            document.getElementById('modalStatus').innerText = `🚀 ${quality} Group එකට යවමින් පවතී...`;
+            document.getElementById('modalStatus').style.color = "#00ff00";
 
             await fetch('/api/send-movie', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    title: title, 
-                    url: selectedDl.resolvedUrl, 
-                    quality: selectedDl.meta 
-                })
+                body: JSON.stringify({ title, url, quality, reqName, reqNum })
             });
+            
+            setTimeout(closeModal, 2000);
         }
     </script>
 </body>
