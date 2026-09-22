@@ -133,6 +133,13 @@ const CZ_API = "https://cz-dnuz.vercel.app";
 const GROUP_JID = '120363425721300928@g.us'; // 🔴 Movie Group JID
 const BOT_NUMBER = '94705236759'; // 🔴 Correct Bot Number
 
+// Telegram link detector — same as the working cinesubz-downloader plugin
+function isTelegramLink(url) {
+    const l = url.toLowerCase();
+    return l.includes('t.me/') || l.includes('telegram.me/') ||
+           l.includes('telegram.dog/') || l.includes('telegram.org/');
+}
+
 app.post('/api/search', async (req, res) => {
     const { query } = req.body;
     try {
@@ -188,33 +195,55 @@ app.post('/api/send-movie', async (req, res) => {
         let fallbackUrl = resolvedUrl.replace(/\/server\d+\//, '/server1/');
         let videoUrl = null;
 
-        // Try /download API
+        // Try /download API — skip Telegram-only links, same filter as the plugin
         const tryApi = async (uToTry) => {
             try {
                 const dlApiUrl = `${CZ_API}/download?url=${uToTry}`;
+                console.log("[web] Trying /download:", dlApiUrl);
                 const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
                 const dlData = dlRes.data;
                 if (dlData.success && dlData.result?.downloadUrls) {
-                    const httpUrl = dlData.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.includes('t.me'));
+                    console.log("[web] All download URLs:", JSON.stringify(dlData.result.downloadUrls.map(u => u.url)));
+                    const httpUrl = dlData.result.downloadUrls.find(u =>
+                        u.url && u.url.startsWith('http') && !isTelegramLink(u.url)
+                    );
                     if (httpUrl?.url) return httpUrl.url;
+                    console.log("[web] ❌ Only Telegram links found — no direct download");
                 }
-            } catch (err) {}
+            } catch (err) {
+                console.log("[web] /download error:", err.message);
+            }
             return null;
         };
 
         videoUrl = await tryApi(resolvedUrl);
         if (!videoUrl && fallbackUrl !== resolvedUrl) {
+            console.log("[web] Trying server1 fallback...");
             videoUrl = await tryApi(fallbackUrl);
         }
 
         if (!videoUrl) throw new Error("Direct download link not found from API!");
 
-        // Stream & Send to Group
-        const streamRes = await axios({
-            method: 'GET', url: videoUrl, responseType: 'stream', timeout: 600000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-            maxRedirects: 10
-        });
+        console.log("[web] 🎬 Attempting stream from:", videoUrl);
+
+        // Stream fetch — wrapped so a CDN 404/error gives a clear message instead of a raw throw
+        let streamRes;
+        try {
+            streamRes = await axios({
+                method: 'GET', url: videoUrl, responseType: 'stream', timeout: 600000,
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+                maxRedirects: 10
+            });
+        } catch (streamErr) {
+            throw new Error(`Video CDN fetch failed (${streamErr.response?.status || 'no status'}): ${videoUrl}`);
+        }
+
+        // Guard against getting an HTML error/landing page instead of the actual video
+        const ct = streamRes.headers['content-type'] || '';
+        if (ct.includes('text/html')) {
+            streamRes.data.destroy();
+            throw new Error(`Got HTML page instead of video (link expired or telegram-only): ${videoUrl}`);
+        }
 
         const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
         const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
@@ -227,6 +256,14 @@ app.post('/api/send-movie', async (req, res) => {
         });
 
         console.log(`✅ Fast Movie successfully sent to Group!`);
+
+        // 🧹 RAM Cleanup
+        try {
+            if (streamRes.data && typeof streamRes.data.destroy === 'function') {
+                streamRes.data.destroy();
+            }
+        } catch (e) {}
+
         setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
 
     } catch (error) {
