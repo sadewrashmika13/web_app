@@ -81,7 +81,7 @@ module.exports = {
             message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Cinesubz\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
         };
 
-        // 💎 PREMIUM USERS CHECK (මෙතනින් තමයි චෙක් කරන්නේ)
+        // 💎 PREMIUM USERS CHECK
         const premiumUsers = [
             "194601394663437", 
             "94769634033"      
@@ -89,8 +89,8 @@ module.exports = {
         const actualSender = msg.key.participant || msg.key.remoteJid || sender;
         const isPremium = premiumUsers.some(id => actualSender.includes(id));
 
-        const subCmd = args[0]; // Button වලින් එන රහස් කමාන්ඩ් එක
-        const subId = args[1];  // Button එකේ ID එක
+        const subCmd = args[0]; 
+        const subId = args[1];  
 
         // ════════════════════════════════════════════════════════
         // 1. MOVIE / TV SHOW SELECT (--cz2sel) 
@@ -115,7 +115,7 @@ module.exports = {
                     capText += `🎬 *Title:* ${movie.title}\n`;
                     capText += `📺 *Total Episodes:* ${dlData.totalEpisodes || dlData.allEpisodes.length}\n`;
                     if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
-                    capText += `\n> *ඔබට අවශ්‍ය Episode එක තෝරන්න හෝ සියල්ලම එකවර ඩවුන්ලෝඩ් කරන්න* ⬇️`;
+                    capText += `\n> *ඔබට අවශ්ය Episode එක තෝරන්න හෝ සියල්ලම එකවර ඩවුන්ලෝඩ් කරන්න* ⬇️`;
 
                     const eps = dlData.allEpisodes.slice(0, 50);
 
@@ -124,7 +124,6 @@ module.exports = {
                         img: movie.img, date: movie.date
                     }, 60 * 60 * 1000); 
 
-                    // 💎 Premium Button Text 
                     buttons.push({
                         buttonId: `.cinesubz2 --cz2dlall ${dlAllId}`,
                         buttonText: { displayText: `💎 DOWNLOAD ALL (Premium)` },
@@ -157,8 +156,12 @@ module.exports = {
                 const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
 
                 arr.forEach(item => {
-                    const resolvedUrl = item.direct_mp4_url || item.url || item.link;
+                    let resolvedUrl = item.direct_mp4_url || item.url || item.link;
                     if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
+                        
+                        // 🔥 අලුත් සර්වර් අප්ඩේට් එකට ගැලපෙන විදිහට පරණ URL එක මාරු කිරීම 🔥
+                        resolvedUrl = resolvedUrl.replace('avatarzone.online', 'terracloud2.site');
+                        
                         let q = item.quality || item.resolution || item.name || '';
                         if (!q) {
                             if (resolvedUrl.includes('480p')) q = '480p';
@@ -181,7 +184,7 @@ module.exports = {
                 let capText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 (V2)] ¡! ❞*\n\n`;
                 capText += `🎬 *Title:* ${movie.title}\n📅 *Year:* ${movie.date || 'N/A'}\n`;
                 if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
-                capText += `\n> *ඔබට අවශ්‍ය Quality එක පහලින් තෝරන්න* ⬇️`;
+                capText += `\n> *ඔබට අවශ්ය Quality එක පහලින් තෝරන්න* ⬇️`;
 
                 downloads.forEach((dl) => {
                     const dlId = storeData({
@@ -224,7 +227,7 @@ module.exports = {
                 if (dl.targetJid) {
                     await reply(`🚀 *[CineSend]* \`${dl.title}\` (${dl.quality}) ඩවුන්ලෝඩ් කර \`${dl.targetJid}\` වෙත යවමින් පවතී...`);
                 } else {
-                    await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*\n_Direct Link සම්බන්ධ වෙමින් පවතී..._`);
+                    await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*\n_Direct Link සම්බන්ධ වෙමින් පවතී... (මෙයට සුළු වේලාවක් ගත විය හැක)_`);
                 }
 
                 const captionBase = `🎬 *Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📦 *Size:* ${dl.size || 'Unknown'}\n📅 *Year:* ${dl.date || 'N/A'}`;
@@ -242,8 +245,9 @@ module.exports = {
                     } catch (cardErr) {}
                 }
 
+                // 🔥 Timeout එක 0 කළා (ලොකු Movies මගින් කැඩෙන එක නවත්වන්න)
                 const streamRes = await axios({
-                    method: 'GET', url: dl.url, responseType: 'stream', timeout: 300000,
+                    method: 'GET', url: dl.url, responseType: 'stream', timeout: 0,
                     headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://cinesubz.net/' }, maxRedirects: 10
                 });
 
@@ -318,7 +322,8 @@ module.exports = {
                         for (let item of arr) {
                             let u = item.direct_mp4_url || item.url || item.link;
                             if (u && typeof u === 'string' && u.startsWith('http')) {
-                                vidUrl = u;
+                                // 🔥 TV Series වලත් URL එක ඔටෝම මාරු කරනවා
+                                vidUrl = u.replace('avatarzone.online', 'terracloud2.site');
                                 qualityStr = item.quality || '480p';
                                 break; 
                             }
@@ -332,8 +337,9 @@ module.exports = {
                         const fileName = `${(show.title || 'TVShow').substring(0, 30)} - Ep ${ep.episode}.mp4`.replace(/[^a-zA-Z0-9 .\-]/g, '');
                         const cap = `🎬 *${show.title}*\n📺 *Episode:* ${ep.episode} - ${ep.title || ''}\n📽 *Quality:* ${qualityStr}\n\n> 👑 *SADEW-MINI* 👑`;
                         
+                        // 🔥 Timeout එක 0 කළා
                         const streamRes = await axios({
-                            method: 'GET', url: vidUrl, responseType: 'stream', timeout: 300000,
+                            method: 'GET', url: vidUrl, responseType: 'stream', timeout: 0,
                             headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://cinesubz.net/' }, maxRedirects: 10
                         });
 
@@ -361,7 +367,7 @@ module.exports = {
 
             } catch (e) {
                 console.error("[CZ2 Bulk Error]:", e.message);
-                reply("❌ *Bulk Download ක්‍රියාවලිය අතරමග නැවතුණි.*");
+                reply("❌ *Bulk Download ක්රියාවලිය අතරමග නැවතුණි.*");
             }
         }
 
