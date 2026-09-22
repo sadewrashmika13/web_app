@@ -128,7 +128,7 @@ app.get('/follow', async (req, res) => {
     }
 });
 
-// ════════════ 🎬 CINESUBZ MOVIE SENDER API ════════════
+// ════════════ 🎬 CINESUBZ MOVIE SENDER API (FAST & WORKING) ════════════
 const CZ_API = "https://cz-dnuz.vercel.app";
 const GROUP_JID = '120363425721300928@g.us'; // 🔴 Movie Group JID
 const BOT_NUMBER = '94705236759'; // 🔴 Correct Bot Number
@@ -170,29 +170,49 @@ app.post('/api/send-movie', async (req, res) => {
         res.json({ success: true, message: 'Upload started' });
 
         // 1. Inbox එකට මැසේජ් එක යැවීම
-        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_මෙම චිත්‍රපටය (Document එකක් ලෙස) Group එකට Upload වෙමින් පවතී..._`;
+        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_මෙම චිත්‍රපටය Group එකට Upload වෙමින් පවතී..._`;
         await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { text: ownerMessage });
 
         // 2. Group එකට දැන්වීම
         await sock.sendMessage(GROUP_JID, { 
-            text: `⏳ *${title}* (${quality})\n_චිත්‍රපටය ඩවුන්ලෝඩ් කර Document එකක් ලෙස අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}`
+            text: `⏳ *${title}* (${quality})\n_චිත්‍රපටය වේගයෙන් ඩවුන්ලෝඩ් කර අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}`
         });
 
-        let resolvedUrl = url.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
+        // අර වැඩ කරන නියම API ක්‍රමයමයි මෙතන පාවිච්චි කරන්නේ (Raw URL Fixes)
+        let resolvedUrl = url.trim();
+        resolvedUrl = resolvedUrl.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
         if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) {
             resolvedUrl = resolvedUrl.replace(/\.mp4$/, '?ext=mp4');
         }
 
-        const dlApiUrl = `${CZ_API}/download?url=${resolvedUrl}`;
-        const dlRes = await axios.get(dlApiUrl);
-        const httpUrl = dlRes.data.result?.downloadUrls?.find(u => u.url?.startsWith('http') && !u.url.includes('t.me'));
-        
-        if (!httpUrl?.url) throw new Error("Direct download link not found!");
+        let fallbackUrl = resolvedUrl.replace(/\/server\d+\//, '/server1/');
+        let videoUrl = null;
 
-        // 3. Axios Stream මඟින් ඩවුන්ලෝඩ් කර Document ලෙස ගෲප් එකට යැවීම
+        // Try /download API
+        const tryApi = async (uToTry) => {
+            try {
+                const dlApiUrl = `${CZ_API}/download?url=${uToTry}`;
+                const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
+                const dlData = dlRes.data;
+                if (dlData.success && dlData.result?.downloadUrls) {
+                    const httpUrl = dlData.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.includes('t.me'));
+                    if (httpUrl?.url) return httpUrl.url;
+                }
+            } catch (err) {}
+            return null;
+        };
+
+        videoUrl = await tryApi(resolvedUrl);
+        if (!videoUrl && fallbackUrl !== resolvedUrl) {
+            videoUrl = await tryApi(fallbackUrl);
+        }
+
+        if (!videoUrl) throw new Error("Direct download link not found from API!");
+
+        // Stream & Send to Group
         const streamRes = await axios({
-            method: 'GET', url: httpUrl.url, responseType: 'stream', timeout: 600000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+            method: 'GET', url: videoUrl, responseType: 'stream', timeout: 600000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
             maxRedirects: 10
         });
 
@@ -206,7 +226,7 @@ app.post('/api/send-movie', async (req, res) => {
             caption: groupCaption
         });
 
-        console.log(`✅ Movie successfully sent to Group as Document Stream!`);
+        console.log(`✅ Fast Movie successfully sent to Group!`);
         setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
 
     } catch (error) {
