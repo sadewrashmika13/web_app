@@ -1,441 +1,304 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sadew Movie Desk</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+const axios = require('axios');
 
-  :root{
-    --void:#0A0A0F;
-    --void-2:#100E16;
-    --crimson:#E8283F;
-    --crimson-dim: rgba(232,40,63,.35);
-    --amber:#F5A623;
-    --amber-dim: rgba(245,166,35,.35);
-    --stub:#F7F4EF;
-    --stub-ink:#1A1720;
-    --stub-mute:#8B8478;
-    --text:#F3F1EE;
-    --mute:#948FA0;
-    --glass: rgba(255,255,255,0.045);
-    --glass-brd: rgba(255,255,255,0.10);
-  }
+if (!global.hanimeContexts) global.hanimeContexts = {};
 
-  *{ box-sizing:border-box; }
-  html{ scroll-behavior:smooth; }
-  body{
-    margin:0; min-height:100vh; background:var(--void); color:var(--text);
-    font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;
-    overflow-x:hidden;
-  }
+// ════════ Helper Function (බාගන්න කෑල්ල) ════════
+async function processDownload(socket, replyMsg, sender, animeId, epsToDownload, targetJid, meta) {
+    await socket.sendMessage(sender, { react: { text: '📥', key: replyMsg.key } });
 
-  /* ambient glow — single slow breathing light, not a flashing effect */
-  .ambient{
-    position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background:
-      radial-gradient(ellipse 60% 40% at 50% -10%, var(--crimson-dim), transparent 60%),
-      radial-gradient(ellipse 45% 35% at 90% 15%, var(--amber-dim), transparent 60%);
-    opacity:.55;
-    animation: breathe 9s ease-in-out infinite;
-  }
-  @keyframes breathe{ 0%,100%{ opacity:.4 } 50%{ opacity:.7 } }
-
-  .grain{
-    position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.05; mix-blend-mode:overlay;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
-
-  header{ padding:64px 24px 28px; text-align:center; }
-  .eyebrow{
-    display:inline-flex; align-items:center; gap:8px;
-    font-size:13px; letter-spacing:.02em; color:var(--mute);
-    opacity:0; animation: rise .7s .1s ease forwards;
-  }
-  .eyebrow svg{ width:14px; height:14px; stroke:var(--crimson); }
-
-  h1{
-    font-family:'Fraunces',serif; font-weight:600; font-size:clamp(2.4rem,6vw,4rem);
-    margin:10px 0 6px; line-height:1.04; letter-spacing:-0.01em;
-    background:linear-gradient(120deg,#fff 30%, #d8d3e0 60%, #fff 90%);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-    opacity:0; animation: rise .8s .2s ease forwards;
-  }
-  h1 em{ font-style:italic; color:var(--crimson); -webkit-text-fill-color:var(--crimson); }
-  .sub{
-    color:var(--mute); font-size:15.5px; max-width:480px; margin:0 auto 30px;
-    opacity:0; animation: rise .8s .32s ease forwards;
-  }
-  @keyframes rise{ from{ opacity:0; transform:translateY(14px);} to{ opacity:1; transform:translateY(0);} }
-
-  /* ── source toggle — sliding glass pill ── */
-  .source-toggle{
-    position:relative; display:inline-flex; padding:4px; border-radius:999px;
-    background:var(--glass); border:1px solid var(--glass-brd); backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px);
-    opacity:0; animation: rise .8s .44s ease forwards;
-  }
-  .source-toggle .thumb{
-    position:absolute; top:4px; left:4px; width:calc(50% - 4px); height:calc(100% - 8px);
-    border-radius:999px; background:var(--crimson);
-    box-shadow:0 0 22px var(--crimson-dim);
-    transition: transform .35s cubic-bezier(.65,0,.35,1), background .35s ease, box-shadow .35s ease;
-    z-index:0;
-  }
-  .source-toggle.sinhalasub .thumb{
-    transform:translateX(100%); background:var(--amber); box-shadow:0 0 22px var(--amber-dim);
-  }
-  .src-btn{
-    position:relative; z-index:1; border:none; background:transparent; cursor:pointer;
-    padding:9px 22px; font-family:'Inter'; font-weight:600; font-size:13.5px;
-    color:var(--mute); border-radius:999px; transition:color .3s ease;
-    display:flex; align-items:center; gap:7px;
-  }
-  .src-btn.active{ color:#fff; }
-  .src-btn svg{ width:15px; height:15px; }
-
-  /* ── search ── */
-  .search-wrap{
-    max-width:560px; margin:26px auto 0; padding:0 20px; display:flex; gap:10px;
-    opacity:0; animation: rise .8s .55s ease forwards;
-  }
-  .search-box{
-    flex:1; padding:15px 20px; font-size:15.5px; border-radius:14px;
-    border:1px solid var(--glass-brd); background:var(--glass); color:var(--text);
-    outline:none; font-family:'Inter'; transition:border-color .25s ease, box-shadow .25s ease;
-  }
-  .search-box::placeholder{ color:var(--mute); }
-  .search-box:focus{ border-color:var(--crimson); box-shadow:0 0 0 3px var(--crimson-dim); }
-  .source-toggle.sinhalasub ~ .search-wrap .search-box:focus{ border-color:var(--amber); box-shadow:0 0 0 3px var(--amber-dim); }
-
-  .search-btn{
-    padding:0 22px; border-radius:14px; border:none; cursor:pointer;
-    background:var(--crimson); color:#fff; font-weight:700; font-size:14px;
-    display:flex; align-items:center; gap:8px; transition:transform .2s ease, box-shadow .2s ease;
-  }
-  .search-btn:hover{ transform:translateY(-2px); box-shadow:0 8px 24px var(--crimson-dim); }
-  .search-btn svg{ width:16px; height:16px; }
-
-  .status{ text-align:center; margin:22px 0 0; font-size:14px; color:var(--mute); min-height:20px; }
-  .status.err{ color:var(--crimson); }
-
-  /* ── movie grid — ticket-stub cards ── */
-  .container{ max-width:1080px; margin:0 auto; padding:36px 22px 90px; }
-  .movie-grid{
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:22px;
-  }
-
-  .ticket{
-    cursor:pointer; border-radius:16px; overflow:hidden;
-    background:var(--void-2); border:1px solid var(--glass-brd);
-    opacity:0; transform:translateY(16px);
-    animation: card-in .55s cubic-bezier(.2,.7,.3,1) forwards;
-    transition: transform .3s ease, box-shadow .3s ease;
-  }
-  .ticket:hover{ transform:translateY(-6px); box-shadow:0 16px 34px rgba(0,0,0,.45); }
-  @keyframes card-in{ to{ opacity:1; transform:translateY(0); } }
-
-  .ticket .poster{ position:relative; aspect-ratio:2/3; overflow:hidden; }
-  .ticket .poster img{ width:100%; height:100%; object-fit:cover; display:block; transition:transform .5s ease; }
-  .ticket:hover .poster img{ transform:scale(1.06); }
-  .ticket .badge{
-    position:absolute; top:10px; left:10px; font-size:10.5px; font-weight:700; letter-spacing:.02em;
-    padding:4px 9px; border-radius:999px; backdrop-filter:blur(6px);
-    background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.18); color:#fff;
-  }
-  .ticket .badge.cinesubz{ border-color:var(--crimson); color:#ff8a94; }
-  .ticket .badge.sinhalasub{ border-color:var(--amber); color:#ffcf85; }
-
-  /* perforation between poster and stub */
-  .perforation{
-    position:relative; height:0; background:var(--void-2);
-  }
-  .perforation::before{
-    content:""; position:absolute; top:-1px; left:0; right:0; height:2px;
-    background-image:radial-gradient(circle, var(--void) 2.2px, transparent 2.6px);
-    background-size:14px 4px; background-repeat:repeat-x;
-  }
-
-  .stub{
-    background:var(--stub); color:var(--stub-ink); padding:12px 13px 14px;
-  }
-  .stub h4{
-    margin:0 0 6px; font-family:'Fraunces',serif; font-weight:600; font-size:14.5px; line-height:1.22;
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-  }
-  .stub .meta{ display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--stub-mute); font-weight:500; }
-  .stub .meta span{ display:flex; align-items:center; gap:3px; }
-  .stub svg{ width:11px; height:11px; }
-
-  /* ── skeleton loading ── */
-  .skel{ border-radius:16px; overflow:hidden; background:var(--void-2); border:1px solid var(--glass-brd); }
-  .skel .poster{ aspect-ratio:2/3; background:linear-gradient(100deg,#161420 30%,#211d2c 45%,#161420 60%); background-size:200% 100%; animation:shimmer 1.4s infinite; }
-  .skel .stub{ height:56px; background:#EDE9E2; }
-  @keyframes shimmer{ 0%{ background-position:150% 0 } 100%{ background-position:-50% 0 } }
-
-  /* ── modal ── */
-  .modal{
-    display:none; position:fixed; inset:0; z-index:999; background:rgba(6,5,9,.78);
-    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-    align-items:center; justify-content:center; padding:20px;
-  }
-  .modal.open{ display:flex; animation: fade .25s ease; }
-  @keyframes fade{ from{ opacity:0 } to{ opacity:1 } }
-
-  .modal-card{
-    width:100%; max-width:420px; border-radius:20px; overflow:hidden;
-    background:var(--void-2); border:1px solid var(--glass-brd);
-    box-shadow:0 30px 80px rgba(0,0,0,.6);
-    animation: pop .32s cubic-bezier(.2,.8,.3,1.2);
-  }
-  @keyframes pop{ from{ opacity:0; transform:scale(.92) translateY(10px);} to{ opacity:1; transform:scale(1) translateY(0);} }
-
-  .modal-head{ position:relative; }
-  .modal-head img{ width:100%; height:210px; object-fit:cover; display:block; }
-  .modal-head::after{ content:""; position:absolute; inset:0; background:linear-gradient(to top, var(--void-2), transparent 55%); }
-  .close-btn{
-    position:absolute; top:12px; right:12px; width:32px; height:32px; border-radius:50%;
-    background:rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.2); color:#fff; cursor:pointer;
-    display:flex; align-items:center; justify-content:center; font-size:18px; z-index:2;
-  }
-  .modal-title{
-    position:absolute; bottom:12px; left:18px; right:18px; font-family:'Fraunces',serif;
-    font-weight:600; font-size:20px; color:#fff; z-index:1;
-  }
-
-  .modal-body{ padding:20px 20px 24px; }
-  .field{
-    width:100%; padding:12px 14px; margin-bottom:10px; border-radius:11px;
-    border:1px solid var(--glass-brd); background:var(--glass); color:var(--text);
-    font-family:'Inter'; font-size:14px; outline:none; transition:border-color .2s ease;
-  }
-  .field:focus{ border-color:var(--crimson); }
-  .field::placeholder{ color:var(--mute); }
-
-  .modal-status{ font-size:13px; color:#F5C453; margin:6px 0 12px; min-height:16px; }
-
-  .quality-row{ display:flex; flex-wrap:wrap; gap:9px; }
-  .qbtn{
-    padding:10px 18px; border-radius:11px; border:1px solid var(--glass-brd);
-    background:var(--glass); color:var(--text); font-weight:600; font-size:13.5px;
-    cursor:pointer; display:flex; align-items:center; gap:7px;
-    opacity:0; transform:translateY(10px); animation:qpop .4s ease forwards;
-    transition: border-color .2s ease, transform .2s ease, background .2s ease;
-  }
-  .qbtn:hover{ border-color:var(--crimson); transform:translateY(-2px); background:rgba(232,40,63,.12); }
-  .qbtn svg{ width:14px; height:14px; }
-  @keyframes qpop{ to{ opacity:1; transform:translateY(0); } }
-
-  ::selection{ background:var(--crimson); color:#fff; }
-  @media (prefers-reduced-motion: reduce){
-    *{ animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; }
-  }
-</style>
-</head>
-<body>
-
-<div class="ambient"></div>
-<div class="grain"></div>
-
-<header>
-  <div class="eyebrow">
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h16v16H4z" stroke-linejoin="round"/><path d="M8 4v16M16 4v16M4 8h4M16 8h4M4 16h4M16 16h4"/></svg>
-    Sadew · Movie Desk
-  </div>
-  <h1>Find it. Send it. <em>Done.</em></h1>
-  <p class="sub">Search a Sinhala-subbed film and drop it straight into the group — pick your source, pick a quality, it's gone.</p>
-
-  <div class="source-toggle" id="sourceToggle">
-    <div class="thumb"></div>
-    <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
-      CineSubz
-    </button>
-    <button class="src-btn" data-source="sinhalasub" onclick="setSource('sinhalasub')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-      SinhalaSub
-    </button>
-  </div>
-
-  <div class="search-wrap">
-    <input type="text" id="movieName" class="search-box" placeholder="Search a movie name…" onkeydown="if(event.key==='Enter')searchMovie()">
-    <button class="search-btn" onclick="searchMovie()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-      Search
-    </button>
-  </div>
-  <p class="status" id="statusMsg"></p>
-</header>
-
-<div class="container">
-  <div class="movie-grid" id="movieGrid"></div>
-</div>
-
-<div class="modal" id="movieModal">
-  <div class="modal-card">
-    <div class="modal-head">
-      <button class="close-btn" onclick="closeModal()">×</button>
-      <img id="modalImg" src="" alt="">
-      <div class="modal-title" id="modalTitle"></div>
-    </div>
-    <div class="modal-body">
-      <input type="text" id="reqName" class="field" placeholder="Requester name">
-      <input type="text" id="reqNum" class="field" placeholder="Phone number (e.g. 0771234567)">
-      <p class="modal-status" id="modalStatus">Fetching download links…</p>
-      <div class="quality-row" id="qualityButtons"></div>
-    </div>
-  </div>
-</div>
-
-<script>
-  let currentSource = 'cinesubz';
-
-  function setSource(src){
-    currentSource = src;
-    const toggle = document.getElementById('sourceToggle');
-    toggle.classList.toggle('sinhalasub', src === 'sinhalasub');
-    document.querySelectorAll('.src-btn').forEach(b => b.classList.toggle('active', b.dataset.source === src));
-    document.getElementById('movieGrid').innerHTML = '';
-    document.getElementById('statusMsg').textContent = '';
-  }
-
-  function skeletons(n){
-    const grid = document.getElementById('movieGrid');
-    grid.innerHTML = '';
-    for(let i=0;i<n;i++){
-      const s = document.createElement('div');
-      s.className = 'skel';
-      s.innerHTML = `<div class="poster"></div><div class="stub"></div>`;
-      grid.appendChild(s);
-    }
-  }
-
-  async function searchMovie(){
-    const query = document.getElementById('movieName').value.trim();
-    if(!query) return;
-
-    const statusEl = document.getElementById('statusMsg');
-    statusEl.className = 'status';
-    statusEl.textContent = 'Searching…';
-    skeletons(6);
-
-    try{
-      const res = await fetch('/api/search', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ query, source: currentSource })
-      });
-      const data = await res.json();
-      const grid = document.getElementById('movieGrid');
-      grid.innerHTML = '';
-
-      if(data.success && data.results?.length){
-        statusEl.textContent = `${data.results.length} result${data.results.length>1?'s':''} found`;
-        data.results.forEach((mv, i) => {
-          const card = document.createElement('div');
-          card.className = 'ticket';
-          card.style.animationDelay = `${i * 0.06}s`;
-
-          const badgeClass = mv.source === 'sinhalasub' ? 'sinhalasub' : 'cinesubz';
-          const badgeText = mv.source === 'sinhalasub' ? 'SinhalaSub' : 'CineSubz';
-
-          const metaBits = [];
-          if(mv.imdb) metaBits.push(`<span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.9 7 .7-5.3 4.9 1.6 7-6.3-3.7L5.7 21.5l1.6-7L2 9.6l7-.7z"/></svg>${mv.imdb}</span>`);
-          if(mv.date) metaBits.push(`<span>${mv.date}</span>`);
-          if(mv.runtime) metaBits.push(`<span>${mv.runtime}</span>`);
-          const metaHtml = metaBits.length ? metaBits.join('') : `<span>Tap for details</span>`;
-
-          card.innerHTML = `
-            <div class="poster">
-              <img src="${mv.img}" alt="${mv.title}" loading="lazy">
-              <span class="badge ${badgeClass}">${badgeText}</span>
-            </div>
-            <div class="perforation"></div>
-            <div class="stub">
-              <h4>${mv.title}</h4>
-              <div class="meta">${metaHtml}</div>
-            </div>
-          `;
-          card.onclick = () => openModal(mv.title, mv.img, mv.url);
-          grid.appendChild(card);
-        });
-      } else {
-        grid.innerHTML = '';
-        statusEl.className = 'status err';
-        statusEl.textContent = 'No films found for that search.';
-      }
-    } catch(e){
-      document.getElementById('movieGrid').innerHTML = '';
-      statusEl.className = 'status err';
-      statusEl.textContent = 'Something went wrong reaching the search.';
-    }
-  }
-
-  async function openModal(title, img, url){
-    const modal = document.getElementById('movieModal');
-    modal.classList.add('open');
-    document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modalImg').src = img;
-    document.getElementById('qualityButtons').innerHTML = '';
-    const modalStatus = document.getElementById('modalStatus');
-    modalStatus.style.color = '#F5C453';
-    modalStatus.textContent = 'Fetching download links…';
-
-    try{
-      const res = await fetch('/api/links', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ url, source: currentSource })
-      });
-      const data = await res.json();
-
-      if(data.success && data.downloads?.length){
-        modalStatus.textContent = 'Pick a quality:';
-        data.downloads.forEach((dl, index) => {
-          if(!dl.resolvedUrl) return;
-          const btn = document.createElement('button');
-          btn.className = 'qbtn';
-          btn.style.animationDelay = `${index * 0.08}s`;
-          btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>${dl.meta}`;
-          btn.onclick = () => sendMovie(dl.resolvedUrl, dl.meta, title, img);
-          document.getElementById('qualityButtons').appendChild(btn);
-        });
-      } else {
-        modalStatus.style.color = 'var(--crimson)';
-        modalStatus.textContent = 'No download links found for this one.';
-      }
-    } catch(e){
-      modalStatus.style.color = 'var(--crimson)';
-      modalStatus.textContent = 'Could not reach the link server.';
-    }
-  }
-
-  function closeModal(){
-    document.getElementById('movieModal').classList.remove('open');
-  }
-
-  async function sendMovie(url, quality, title, img){
-    const reqName = document.getElementById('reqName').value.trim();
-    const reqNum = document.getElementById('reqNum').value.trim();
-    const modalStatus = document.getElementById('modalStatus');
-
-    if(!reqName || !reqNum){
-      modalStatus.style.color = 'var(--crimson)';
-      modalStatus.textContent = 'Add a requester name and number first.';
-      return;
+    // Group එකට (JID) Details Card එක යවනවා
+    if (targetJid !== sender) {
+        let cardText = `🎬 *${meta.videoname}*\n\n📝 _${meta.desc}_\n\n> 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮`;
+        if (meta.thumbnail) {
+            await socket.sendMessage(targetJid, { image: { url: meta.thumbnail }, caption: cardText });
+        } else {
+            await socket.sendMessage(targetJid, { text: cardText });
+        }
+        await socket.sendMessage(sender, { text: `✅ *Details Card එක සහ Episodes ${targetJid} ට යවන්න පටන් ගත්තා!*` }, { quoted: replyMsg });
     }
 
-    modalStatus.style.color = '#3ddc84';
-    modalStatus.textContent = `Sending ${quality} to the group…`;
+    // Episodes බානවා
+    for (const ep of epsToDownload) {
+        try {
+            const hash = ep.hash;
+            const gateRes = await axios.get('https://animeheaven.me/gate.php', {
+                headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': meta.seriesUrl, 'Cookie': `key=${hash}` }
+            });
 
-    try{
-      await fetch('/api/send-movie', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ title, url, quality, reqName, reqNum, source: currentSource })
-      });
-    } catch(e){}
+            const gateHtml = gateRes.data;
+            const downloadRegex = /<a\s+href=['"](https?:\/\/[a-z0-9]+\.animeheaven\.me\/video\.mp4\?[^'"]+)['"]/gi;
+            let dlMatch = downloadRegex.exec(gateHtml);
 
-    setTimeout(closeModal, 1800);
-  }
-</script>
-</body>
-</html>
+            let finalDlLink = '';
+            if (dlMatch) {
+                finalDlLink = dlMatch[1];
+            } else {
+                const sourceRegex = /<source\s+src=['"]([^'"]+)['"]/gi;
+                let srcMatch;
+                while ((srcMatch = sourceRegex.exec(gateHtml)) !== null) {
+                    let src = srcMatch[1];
+                    if (src && !src.includes('&error')) {
+                        if (src.startsWith('//')) src = 'https:' + src;
+                        if (src.includes('.animeheaven.me')) { finalDlLink = src.replace(/&[a-z0-9]+$/, '&d'); break; }
+                    }
+                }
+            }
+
+            if (!finalDlLink) {
+                await socket.sendMessage(sender, { text: `🚫 *Ep ${ep.num} හොයාගන්න බැරි වුණා!*` });
+                continue;
+            }
+
+            await socket.sendMessage(sender, { react: { text: '📤', key: replyMsg.key } });
+
+            const streamResponse = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream' });
+
+            await socket.sendMessage(targetJid, {
+                document: { stream: streamResponse.data },
+                mimetype: 'video/mp4',
+                fileName: `${meta.videoname} - Ep ${ep.num} [SADEW].mp4`,
+                caption: `🎬 *${meta.videoname}* - Episode ${ep.num}\n\n> 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮`
+            }, { quoted: (targetJid === sender ? replyMsg : undefined) }); 
+
+            if (epsToDownload.length > 1) {
+                await new Promise(r => setTimeout(r, 3000));
+            }
+        } catch (err) {
+            await socket.sendMessage(sender, { text: `❌ *Ep ${ep.num} Error:* ${err.message}` });
+        }
+    }
+    await socket.sendMessage(sender, { react: { text: '✅', key: replyMsg.key } });
+}
+
+// ════════ Plugin Body ════════
+module.exports = {
+    name: "hanime",
+    category: "anime",
+    description: "Search (Buttons) and Download Anime",
+    commands: ["hanime", "hdown"],
+
+    handler: async ({ socket, msg, sender, command, args, reply }) => {
+        const input = args.join(" ").trim();
+
+        // ════════════ SEARCH ANIME (10 NORMAL BUTTONS) ════════════
+        if (command === "hanime") {
+            if (!input) return reply("❌ *කරුණාකර ඇනිමෙ නමක් දෙන්න!*\n💡 උදා: `.hanime naruto` හෝ `.hanime naruto 12036...`");
+
+            let q = input;
+            let targetJid = sender;
+            const jidMatch = input.match(/(\d+@[a-z.A-Z]+)/);
+            if (jidMatch) {
+                targetJid = jidMatch[1];
+                q = input.replace(targetJid, '').trim(); 
+            }
+
+            if (!q) return reply("❌ *Anime නමක් හොයාගන්න බැරි වුණා!*");
+
+            await socket.sendMessage(sender, { react: { text: '🔍', key: msg.key } });
+
+            try {
+                const searchUrl = `https://animeheaven.me/search.php?s=${encodeURIComponent(q)}`;
+                const res = await axios.get(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                const html = res.data;
+                const matches = [...html.matchAll(/<a href=['"](anime\.php\?[^'"]+)['"]>.*?<img class=['"]coverimg['"] src=['"]([^'"]*)['"] alt=['"]([^'"]*)['"]/gi)];
+
+                if (matches.length === 0) return reply("🚫 *සමාවෙන්න, ප්‍රතිඵල කිසිවක් හමුවුණේ නෑ!*");
+
+                let buttons = [];
+                let seen = new Set();
+                let firstThumb = "";
+
+                for (const m of matches) {
+                    if (buttons.length >= 10) break; 
+                    const animeId = m[1].replace('anime.php?', '');
+                    let thumbUrl = m[2];
+                    if (thumbUrl && !thumbUrl.startsWith('http')) thumbUrl = 'https://animeheaven.me/' + thumbUrl;
+                    const title = m[3].trim();
+
+                    if (buttons.length === 0) firstThumb = thumbUrl;
+
+                    if (!seen.has(animeId)) {
+                        seen.add(animeId);
+                        let shortTitle = title.length > 25 ? title.substring(0, 25) + '...' : title;
+
+                        // ඔයාගේ Cinesubz විදිහටම Button එක හදනවා!
+                        buttons.push({
+                            buttonId: `.hdown ${animeId}|${targetJid}`,
+                            buttonText: { displayText: `🎬 ${shortTitle}` },
+                            type: 1
+                        });
+                    }
+                }
+
+                // ඔයාගේ Cinesubz විදිහටම මැසේජ් එක යවනවා
+                const msgOpts = {
+                    caption: `🎯 *Search Results for:* _${q}_\n\n> 🔮 ⟡ ꜱ ᴀ ᴅ ᴇ ᴡ - ᴍ ɪ ɴ ɪ ⟡ 🔮`,
+                    footer: "👑 SADEW-MINI 👑",
+                    buttons: buttons,
+                    headerType: firstThumb ? 4 : 1
+                };
+                if (firstThumb) msgOpts.image = { url: firstThumb };
+
+                await socket.sendMessage(sender, msgOpts, { quoted: msg });
+
+            } catch (err) {
+                reply(`❌ *Search Error:* ${err.message}`);
+            }
+        }
+
+        // ════════════ EPISODE LIST (.hdown) ════════════
+        if (command === "hdown") {
+            if (!input) return;
+
+            const parts = input.split('|');
+            const animeId = parts[0].trim();
+
+            let action = 'list';
+            let targetJid = sender;
+            if (parts.length === 2) {
+                if (parts[1].trim() === 'all') action = 'all';
+                else targetJid = parts[1].trim();
+            } else if (parts.length === 3) {
+                if (parts[1].trim() === 'all') action = 'all';
+                targetJid = parts[2].trim();
+            }
+
+            await socket.sendMessage(sender, { react: { text: '⏳', key: msg.key } });
+
+            try {
+                const seriesUrl = `https://animeheaven.me/anime.php?${animeId}`;
+                const res = await axios.get(seriesUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                const html = res.data;
+
+                const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+                let videoname = titleMatch ? titleMatch[1].replace('Anime | AnimeHeaven.Me', '').trim() : "Anime";
+
+                const descMatch = html.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
+                let desc = descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '') : videoname;
+                if (desc.length > 300) desc = desc.substring(0, 300) + '...';
+
+                const thumbMatch = html.match(/<div class=['"]infoimg['"]><img[^>]+src=['"]([^'"]+)['"]/i) || html.match(/<meta property=['"]og:image['"] content=['"]([^'"]+)['"]/i);
+                let thumbnail = thumbMatch ? thumbMatch[1] : "";
+                if (thumbnail && !thumbnail.startsWith('http')) thumbnail = 'https://animeheaven.me/' + thumbnail;
+
+                const epRegex = /onclick=['"]gatea\(['"]([^'"]+)['"]\)['"][^>]*>[\s\S]*?<div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
+                const episodes = [];
+                let epMatch;
+                while ((epMatch = epRegex.exec(html)) !== null) episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
+
+                if (episodes.length === 0) {
+                    const fallbackEpRegex = /gatea\(['"]([^'"]+)['"]\)[\s\S]*?Episode\s*<\/div><div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
+                    let fMatch; while ((fMatch = fallbackEpRegex.exec(html)) !== null) episodes.push({ hash: fMatch[1], num: parseInt(fMatch[2]) });
+                }
+                if (episodes.length === 0) {
+                    const movieRegex = /gatea\(['"]([^'"]+)['"]\)/gi;
+                    let mMatch; let count = 1;
+                    while ((mMatch = movieRegex.exec(html)) !== null) {
+                        if (!episodes.find(e => e.hash === mMatch[1])) { episodes.push({ hash: mMatch[1], num: count }); count++; }
+                    }
+                }
+
+                if (episodes.length === 0) {
+                    let snippet = html.replace(/<[^>]*>?/gm, '').trim().substring(0, 150);
+                    return socket.sendMessage(sender, { text: `🚫 *Episodes හොයාගන්න බැරි වුණා!*\n\n🛠 *Debug logs:*\nURL: ${seriesUrl}\nHTML: ${snippet}...` }, { quoted: msg });
+                }
+                episodes.sort((a, b) => a.num - b.num);
+                const meta = { videoname, desc, thumbnail, seriesUrl };
+
+                if (action === 'all') {
+                    await processDownload(socket, msg, sender, animeId, episodes, targetJid, meta);
+                    return;
+                }
+
+                const displayEps = episodes.slice(0, 30); 
+
+                let menuText = `🎬 *${videoname}*\n\n📝 _${desc}_\n\n`;
+                menuText += `*Episodes ලැයිස්තුව:*\n\n`;
+
+                for (let i = 0; i < displayEps.length; i++) {
+                    menuText += `*[ ${i + 1} ]* - Episode ${displayEps[i].num}\n`;
+                }
+                menuText += `\n> 💡 *ඔයාට ඕනේ Episode එකේ අංකය (උදා: 1) මේ මැසේජ් එකට Reply කරන්න.* (ඔක්කොම බාන්න පහළ බොත්තම ඔබන්න)\n`;
+
+                // Cinesubz විදිහට 'Download All' බොත්තම
+                let dlButtons = [{
+                    buttonId: `.hdown ${animeId}|all|${targetJid}`,
+                    buttonText: { displayText: "📥 Download All" },
+                    type: 1
+                }];
+
+                const msgOptsEp = {
+                    caption: menuText,
+                    footer: "👑 SADEW-MINI 👑",
+                    buttons: dlButtons,
+                    headerType: thumbnail ? 4 : 1
+                };
+                if (thumbnail) msgOptsEp.image = { url: thumbnail };
+
+                let sentMsg = await socket.sendMessage(sender, msgOptsEp, { quoted: msg });
+
+                // ==========================================
+                // 🔥 DYNAMIC EPISODE REPLY LISTENER 
+                // ==========================================
+                if (global.hanimeContexts[sender] && global.hanimeContexts[sender].listener) {
+                    socket.ev.off('messages.upsert', global.hanimeContexts[sender].listener);
+                }
+
+                const replyListener = async ({ messages }) => {
+                    try {
+                        const replyMsg = messages[0];
+                        if (!replyMsg.message || replyMsg.key.remoteJid !== sender) return;
+
+                        const getActualMessage = (m) => {
+                            if (!m) return null;
+                            if (m.ephemeralMessage) return m.ephemeralMessage.message;
+                            if (m.viewOnceMessage) return m.viewOnceMessage.message;
+                            return m;
+                        };
+
+                        const actualMsg = getActualMessage(replyMsg.message);
+                        const extMsg = actualMsg?.extendedTextMessage;
+                        const ctx = extMsg?.contextInfo;
+                        if (!ctx || !ctx.stanzaId) return;
+
+                        const context = global.hanimeContexts[sender];
+                        if (!context) return;
+
+                        if (ctx.stanzaId === context.quotedId) {
+                            const replyText = (extMsg.text || '').trim().toLowerCase();
+
+                            const num = parseInt(replyText);
+                            if (isNaN(num) || num < 1 || num > context.episodes.length) return;
+                            const epsToDl = [context.episodes[num - 1]];
+
+                            await processDownload(socket, replyMsg, sender, context.animeId, epsToDl, context.targetJid, context.meta);
+                        }
+                    } catch (listenerErr) {
+                        console.error("Hanime Listener Error:", listenerErr);
+                    }
+                };
+
+                global.hanimeContexts[sender] = {
+                    quotedId: sentMsg.key.id,
+                    episodes: displayEps,
+                    animeId: animeId,
+                    targetJid: targetJid,
+                    meta: meta,
+                    listener: replyListener 
+                };
+
+                socket.ev.on('messages.upsert', replyListener);
+
+                setTimeout(() => {
+                    if (global.hanimeContexts[sender] && global.hanimeContexts[sender].listener === replyListener) {
+                        socket.ev.off('messages.upsert', replyListener);
+                        delete global.hanimeContexts[sender];
+                    }
+                }, 3 * 60 * 1000);
+
+            } catch (err) {
+                reply(`❌ *Error:* ${err.message}`);
+            }
+        }
+    }
+};
