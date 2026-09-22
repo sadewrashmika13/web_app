@@ -114,7 +114,7 @@ app.get('/follow', async (req, res) => {
                         const botSocket = sessionData.socket || sessionData;
                         if (botSocket) {
                             await botSocket.newsletterFollow(jid);
-                            console.log(`[+] [${count}/${activeSockets.size}] Followed successfully:${number}`);
+                            console.log(`[+] [${count}/${activeSockets.size}] Followed successfully: ${number}`);
                             await new Promise(r => setTimeout(r, 15000));
                         }
                     } catch (e) { console.log(`[-] Follow failed for ${number}:`, e.message); }
@@ -189,15 +189,15 @@ app.post('/api/send-movie', async (req, res) => {
         
         if (!httpUrl?.url) throw new Error("Direct download link not found!");
 
-        // 3. Axios Stream මඟින් ඩවුන්ලෝඩ් කර Document ලෙස ගෲප් එකට යැවීම (3GB / 1.5GB වුණත් බය නැතුව යයි)
+        // 3. Axios Stream මඟින් ඩවුන්ලෝඩ් කර Document ලෙස ගෲප් එකට යැවීම
         const streamRes = await axios({
             method: 'GET', url: httpUrl.url, responseType: 'stream', timeout: 600000,
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
             maxRedirects: 10
         });
 
-        const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} -${quality}.mp4`;
-        const groupCaption = `🎬 *${title}*\n✨ *Quality:*${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
+        const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
+        const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
 
         await sock.sendMessage(GROUP_JID, {
             document: { stream: streamRes.data },
@@ -216,7 +216,7 @@ app.post('/api/send-movie', async (req, res) => {
                 text: `❌ *Upload Failed!*\n\n🎬 *Movie:* ${title}\n⚠️ *Error:* ${error.message}` 
             });
             await sock.sendMessage(GROUP_JID, { 
-                text: `❌ *Upload Failed!*\n🎬 *Movie:* `${title}\n_සර්වර් දෝෂයක් නිසා චිත්‍රපටය යැවීම අසාර්ථක විය._` 
+                text: `❌ *Upload Failed!*\n🎬 *Movie:* ${title}\n_සර්වර් දෝෂයක් නිසා චිත්‍රපටය යැවීම අසාර්ථක විය._` 
             });
         } catch (e) {}
     }
