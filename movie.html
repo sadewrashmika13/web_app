@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sadew Movie Panel</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #1e1e2f; color: white; padding: 50px; }
+        input, select, button { padding: 10px; font-size: 16px; margin: 10px; border-radius: 5px; border: none; }
+        button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
+        .movie-card { background: #2a2a40; padding: 20px; border-radius: 10px; margin-top: 20px; display: none; }
+        img { border-radius: 10px; max-width: 200px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h2>🎬 Sadew-Mini Web Sender</h2>
+    <input type="text" id="movieName" placeholder="Movie නම ගහන්න...">
+    <button onclick="searchMovie()">Search</button>
+
+    <div class="movie-card" id="movieCard">
+        <h3 id="mTitle">Title</h3>
+        <img id="mImg" src="" alt="Movie Poster">
+        <p>Quality එක තෝරන්න:</p>
+        
+        <!-- API එකෙන් එන Qualities මෙතනට වැටෙයි -->
+        <select id="qualitySelect"></select> 
+        <br>
+        <button onclick="sendToGroup()" style="background: #28a745;">🚀 Send to Group</button>
+    </div>
+    
+    <p id="statusMsg"></p>
+
+    <script>
+        let availableDownloads = []; 
+
+        async function searchMovie() {
+            const query = document.getElementById('movieName').value;
+            document.getElementById('statusMsg').innerText = "🔍 Searching Cinesubz...";
+            document.getElementById('movieCard').style.display = "none";
+            
+            const response = await fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+            const data = await response.json();
+
+            if(data.success) {
+                document.getElementById('mTitle').innerText = data.title;
+                document.getElementById('mImg').src = data.img;
+                
+                availableDownloads = data.downloads;
+                
+                // Dropdown එකට qualities ටික දානවා
+                const select = document.getElementById('qualitySelect');
+                select.innerHTML = "";
+                availableDownloads.forEach((dl, index) => {
+                    if(dl.resolvedUrl) {
+                        select.innerHTML += `<option value="${index}">${dl.meta}</option>`;
+                    }
+                });
+
+                document.getElementById('movieCard').style.display = "block";
+                document.getElementById('statusMsg').innerText = "✅ Movie found!";
+            } else {
+                document.getElementById('statusMsg').innerText = "❌ Not found!";
+            }
+        }
+
+        async function sendToGroup() {
+            const index = document.getElementById('qualitySelect').value;
+            const selectedDl = availableDownloads[index];
+            const title = document.getElementById('mTitle').innerText;
+            
+            document.getElementById('statusMsg').innerText = "📤 Uploading to WhatsApp... Check Group!";
+
+            await fetch('/api/send-movie', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    title: title, 
+                    url: selectedDl.resolvedUrl, 
+                    quality: selectedDl.meta 
+                })
+            });
+        }
+    </script>
+</body>
+</html>
