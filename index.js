@@ -1,5 +1,8 @@
 const express = require('express');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const app = express();
 const __path = process.cwd();
 const PORT = process.env.PORT || 8000;
@@ -128,8 +131,10 @@ app.get('/follow', async (req, res) => {
     }
 });
 
-// ════════════ 🎬 CINESUBZ MOVIE SENDER API (FAST & WORKING) ════════════
+// ════════════ 🎬 MOVIE SENDER API (CineSubz + SinhalaSub) ════════════
 const CZ_API = "https://cz-dnuz.vercel.app";
+const ZANTA_API = "https://api.zanta-mini.store/api/sinhalasub";
+const ZANTA_KEY = "zan_FIAO7Ayh_eo1vllkep6";
 const GROUP_JID = '120363425721300928@g.us'; // 🔴 Movie Group JID
 const BOT_NUMBER = '94705236759'; // 🔴 Correct Bot Number
 
@@ -140,32 +145,75 @@ function isTelegramLink(url) {
            l.includes('telegram.dog/') || l.includes('telegram.org/');
 }
 
+// ── SEARCH ── body: { query, source: 'cinesubz' | 'sinhalasub' }
 app.post('/api/search', async (req, res) => {
-    const { query } = req.body;
+    const { query, source } = req.body;
     try {
+        if (source === 'sinhalasub') {
+            const searchRes = await axios.get(`${ZANTA_API}/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
+            if (searchRes.data?.success && searchRes.data.results?.length > 0) {
+                const results = searchRes.data.results.slice(0, 6).map(mv => ({
+                    title: mv.title,
+                    url: mv.url,
+                    img: mv.thumbnail,
+                    source: 'sinhalasub'
+                }));
+                return res.json({ success: true, results });
+            }
+            return res.json({ success: false });
+        }
+
+        // default: cinesubz
         const searchRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`);
         if (searchRes.data.success && searchRes.data.result?.length > 0) {
-            res.json({ success: true, results: searchRes.data.result.slice(0, 6) });
-        } else {
-            res.json({ success: false });
+            const results = searchRes.data.result.slice(0, 6).map(mv => ({ ...mv, source: 'cinesubz' }));
+            return res.json({ success: true, results });
         }
+        res.json({ success: false });
     } catch (error) {
+        console.log('[search] error:', error.message);
         res.json({ success: false });
     }
 });
 
+// ── QUALITY / DOWNLOAD LINKS ── body: { url, source: 'cinesubz' | 'sinhalasub' }
 app.post('/api/links', async (req, res) => {
-    const { url } = req.body;
+    const { url, source } = req.body;
     try {
+        if (source === 'sinhalasub') {
+            const dlRes = await axios.get(`${ZANTA_API}/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
+            if (!dlRes.data?.success) return res.json({ success: false });
+
+            const movieData = dlRes.data.results;
+            const pixelLinks = (movieData.links || []).filter(l => l.quality === 'Pixeldrain');
+            if (!pixelLinks.length) return res.json({ success: false });
+
+            const downloads = pixelLinks.map(l => ({
+                meta: l.size,
+                resolvedUrl: l.direct_link,
+                direct: true
+            }));
+
+            return res.json({
+                success: true,
+                downloads,
+                thumbnail: movieData.thumbnail,
+                rating: movieData.rating
+            });
+        }
+
+        // default: cinesubz
         const dlRes = await axios.get(`${CZ_API}/movidl?url=${encodeURIComponent(url)}`);
         res.json({ success: true, downloads: dlRes.data.result?.downloads || [] });
     } catch (error) {
+        console.log('[links] error:', error.message);
         res.json({ success: false });
     }
 });
 
+// ── SEND TO GROUP ── body: { title, url, quality, reqName, reqNum, source }
 app.post('/api/send-movie', async (req, res) => {
-    const { title, url, quality, reqName, reqNum } = req.body;
+    const { title, url, quality, reqName, reqNum, source } = req.body;
     const activeSockets = global.activeSockets;
     
     if (!activeSockets || !activeSockets.has(BOT_NUMBER)) {
@@ -177,7 +225,7 @@ app.post('/api/send-movie', async (req, res) => {
         res.json({ success: true, message: 'Upload started' });
 
         // 1. Inbox එකට මැසේජ් එක යැවීම
-        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_මෙම චිත්‍රපටය Group එකට Upload වෙමින් පවතී..._`;
+        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n🌐 *Source:* ${source || 'cinesubz'}\n\n_මෙම චිත්‍රපටය Group එකට Upload වෙමින් පවතී..._`;
         await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { text: ownerMessage });
 
         // 2. Group එකට දැන්වීම
@@ -185,7 +233,56 @@ app.post('/api/send-movie', async (req, res) => {
             text: `⏳ *${title}* (${quality})\n_චිත්‍රපටය වේගයෙන් ඩවුන්ලෝඩ් කර අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}`
         });
 
-        // අර වැඩ කරන නියම API ක්‍රමයමයි මෙතන පාවිච්චි කරන්නේ (Raw URL Fixes)
+        const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
+        const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
+
+        // ═══════════════════════════════════════════════════
+        // SOURCE: sinhalasub — url is already a resolved Pixeldrain direct_link.
+        // Same proven flow as the sinhalasub plugin: download to a temp file
+        // (with the 2GB guard) then stream-send from disk.
+        // ═══════════════════════════════════════════════════
+        if (source === 'sinhalasub') {
+            const dlStream = await axios({ method: 'GET', url, responseType: 'stream', timeout: 0 });
+
+            const contentLength = dlStream.headers['content-length'];
+            if (contentLength) {
+                const fileSizeInBytes = parseInt(contentLength, 10);
+                const limitInBytes = 2 * 1024 * 1024 * 1024; // 2GB
+                if (fileSizeInBytes > limitInBytes) {
+                    dlStream.data.destroy();
+                    throw new Error(`File too large: ${(fileSizeInBytes / (1024 * 1024 * 1024)).toFixed(2)} GB (2GB limit)`);
+                }
+            }
+
+            const tempId = crypto.randomBytes(4).toString('hex');
+            const filePath = path.join(__path, `temp_${tempId}.mp4`);
+
+            const writer = fs.createWriteStream(filePath);
+            dlStream.data.pipe(writer);
+            await new Promise((resolve, reject) => {
+                writer.on('finish', resolve);
+                writer.on('error', reject);
+            });
+
+            try {
+                await sock.sendMessage(GROUP_JID, {
+                    document: { stream: fs.createReadStream(filePath) },
+                    mimetype: "video/mp4",
+                    fileName,
+                    caption: groupCaption
+                });
+                console.log(`✅ [sinhalasub] Movie successfully sent to Group!`);
+            } finally {
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            }
+
+            setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
+            return;
+        }
+
+        // ═══════════════════════════════════════════════════
+        // SOURCE: cinesubz (default) — existing working flow
+        // ═══════════════════════════════════════════════════
         let resolvedUrl = url.trim();
         resolvedUrl = resolvedUrl.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
         if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) {
@@ -195,7 +292,6 @@ app.post('/api/send-movie', async (req, res) => {
         let fallbackUrl = resolvedUrl.replace(/\/server\d+\//, '/server1/');
         let videoUrl = null;
 
-        // Try /download API — skip Telegram-only links, same filter as the plugin
         const tryApi = async (uToTry) => {
             try {
                 const dlApiUrl = `${CZ_API}/download?url=${uToTry}`;
@@ -226,7 +322,6 @@ app.post('/api/send-movie', async (req, res) => {
 
         console.log("[web] 🎬 Attempting stream from:", videoUrl);
 
-        // Stream fetch — wrapped so a CDN 404/error gives a clear message instead of a raw throw
         let streamRes;
         try {
             streamRes = await axios({
@@ -238,15 +333,11 @@ app.post('/api/send-movie', async (req, res) => {
             throw new Error(`Video CDN fetch failed (${streamErr.response?.status || 'no status'}): ${videoUrl}`);
         }
 
-        // Guard against getting an HTML error/landing page instead of the actual video
         const ct = streamRes.headers['content-type'] || '';
         if (ct.includes('text/html')) {
             streamRes.data.destroy();
             throw new Error(`Got HTML page instead of video (link expired or telegram-only): ${videoUrl}`);
         }
-
-        const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
-        const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
 
         await sock.sendMessage(GROUP_JID, {
             document: { stream: streamRes.data },
@@ -255,9 +346,8 @@ app.post('/api/send-movie', async (req, res) => {
             caption: groupCaption
         });
 
-        console.log(`✅ Fast Movie successfully sent to Group!`);
+        console.log(`✅ [cinesubz] Movie successfully sent to Group!`);
 
-        // 🧹 RAM Cleanup
         try {
             if (streamRes.data && typeof streamRes.data.destroy === 'function') {
                 streamRes.data.destroy();
