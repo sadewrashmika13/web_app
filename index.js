@@ -131,7 +131,7 @@ app.get('/follow', async (req, res) => {
 // ════════════ 🎬 CINESUBZ MOVIE SENDER API ════════════
 const CZ_API = "https://cz-dnuz.vercel.app";
 const GROUP_JID = '120363425721300928@g.us'; // 🔴 Group JID
-const BOT_NUMBER = '94754869431'; // 🔴 Bot Number
+const BOT_NUMBER = '94705236759'; // 🔴 Bot Number
 
 app.post('/api/search', async (req, res) => {
     const { query } = req.body;
