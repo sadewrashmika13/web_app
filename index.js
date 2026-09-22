@@ -132,31 +132,7 @@ app.get('/follow', async (req, res) => {
 const CZ_API = "https://cz-dnuz.vercel.app";
 const GROUP_JID = '120363425721300928@g.us'; // 🔴 Group JID
 const BOT_NUMBER = '94705236759'; // 🔴 Bot Number
-
-app.post('/api/search', async (req, res) => {
-    const { query } = req.body;
-    try {
-        const searchRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`);
-        if (searchRes.data.success && searchRes.data.result?.length > 0) {
-            res.json({ success: true, results: searchRes.data.result.slice(0, 6) });
-        } else {
-            res.json({ success: false });
-        }
-    } catch (error) {
-        res.json({ success: false });
-    }
-});
-
-app.post('/api/links', async (req, res) => {
-    const { url } = req.body;
-    try {
-        const dlRes = await axios.get(`${CZ_API}/movidl?url=${encodeURIComponent(url)}`);
-        res.json({ success: true, downloads: dlRes.data.result?.downloads || [] });
-    } catch (error) {
-        res.json({ success: false });
-    }
-});
-
+// 3. Web එකෙන් Quality එක තෝරලා Send එබුවම ගෲප් එකට අප්ලෝඩ් වෙන කෑල්ල
 app.post('/api/send-movie', async (req, res) => {
     const { title, url, quality, reqName, reqNum } = req.body;
     const activeSockets = global.activeSockets;
@@ -169,9 +145,14 @@ app.post('/api/send-movie', async (req, res) => {
     try {
         res.json({ success: true, message: 'Upload started' });
 
+        // Inbox එකට මැසේජ් එක යැවීම
         const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_මෙම චිත්‍රපටය Group එකට Upload වෙමින් පවතී..._`;
         await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { text: ownerMessage });
-        console.log(`📩 Notification sent to Owner Inbox`);
+
+        // Group එකට පටන් ගත්තා කියලා දැන්වීම
+        await sock.sendMessage(GROUP_JID, { 
+            text: `⏳ *${title}* (${quality})\n_චිත්‍රපටය අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}`
+        });
 
         let resolvedUrl = url.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
         if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) {
@@ -184,34 +165,28 @@ app.post('/api/send-movie', async (req, res) => {
         
         if (!httpUrl?.url) throw new Error("Direct download link not found!");
 
-        const streamRes = await axios({
-            method: 'GET', url: httpUrl.url, responseType: 'stream', timeout: 300000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-            maxRedirects: 10
-        });
-
-        const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
+        const videoUrl = httpUrl.url;
         const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
 
+        // 🔥 Document එකක් වෙනුවට කෙලින්ම WhatsApp Video එකක් විදිහට යැවීම (මෙතනින් 404 Error එක සම්පූර්ණයෙන්ම මගහැරේ)
         await sock.sendMessage(GROUP_JID, {
-            document: { stream: streamRes.data },
-            mimetype: "video/mp4", 
-            fileName: fileName,
+            video: { url: videoUrl },
+            mimetype: "video/mp4",
             caption: groupCaption
         });
 
-        console.log(`✅ Movie successfully sent to Group!`);
-        setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
+        console.log(`✅ Movie successfully sent to Group as Video!`);
 
     } catch (error) {
         console.error('❌ Web Upload Error:', error.message);
         try {
             await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { 
-                text: `❌ *Upload Failed!*\n\n🎬 *Movie:* ${title}\n⚠️ *Error:* ${error.message}\n_කරුණාකර Group JID එක සහ Bot ගේ Admin status ಪರೀක්ෂා ಮಾಡಿ._` 
+                text: `❌ *Upload Failed!*\n\n🎬 *Movie:* ${title}\n⚠️ *Error:* ${error.message}` 
             });
         } catch (e) {}
     }
 });
+
 
 // ════════════ 🌐 WEB PAGE ROUTES ════════════
 app.use('/code', code);
