@@ -130,9 +130,33 @@ app.get('/follow', async (req, res) => {
 
 // ════════════ 🎬 CINESUBZ MOVIE SENDER API ════════════
 const CZ_API = "https://cz-dnuz.vercel.app";
-const GROUP_JID = '120363425721300928@g.us'; // 🔴 Group JID
-const BOT_NUMBER = '94705236759'; // 🔴 Bot Number
-// 3. Web එකෙන් Quality එක තෝරලා Send එබුවම ගෲප් එකට අප්ලෝඩ් වෙන කෑල්ල
+const GROUP_JID = '120363425721300928@g.us'; // 🔴 Movie Group JID
+const BOT_NUMBER = '94705236759'; // 🔴 Correct Bot Number
+
+app.post('/api/search', async (req, res) => {
+    const { query } = req.body;
+    try {
+        const searchRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`);
+        if (searchRes.data.success && searchRes.data.result?.length > 0) {
+            res.json({ success: true, results: searchRes.data.result.slice(0, 6) });
+        } else {
+            res.json({ success: false });
+        }
+    } catch (error) {
+        res.json({ success: false });
+    }
+});
+
+app.post('/api/links', async (req, res) => {
+    const { url } = req.body;
+    try {
+        const dlRes = await axios.get(`${CZ_API}/movidl?url=${encodeURIComponent(url)}`);
+        res.json({ success: true, downloads: dlRes.data.result?.downloads || [] });
+    } catch (error) {
+        res.json({ success: false });
+    }
+});
+
 app.post('/api/send-movie', async (req, res) => {
     const { title, url, quality, reqName, reqNum } = req.body;
     const activeSockets = global.activeSockets;
@@ -168,7 +192,7 @@ app.post('/api/send-movie', async (req, res) => {
         const videoUrl = httpUrl.url;
         const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
 
-        // 🔥 Document එකක් වෙනුවට කෙලින්ම WhatsApp Video එකක් විදිහට යැවීම (මෙතනින් 404 Error එක සම්පූර්ණයෙන්ම මගහැරේ)
+        // Direct Video URL එක මගින් WhatsApp Group එකට වීඩියෝව යැවීම
         await sock.sendMessage(GROUP_JID, {
             video: { url: videoUrl },
             mimetype: "video/mp4",
@@ -186,7 +210,6 @@ app.post('/api/send-movie', async (req, res) => {
         } catch (e) {}
     }
 });
-
 
 // ════════════ 🌐 WEB PAGE ROUTES ════════════
 app.use('/code', code);
