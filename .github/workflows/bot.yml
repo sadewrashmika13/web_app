@@ -29,5 +29,6 @@ jobs:
       run: npm install
     - name: Start Bot and Generate Web Link
       run: |
-        npm install -g localtunnel concurrently
-        concurrently "npm start" "lt --port 8000"
+        npm install -g concurrently
+        concurrently "npm start" "ssh -p 443 -R0:localhost:8000 a.pinggy.io"
+
