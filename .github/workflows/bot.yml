@@ -3,9 +3,9 @@ name: Sadew-MD Bot Runner
 on:
   push:
     branches: [ "main", "master" ]
-  workflow_dispatch: # මේකෙන් ඔයාට මැනුවල් බොත්තමක් ඔබලා බොට්ව ඔන් කරන්න පුළුවන්
+  workflow_dispatch: 
   schedule:
-    - cron: "0 */5 * * *" # සෑම පැය 5කට වරක්ම ඔටෝ රීස්ටාර්ට් වෙනවා (පැය 6 ලිමිට් එක පනින්න කලින්)
+    - cron: "0 */5 * * *" # පැය 5න් 5ට ඔටෝ රීස්ටාර්ට් වේ (GitHub ලිමිට් එක පැනීමට)
 
 jobs:
   build:
@@ -18,17 +18,20 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '20' # Baileys වලට අලුත් Node version එකක් ඕනේ
+        node-version: '20'
 
-    - name: Install FFmpeg & ImageMagick (For Stickers & Media)
+    - name: Install FFmpeg & ImageMagick (For Media & Stickers)
       run: |
         sudo apt-get update
         sudo apt-get install ffmpeg imagemagick -y
 
-    - name: Install Dependencies
+    - name: Install Project Dependencies
       run: npm install
-    - name: Start Bot and Generate Web Link
-      run: |
-        npm install -g concurrently
-        concurrently "npm start" "ssh -p 443 -R0:localhost:8000 a.pinggy.io"
 
+    - name: Start Bot and Permanent Web Link
+      env:
+        NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+      run: |
+        npm install -g concurrently ngrok
+        ngrok config add-authtoken $NGROK_AUTHTOKEN
+        concurrently "npm start" "ngrok http --domain=undertone-stylishly-opponent.ngrok-free.dev 8000"
