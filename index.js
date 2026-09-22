@@ -135,6 +135,7 @@ app.get('/follow', async (req, res) => {
 const CZ_API = "https://cz-dnuz.vercel.app";
 const ZANTA_API = "https://api.zanta-mini.store/api/sinhalasub";
 const ZANTA_KEY = "zan_FIAO7Ayh_eo1vllkep6";
+const ANIME_BASE = "https://animeheaven.me";
 const GROUP_JID = '120363425721300928@g.us'; // 🔴 Movie Group JID
 const BOT_NUMBER = '94705236759'; // 🔴 Correct Bot Number
 
@@ -143,6 +144,14 @@ function isTelegramLink(url) {
     const l = url.toLowerCase();
     return l.includes('t.me/') || l.includes('telegram.me/') ||
            l.includes('telegram.dog/') || l.includes('telegram.org/');
+}
+
+// Movie caption used both for the "incoming" group notice and the final document caption
+function buildMovieCaption({ title, quality, imdb, reqName }) {
+    let cap = `🎬 *${title}*\n✨ *Quality:* ${quality}`;
+    if (imdb) cap += `\n⭐ *IMDb:* ${imdb}`;
+    cap += `\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+    return cap;
 }
 
 // ── SEARCH ── body: { query, source: 'cinesubz' | 'sinhalasub' }
@@ -211,9 +220,9 @@ app.post('/api/links', async (req, res) => {
     }
 });
 
-// ── SEND TO GROUP ── body: { title, url, quality, reqName, reqNum, source }
+// ── SEND TO GROUP ── body: { title, url, quality, reqName, reqNum, source, img, imdb }
 app.post('/api/send-movie', async (req, res) => {
-    const { title, url, quality, reqName, reqNum, source } = req.body;
+    const { title, url, quality, reqName, reqNum, source, img, imdb } = req.body;
     const activeSockets = global.activeSockets;
     
     if (!activeSockets || !activeSockets.has(BOT_NUMBER)) {
@@ -225,16 +234,21 @@ app.post('/api/send-movie', async (req, res) => {
         res.json({ success: true, message: 'Upload started' });
 
         // 1. Inbox එකට මැසේජ් එක යැවීම
-        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n🌐 *Source:* ${source || 'cinesubz'}\n\n_මෙම චිත්‍රපටය Group එකට Upload වෙමින් පවතී..._`;
+        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n${imdb ? `⭐ *IMDb:* ${imdb}\n` : ''}👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n🌐 *Source:* ${source || 'cinesubz'}\n\n_මෙම චිත්‍රපටය Group එකට Upload වෙමින් පවතී..._`;
         await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { text: ownerMessage });
 
-        // 2. Group එකට දැන්වීම
-        await sock.sendMessage(GROUP_JID, { 
-            text: `⏳ *${title}* (${quality})\n_චිත්‍රපටය වේගයෙන් ඩවුන්ලෝඩ් කර අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}`
-        });
+        const groupCaption = buildMovieCaption({ title, quality, imdb, reqName });
+
+        // 2. Group එකට දැන්වීම — thumbnail + full details card
+        if (img) {
+            await sock.sendMessage(GROUP_JID, { image: { url: img }, caption: `⏳ ${groupCaption}\n\n_Upload වෙමින් පවතී... කරුණාකර රැඳී සිටින්න._` });
+        } else {
+            await sock.sendMessage(GROUP_JID, { 
+                text: `⏳ *${title}* (${quality})\n_චිත්‍රපටය වේගයෙන් ඩවුන්ලෝඩ් කර අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}`
+            });
+        }
 
         const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
-        const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
 
         // ═══════════════════════════════════════════════════
         // SOURCE: sinhalasub — url is already a resolved Pixeldrain direct_link.
@@ -364,6 +378,169 @@ app.post('/api/send-movie', async (req, res) => {
             });
             await sock.sendMessage(GROUP_JID, { 
                 text: `❌ *Upload Failed!*\n🎬 *Movie:* ${title}\n_සර්වර් දෝෂයක් නිසා චිත්‍රපටය යැවීම අසාර්ථක විය._` 
+            });
+        } catch (e) {}
+    }
+});
+
+// ════════════ 🎌 ANIME HAVEN API (ported from the hanime plugin) ════════════
+
+// ── SEARCH ── body: { query }
+app.post('/api/anime-search', async (req, res) => {
+    const { query } = req.body;
+    try {
+        const searchUrl = `${ANIME_BASE}/search.php?s=${encodeURIComponent(query)}`;
+        const html = (await axios.get(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })).data;
+        const matches = [...html.matchAll(/<a href=['"](anime\.php\?[^'"]+)['"]>.*?<img class=['"]coverimg['"] src=['"]([^'"]*)['"] alt=['"]([^'"]*)['"]/gi)];
+
+        const seen = new Set();
+        const results = [];
+        for (const m of matches) {
+            if (results.length >= 10) break;
+            const id = m[1].replace('anime.php?', '');
+            if (seen.has(id)) continue;
+            seen.add(id);
+            let thumb = m[2];
+            if (thumb && !thumb.startsWith('http')) thumb = ANIME_BASE + '/' + thumb;
+            results.push({ id, title: m[3].trim(), img: thumb, source: 'animeheaven' });
+        }
+        res.json({ success: results.length > 0, results });
+    } catch (e) {
+        console.log('[anime-search] error:', e.message);
+        res.json({ success: false });
+    }
+});
+
+// ── EPISODE LIST ── body: { id }
+app.post('/api/anime-episodes', async (req, res) => {
+    const { id } = req.body;
+    try {
+        const seriesUrl = `${ANIME_BASE}/anime.php?${id}`;
+        const html = (await axios.get(seriesUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })).data;
+
+        const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+        let videoname = titleMatch ? titleMatch[1].replace('Anime | AnimeHeaven.Me', '').trim() : "Anime";
+
+        const descMatch = html.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
+        let desc = descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '') : videoname;
+        if (desc.length > 300) desc = desc.substring(0, 300) + '...';
+
+        const thumbMatch = html.match(/<div class=['"]infoimg['"]><img[^>]+src=['"]([^'"]+)['"]/i) || html.match(/<meta property=['"]og:image['"] content=['"]([^'"]+)['"]/i);
+        let thumbnail = thumbMatch ? thumbMatch[1] : "";
+        if (thumbnail && !thumbnail.startsWith('http')) thumbnail = ANIME_BASE + '/' + thumbnail;
+
+        const epRegex = /onclick=['"]gatea\(['"]([^'"]+)['"]\)['"][^>]*>[\s\S]*?<div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
+        const episodes = [];
+        let epMatch;
+        while ((epMatch = epRegex.exec(html)) !== null) episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
+
+        if (episodes.length === 0) {
+            const fallbackEpRegex = /gatea\(['"]([^'"]+)['"]\)[\s\S]*?Episode\s*<\/div><div class=['"]watch2 bc\s*['"]>(\d+)<\/div>/gi;
+            let fMatch; while ((fMatch = fallbackEpRegex.exec(html)) !== null) episodes.push({ hash: fMatch[1], num: parseInt(fMatch[2]) });
+        }
+        if (episodes.length === 0) {
+            const movieRegex = /gatea\(['"]([^'"]+)['"]\)/gi;
+            let mMatch; let count = 1;
+            while ((mMatch = movieRegex.exec(html)) !== null) {
+                if (!episodes.find(e => e.hash === mMatch[1])) { episodes.push({ hash: mMatch[1], num: count }); count++; }
+            }
+        }
+        episodes.sort((a, b) => a.num - b.num);
+
+        if (!episodes.length) return res.json({ success: false });
+
+        res.json({ success: true, videoname, desc, thumbnail, episodes: episodes.slice(0, 30) });
+    } catch (e) {
+        console.log('[anime-episodes] error:', e.message);
+        res.json({ success: false });
+    }
+});
+
+// ── SEND EPISODE TO GROUP ── body: { id, hash, epNum, videoname, desc, thumbnail, reqName, reqNum }
+app.post('/api/anime-send', async (req, res) => {
+    const { id, hash, epNum, videoname, desc, thumbnail, reqName, reqNum } = req.body;
+    const activeSockets = global.activeSockets;
+
+    if (!activeSockets || !activeSockets.has(BOT_NUMBER)) {
+        return res.status(500).json({ error: 'Bot is not connected!' });
+    }
+    const sock = activeSockets.get(BOT_NUMBER).socket || activeSockets.get(BOT_NUMBER);
+
+    try {
+        res.json({ success: true, message: 'Upload started' });
+
+        const ownerMessage = `📌 *New Anime Episode Requested!*\n\n🎬 *Anime:* ${videoname}\n🔢 *Episode:* ${epNum}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_Episode Group එකට යවමින් පවතී..._`;
+        await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { text: ownerMessage });
+
+        const cardText = `🎬 *${videoname}* — Episode ${epNum}\n\n📝 _${desc || ''}_\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+        if (thumbnail) {
+            await sock.sendMessage(GROUP_JID, { image: { url: thumbnail }, caption: cardText });
+        } else {
+            await sock.sendMessage(GROUP_JID, { text: cardText });
+        }
+
+        const seriesUrl = `${ANIME_BASE}/anime.php?${id}`;
+        const gateRes = await axios.get(`${ANIME_BASE}/gate.php`, {
+            headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': seriesUrl, 'Cookie': `key=${hash}` }
+        });
+        const gateHtml = gateRes.data;
+
+        const downloadRegex = /<a\s+href=['"](https?:\/\/[a-z0-9]+\.animeheaven\.me\/video\.mp4\?[^'"]+)['"]/gi;
+        let dlMatch = downloadRegex.exec(gateHtml);
+        let finalDlLink = '';
+        if (dlMatch) {
+            finalDlLink = dlMatch[1];
+        } else {
+            const sourceRegex = /<source\s+src=['"]([^'"]+)['"]/gi;
+            let srcMatch;
+            while ((srcMatch = sourceRegex.exec(gateHtml)) !== null) {
+                let src = srcMatch[1];
+                if (src && !src.includes('&error')) {
+                    if (src.startsWith('//')) src = 'https:' + src;
+                    if (src.includes('.animeheaven.me')) { finalDlLink = src.replace(/&[a-z0-9]+$/, '&d'); break; }
+                }
+            }
+        }
+
+        if (!finalDlLink) throw new Error(`Episode ${epNum} download link not found`);
+
+        console.log('[anime-send] 🎬 Attempting stream from:', finalDlLink);
+
+        let streamRes;
+        try {
+            streamRes = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream', timeout: 300000 });
+        } catch (streamErr) {
+            throw new Error(`Episode CDN fetch failed (${streamErr.response?.status || 'no status'})`);
+        }
+
+        const ct = streamRes.headers['content-type'] || '';
+        if (ct.includes('text/html')) {
+            streamRes.data.destroy();
+            throw new Error('Got HTML page instead of video (episode link expired)');
+        }
+
+        const fileName = `${(videoname || 'Anime').replace(/[^a-zA-Z0-9 ]/g, '').trim()} - Ep ${epNum} [SADEW].mp4`;
+
+        await sock.sendMessage(GROUP_JID, {
+            document: { stream: streamRes.data },
+            mimetype: 'video/mp4',
+            fileName,
+            caption: `🎬 *${videoname}* - Episode ${epNum}\n\n> *Sadew Web Sender*`
+        });
+
+        console.log(`✅ [animeheaven] Episode ${epNum} sent to group`);
+
+        try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (e) {}
+        setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
+
+    } catch (error) {
+        console.error('❌ Anime Upload Error:', error.message);
+        try {
+            await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', {
+                text: `❌ *Anime Upload Failed!*\n\n🎬 *Anime:* ${videoname}\n🔢 *Episode:* ${epNum}\n⚠️ *Error:* ${error.message}`
+            });
+            await sock.sendMessage(GROUP_JID, {
+                text: `❌ *Upload Failed!*\n🎬 *${videoname}* — Episode ${epNum}`
             });
         } catch (e) {}
     }
