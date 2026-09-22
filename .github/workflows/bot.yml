@@ -34,4 +34,5 @@ jobs:
       run: |
         npm install -g concurrently ngrok
         ngrok config add-authtoken $NGROK_AUTHTOKEN
-        concurrently "npm start" "ngrok http --domain=undertone-stylishly-opponent.ngrok-free.dev 8000"
+        concurrently "npm start" "ngrok http --url=undertone-stylishly-opponent.ngrok-free.dev 8000"
+
