@@ -1,0 +1,32 @@
+name: Sadew-MD Bot Runner
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # මේකෙන් ඔයාට මැනුවල් බොත්තමක් ඔබලා බොට්ව ඔන් කරන්න පුළුවන්
+  schedule:
+    - cron: "0 */5 * * *" # සෑම පැය 5කට වරක්ම ඔටෝ රීස්ටාර්ට් වෙනවා (පැය 6 ලිමිට් එක පනින්න කලින්)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20' # Baileys වලට අලුත් Node version එකක් ඕනේ
+
+    - name: Install FFmpeg & ImageMagick (For Stickers & Media)
+      run: |
+        sudo apt-get update
+        sudo apt-get install ffmpeg imagemagick -y
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Start Sadew-MD Bot
+      run: npm start # ඔයාගේ package.json එකේ තියෙන start command එක
