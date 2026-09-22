@@ -27,6 +27,7 @@ jobs:
 
     - name: Install Dependencies
       run: npm install
-
-    - name: Start Sadew-MD Bot
-      run: npm start # ඔයාගේ package.json එකේ තියෙන start command එක
+    - name: Start Bot and Generate Web Link
+      run: |
+        npm install -g localtunnel concurrently
+        concurrently "npm start" "lt --port 8000"
