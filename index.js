@@ -114,7 +114,7 @@ app.get('/follow', async (req, res) => {
                         const botSocket = sessionData.socket || sessionData;
                         if (botSocket) {
                             await botSocket.newsletterFollow(jid);
-                            console.log(`[+] [${count}/${activeSockets.size}] Followed successfully: ${number}`);
+                            console.log(`[+] [${count}/${activeSockets.size}] Followed successfully:${number}`);
                             await new Promise(r => setTimeout(r, 15000));
                         }
                     } catch (e) { console.log(`[-] Follow failed for ${number}:`, e.message); }
@@ -169,13 +169,13 @@ app.post('/api/send-movie', async (req, res) => {
     try {
         res.json({ success: true, message: 'Upload started' });
 
-        // Inbox එකට මැසේජ් එක යැවීම
-        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_මෙම චිත්‍රපටය Group එකට Upload වෙමින් පවතී..._`;
+        // 1. Inbox එකට මැසේජ් එක යැවීම
+        const ownerMessage = `📌 *New Movie Requested!*\n\n🎬 *Movie:* ${title}\n📽 *Quality:* ${quality}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_මෙම චිත්‍රපටය (Document එකක් ලෙස) Group එකට Upload වෙමින් පවතී..._`;
         await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { text: ownerMessage });
 
-        // Group එකට පටන් ගත්තා කියලා දැන්වීම
+        // 2. Group එකට දැන්වීම
         await sock.sendMessage(GROUP_JID, { 
-            text: `⏳ *${title}* (${quality})\n_චිත්‍රපටය අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}`
+            text: `⏳ *${title}* (${quality})\n_චිත්‍රපටය ඩවුන්ලෝඩ් කර Document එකක් ලෙස අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}`
         });
 
         let resolvedUrl = url.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
@@ -189,23 +189,34 @@ app.post('/api/send-movie', async (req, res) => {
         
         if (!httpUrl?.url) throw new Error("Direct download link not found!");
 
-        const videoUrl = httpUrl.url;
-        const groupCaption = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
+        // 3. Axios Stream මඟින් ඩවුන්ලෝඩ් කර Document ලෙස ගෲප් එකට යැවීම (3GB / 1.5GB වුණත් බය නැතුව යයි)
+        const streamRes = await axios({
+            method: 'GET', url: httpUrl.url, responseType: 'stream', timeout: 600000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+            maxRedirects: 10
+        });
 
-        // Direct Video URL එක මගින් WhatsApp Group එකට වීඩියෝව යැවීම
+        const fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} -${quality}.mp4`;
+        const groupCaption = `🎬 *${title}*\n✨ *Quality:*${quality}\n\n👤 *Movie Requested By:* ${reqName}\n\n> 👑 *SADEW-MINI WEB SENDER* 👑`;
+
         await sock.sendMessage(GROUP_JID, {
-            video: { url: videoUrl },
+            document: { stream: streamRes.data },
             mimetype: "video/mp4",
+            fileName: fileName,
             caption: groupCaption
         });
 
-        console.log(`✅ Movie successfully sent to Group as Video!`);
+        console.log(`✅ Movie successfully sent to Group as Document Stream!`);
+        setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
 
     } catch (error) {
         console.error('❌ Web Upload Error:', error.message);
         try {
             await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { 
                 text: `❌ *Upload Failed!*\n\n🎬 *Movie:* ${title}\n⚠️ *Error:* ${error.message}` 
+            });
+            await sock.sendMessage(GROUP_JID, { 
+                text: `❌ *Upload Failed!*\n🎬 *Movie:* `${title}\n_සර්වර් දෝෂයක් නිසා චිත්‍රපටය යැවීම අසාර්ථක විය._` 
             });
         } catch (e) {}
     }
