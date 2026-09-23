@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
@@ -28,13 +29,15 @@ const GROUP_JID = '120363425721300928@g.us';
 const BOT_NUMBER = '94705236759'; 
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
+// 🔥 අලුත් ක්‍රමයට API Keys ගැනීම (Github Secrets හරහා) 🔥
 const GEMINI_KEYS = [
-    "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA", 
-    "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ", 
-    "AQ.Ab8RN6IMIGwHe7iM4N6ao40c9m8rTOPkJNyr5CPKKH1bnfEz2g",
-    "AQ.Ab8RN6KKBj5fsS4YXlCZK6I4X03dKQ1-FC1UhyP_bMJNcQ67xg",
-    "AQ.Ab8RN6JLDmH2b1M6SLF7IhvqU78ynkTHcHDPNa82S375zF9Q8g"
-];
+    process.env.GEMINI_KEY_1,
+    process.env.GEMINI_KEY_2,
+    process.env.GEMINI_KEY_3,
+    process.env.GEMINI_KEY_4,
+    process.env.GEMINI_KEY_5,
+    process.env.GEMINI_KEY_6
+].filter(Boolean);
 
 // 🔥 හරියටම ඔයා ඉල්ලපු 3.1-flash-lite එක විතරයි! 🔥
 async function getGeminiSummary(movieTitle) {
@@ -111,7 +114,20 @@ app.post('/api/search', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 KDRAMA SEARCH 🔥
+        // 🔥 BAISCOPES SEARCH 🔥
+        if (source === 'baiscopes') {
+            const searchRes = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/search?q=${encodeURIComponent(query)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`, { headers: HEADERS });
+            if (searchRes.data?.status && searchRes.data.data?.length > 0) return res.json({ success: true, results: searchRes.data.data.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.image, source })) });
+            return res.json({ success: false });
+        }
+
+        // 🔥 SUBLK SEARCH 🔥
+        if (source === 'sublk') {
+            const searchRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/movie/sublk/search?q=${encodeURIComponent(query)}&apitoken=4ehG6P`, { headers: HEADERS });
+            if (searchRes.data?.status && searchRes.data.result?.length > 0) return res.json({ success: true, results: searchRes.data.result.slice(0, 8).map(mv => ({ title: mv.title, url: mv.link, img: mv.image, source })) });
+            return res.json({ success: false });
+        }
+
         if (source === 'kdrama') {
             const searchRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
             if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
@@ -187,7 +203,38 @@ app.post('/api/links', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 KDRAMA LINKS 🔥
+        // 🔥 BAISCOPES LINKS (FIXED) 🔥
+        if (source === 'baiscopes') {
+            try {
+                const resData = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/movie?q=${encodeURIComponent(url)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`, { headers: HEADERS });
+                if (resData.data?.status && resData.data.data?.dl_links) {
+                    let downloads = resData.data.data.dl_links.map(l => ({ 
+                        meta: l.size ? `${l.size}` : (l.quality || 'Download'), 
+                        resolvedUrl: l.direct || l.link || l.url, 
+                        direct: true 
+                    })).filter(l => l.resolvedUrl); // හිස් ලින්ක් අයින් කරයි
+                    return res.json({ success: true, downloads, thumbnail: resData.data.data.poster });
+                }
+            } catch (err) {}
+            return res.json({ success: false });
+        }
+
+        // 🔥 SUBLK LINKS 🔥
+        if (source === 'sublk') {
+            try {
+                const resData = await axios.get(`https://whiteshadow-x-api.onrender.com/api/movie/sublk?url=${encodeURIComponent(url)}&apitoken=4ehG6P`, { headers: HEADERS });
+                if (resData.data?.result?.downloadLinks) {
+                    let downloads = resData.data.result.downloadLinks.map(l => ({ 
+                        meta: `${l.quality} - ${l.size}`, 
+                        resolvedUrl: l.downloadUrl || l.link, 
+                        direct: false 
+                    }));
+                    return res.json({ success: true, downloads, thumbnail: resData.data.result.image });
+                }
+            } catch (err) {}
+            return res.json({ success: false });
+        }
+
         if (source === 'kdrama') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success || !dlRes.data.results?.episodes_list?.length) return res.json({ success: false });
@@ -250,7 +297,20 @@ app.post('/api/send-movie', async (req, res) => {
 
                 let finalVidUrl = url;
 
+                // 🛑 Moviesublk (කිසිම වෙනසක් කරලා නෑ) 🛑
                 if (source === 'moviesublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
+                    let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
+                    if (match) {
+                        const fileId = match[1];
+                        const wsRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/download/gdrive?url=${encodeURIComponent(`https://drive.google.com/file/d/${fileId}/view`)}&apitoken=4ehG6P`);
+                        if (wsRes.data?.success && wsRes.data.downloadUrl) {
+                            finalVidUrl = wsRes.data.downloadUrl;
+                        }
+                    }
+                }
+
+                // 🔥 SUBLK BYPASS 🔥
+                if (source === 'sublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
                     let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
                     if (match) {
                         const fileId = match[1];
@@ -301,6 +361,13 @@ app.post('/api/send-movie', async (req, res) => {
 
                     if (img) await sendMediaSafely(sock, GROUP_JID, { image: { url: img }, caption: cap }, 60000);
                     else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
+                }
+
+                // --- 🛡️ BAISCOPES TELEGRAM LINK CHECK ---
+                if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
+                    const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${title}\n✨ *Quality:* ${quality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්‍රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+                    await sendMediaSafely(sock, GROUP_JID, { text: teleText }, 30000);
+                    return; 
                 }
 
                 let streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 0, headers: HEADERS, httpsAgent });
