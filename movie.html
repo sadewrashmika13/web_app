@@ -13,7 +13,6 @@
     --amber:#F5A623; --amber-dim: rgba(245,166,35,.35);
     --orange:#e57b16; --orange-dim: rgba(229,123,22,.35);
     --teal:#0ea5e9; --teal-dim: rgba(14,165,233,.35);
-    --green:#10b981; --green-dim: rgba(16,185,129,.35);
     --violet:#7C5CFC; --violet-dim: rgba(124,92,252,.35);
     --stub:#F7F4EF; --stub-ink:#1A1720; --stub-mute:#8B8478; --text:#F3F1EE; --mute:#948FA0;
     --glass: rgba(255,255,255,0.045); --glass-brd: rgba(255,255,255,0.10);
@@ -21,7 +20,6 @@
   *{ box-sizing:border-box; }
   body{ margin:0; min-height:100vh; background:var(--void); color:var(--text); font-family:'Inter',sans-serif; overflow-x:hidden; }
 
-  /* 🚀 STATUS BANNER (Queue Viewer) 🚀 */
   .upload-banner {
     position: fixed; top: 0; left: 0; right: 0; background: rgba(16, 14, 22, 0.95);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -45,7 +43,7 @@
   h1 em{ font-style:italic; color:var(--crimson); }
   .sub{ color:var(--mute); font-size:15.5px; max-width:480px; margin:0 auto 30px; }
 
-  /* SOURCE TOGGLE */
+  /* 🔥 5 SOURCES TOGGLE CSS 🔥 */
   .source-toggle{
     position:relative; display:flex; padding:4px; border-radius:999px; width:min(860px, 98vw);
     margin:0 auto; background:var(--glass); border:1px solid var(--glass-brd);
@@ -53,15 +51,14 @@
   }
   .source-toggle::-webkit-scrollbar { display: none; }
   .source-toggle .thumb{
-    position:absolute; top:4px; left:4px; width:calc(16.666% - 1.3px); height:calc(100% - 8px);
+    position:absolute; top:4px; left:4px; width:calc(20% - 1.6px); height:calc(100% - 8px);
     border-radius:999px; background:var(--crimson); transition: transform .35s ease, background .35s ease; z-index:0;
   }
   .source-toggle[data-active="cinesubz"] .thumb { transform:translateX(0%); background:var(--crimson); }
-  .source-toggle[data-active="sinhalasub2"] .thumb { transform:translateX(100%); background:var(--amber); }
-  .source-toggle[data-active="sinhalasub1"] .thumb { transform:translateX(200%); background:var(--orange); }
+  .source-toggle[data-active="sinhalasub2"] .thumb { transform:translateX(100%); background:var(--orange); }
+  .source-toggle[data-active="slcartoons"] .thumb { transform:translateX(200%); background:var(--amber); }
   .source-toggle[data-active="1tamilmv"] .thumb { transform:translateX(300%); background:var(--teal); }
-  .source-toggle[data-active="moviesublk"] .thumb { transform:translateX(400%); background:var(--green); }
-  .source-toggle[data-active="animeheaven"] .thumb { transform:translateX(500%); background:var(--violet); }
+  .source-toggle[data-active="animeheaven"] .thumb { transform:translateX(400%); background:var(--violet); }
   
   .src-btn{ position:relative; z-index:1; flex:1; min-width: 110px; border:none; background:transparent; cursor:pointer; padding:9px 4px; font-weight:600; font-size:11.5px; color:var(--mute); display:flex; align-items:center; justify-content:center; gap:4px; }
   .src-btn.active{ color:#fff; }
@@ -78,30 +75,28 @@
   .ticket:hover{ transform:translateY(-6px); }
   .ticket .poster{ position:relative; aspect-ratio:2/3; overflow:hidden; }
   .ticket .poster img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .ticket .badge{ position:absolute; top:10px; left:10px; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:999px; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.18); color:#fff; }
+  .ticket .badge{ position:absolute; top:10px; left:10px; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:999px; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.18); color:#fff; text-transform: uppercase; }
   
   .stub{ background:var(--stub); color:var(--stub-ink); padding:12px 13px 14px; }
   .stub h4{ margin:0 0 6px; font-family:'Fraunces',serif; font-weight:600; font-size:14.5px; }
 
-  /* ── modal ── */
   .modal{ display:none; position:fixed; inset:0; z-index:999; background:rgba(6,5,9,.78); align-items:center; justify-content:center; padding:20px; }
   .modal.open{ display:flex; }
   .modal-card{ width:100%; max-width:420px; max-height:88vh; overflow-y:auto; border-radius:20px; background:var(--void-2); border:1px solid var(--glass-brd); }
   .modal-head{ position:relative; }
   .modal-head img{ width:100%; height:210px; object-fit:cover; display:block; }
   .close-btn{ position:absolute; top:12px; right:12px; width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.2); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  .modal-title{ position:absolute; bottom:12px; left:18px; right:18px; font-family:'Fraunces',serif; font-weight:600; font-size:20px; color:#fff; }
+  .modal-title{ position:absolute; bottom:12px; left:18px; right:18px; font-family:'Fraunces',serif; font-weight:600; font-size:20px; color:#fff; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
   .modal-body{ padding:20px 20px 24px; }
   .field{ width:100%; padding:12px 14px; margin-bottom:10px; border-radius:11px; border:1px solid var(--glass-brd); background:var(--glass); color:var(--text); }
   .modal-status{ font-size:13px; color:#F5C453; margin:6px 0 12px; }
   .quality-row{ display:flex; flex-wrap:wrap; gap:9px; max-height:260px; overflow-y:auto; }
   .qbtn{ padding:10px 18px; border-radius:11px; border:1px solid var(--glass-brd); background:var(--glass); color:var(--text); cursor:pointer; }
-  .qbtn.all-btn{ width: 100%; background: rgba(16, 185, 129, 0.15); border-color: var(--green); color: #fff; justify-content:center;}
+  .qbtn.all-btn{ width: 100%; background: rgba(16, 185, 129, 0.15); border-color: #10b981; color: #fff; justify-content:center;}
 </style>
 </head>
 <body>
 
-<!-- 🚀 Upload Queue Progress Banner 🚀 -->
 <div id="uploadBanner" class="upload-banner">
   <div class="ub-info">
     <svg class="ub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
@@ -120,13 +115,12 @@
     <div class="thumb"></div>
     <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz')">CineSubz</button>
     <button class="src-btn" data-source="sinhalasub2" onclick="setSource('sinhalasub2')">SinhalaSub API</button>
-    <button class="src-btn" data-source="sinhalasub1" onclick="setSource('sinhalasub1')">SinhalaSub Web</button>
+    <button class="src-btn" data-source="slcartoons" onclick="setSource('slcartoons')">SL Cartoons</button>
     <button class="src-btn" data-source="1tamilmv" onclick="setSource('1tamilmv')">1TamilMV</button>
-    <button class="src-btn" data-source="moviesublk" onclick="setSource('moviesublk')">MovieSubLK</button>
     <button class="src-btn" data-source="animeheaven" onclick="setSource('animeheaven')">Anime Haven</button>
   </div>
   <div class="search-wrap">
-    <input type="text" id="movieName" class="search-box" placeholder="Search a movie name…" onkeydown="if(event.key==='Enter')searchMovie()">
+    <input type="text" id="movieName" class="search-box" placeholder="Search a movie, cartoon or anime…" onkeydown="if(event.key==='Enter')searchMovie()">
     <button class="search-btn" onclick="searchMovie()">Search</button>
   </div>
   <p class="status" id="statusMsg"></p>
@@ -142,8 +136,8 @@
       <div class="modal-title" id="modalTitle"></div>
     </div>
     <div class="modal-body">
-      <input type="text" id="reqName" class="field" placeholder="Requester name">
-      <input type="text" id="reqNum" class="field" placeholder="Phone number (e.g. 0771234567)">
+      <input type="text" id="reqName" class="field" placeholder="Requester Name">
+      <input type="text" id="reqNum" class="field" placeholder="Phone Number (e.g. 0771234567)">
       <p class="modal-status" id="modalStatus"></p>
       <div class="quality-row" id="qualityButtons"></div>
     </div>
@@ -154,9 +148,8 @@
   let currentSource = 'cinesubz';
   let currentMovieMeta = {};   
   let currentAnime = {};
-  let currentDownloads = []; // To hold episodes for "Batch Download"
+  let currentDownloads = []; 
   
-  // ── Polling System for Global Queue ──
   let pollInterval = null;
   function startQueuePolling() {
       if(pollInterval) clearInterval(pollInterval);
@@ -172,8 +165,8 @@
               
               if(!data.active && data.queue.length === 0) {
                   titleEl.textContent = "✅ All Tasks Completed!";
-                  subEl.textContent = "Your movies have been sent to the group.";
-                  setTimeout(() => document.getElementById('uploadBanner').classList.remove('show'), 3000);
+                  subEl.textContent = "Your videos have been sent to the group.";
+                  setTimeout(() => document.getElementById('uploadBanner').classList.remove('show'), 4000);
                   clearInterval(pollInterval);
                   return;
               }
@@ -218,7 +211,7 @@
         data.results.forEach((mv) => {
           const card = document.createElement('div');
           card.className = 'ticket';
-          card.innerHTML = `<div class="poster"><img src="${mv.img || 'https://via.placeholder.com/400'}"><span class="badge ${mv.source || 'animeheaven'}">${mv.source || 'AnimeHaven'}</span></div><div class="stub"><h4>${mv.title}</h4></div>`;
+          card.innerHTML = `<div class="poster"><img src="${mv.img || 'https://via.placeholder.com/400'}"><span class="badge ${mv.source || 'cinesubz'}">${mv.source || 'CineSubz'}</span></div><div class="stub"><h4>${mv.title}</h4></div>`;
           card.onclick = () => openModal(mv.title, mv.img, mv.url || mv.id, mv.imdb);
           grid.appendChild(card);
         });
@@ -251,8 +244,8 @@
             let arr = isAnime ? data.episodes : data.downloads;
             currentDownloads = arr;
 
-            // 🚀 Add "Download ALL Episodes" Button if multiple parts!
-            let isSeries = arr.length > 2 && (isAnime || arr[0].meta.toLowerCase().includes('episode') || arr[0].meta.toLowerCase().includes('part'));
+            let isSeries = arr.length > 1 && (isAnime || currentSource === 'slcartoons' || arr[0].meta.toLowerCase().includes('episode') || arr[0].meta.toLowerCase().includes('part'));
+            
             if (isSeries) {
                 const btnAll = document.createElement('button');
                 btnAll.className = 'qbtn all-btn';
@@ -279,11 +272,10 @@
   function getRequester(){
     const reqName = document.getElementById('reqName').value.trim();
     const reqNum = document.getElementById('reqNum').value.trim();
-    if(!reqName || !reqNum){ document.getElementById('modalStatus').textContent = 'Add requester name and number!'; return null; }
+    if(!reqName || !reqNum){ document.getElementById('modalStatus').textContent = 'Please add requester name and number!'; return null; }
     return { reqName, reqNum };
   }
 
-  // SEND SINGLE ITEM
   async function sendMovie(url, quality){
     const req = getRequester(); if(!req) return;
     document.getElementById('modalStatus').textContent = `Adding to Queue...`;
@@ -305,7 +297,6 @@
     startQueuePolling();
   }
 
-  // 🚀 BATCH UPLOADS (Send all sequentially)
   async function sendAllMovie(arr){
       const req = getRequester(); if(!req) return;
       closeModal();
@@ -318,7 +309,7 @@
               body: JSON.stringify({
                   title: currentMovieMeta.title, url: arr[i].resolvedUrl, quality: arr[i].meta, 
                   reqName: req.reqName, reqNum: req.reqNum, source: currentSource, img: currentMovieMeta.img,
-                  batchIndex: i, batchTotal: arr.length // Backend uses this to send thumbnail only once!
+                  batchIndex: i, batchTotal: arr.length
               })
           });
       }
@@ -328,6 +319,9 @@
   async function sendAllAnime(apiData){
       const req = getRequester(); if(!req) return;
       closeModal();
+      document.getElementById('uploadBanner').classList.add('show');
+      document.getElementById('ubTitle').textContent = `Adding ${apiData.episodes.length} episodes to Queue...`;
+      
       for(let i=0; i<apiData.episodes.length; i++) {
           await fetch('/api/anime-send', {
               method:'POST', headers:{'Content-Type':'application/json'},
