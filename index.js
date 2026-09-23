@@ -3,7 +3,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const cheerio = require('cheerio'); // Added cheerio for scraping 1tamilmv & sinhalasub
+const cheerio = require('cheerio');
 const app = express();
 const __path = process.cwd();
 const PORT = process.env.PORT || 8000;
@@ -28,10 +28,108 @@ app.get('/livestats', (req, res) => {
     }
 });
 
-// [MASS CHANNEL REACTION API & MASS CHANNEL FOLLOW API - Same as original]
-// (I have kept them intact here for your full file)
-app.get('/react', async (req, res) => { /* ... original react code ... */ res.json({fail: "React endpoint active"}); });
-app.get('/follow', async (req, res) => { /* ... original follow code ... */ res.json({fail: "Follow endpoint active"}); });
+// ════════════ 📢 MASS CHANNEL REACTION API ════════════
+app.get('/react', async (req, res) => {
+    try {
+        const link = req.query.link;
+        const inputEmojis = req.query.emoji || '❤️';
+
+        if (!link) {
+            return res.json({ fail: "Enter your channel post link", example: "/react?link=https://whatsapp.com/channel/xxx/123&emoji=😂👍🔥" });
+        }
+        const activeSockets = global.activeSockets;
+        if (!activeSockets || activeSockets.size === 0) {
+            return res.json({ fail: "No active bots connected!" });
+        }
+
+        const match = link.match(/channel\/([a-zA-Z0-9_-]+)\/(\d+)/);
+        if (!match) return res.json({ fail: "Invalid channel link format!" });
+
+        const inviteCode = match[1];
+        const msgId = match[2];
+
+        const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
+        let emojiArray = Array.from(segmenter.segment(inputEmojis)).map(s => s.segment).filter(char => char.trim() !== '');
+        if (emojiArray.length === 0) emojiArray = ['❤️']; 
+
+        res.json({
+            success: true, status: "Background Mass Reaction Started",
+            bots_count: activeSockets.size, channel_invite: inviteCode,
+            message_id: msgId, emojis_detected: emojiArray
+        });
+
+        (async () => {
+            try {
+                const firstSession = Array.from(activeSockets.values())[0];
+                const firstSocket = firstSession.socket || firstSession;
+                const metadata = await firstSocket.newsletterMetadata('invite', inviteCode);
+                const jid = metadata.id;
+
+                for (const [number, sessionData] of activeSockets.entries()) {
+                    try {
+                        const botSocket = sessionData.socket || sessionData;
+                        if (botSocket) {
+                            const randomEmoji = emojiArray[Math.floor(Math.random() * emojiArray.length)];
+                            await botSocket.newsletterReactMessage(jid, msgId, randomEmoji);
+                            await new Promise(r => setTimeout(r, 300)); 
+                        }
+                    } catch (e) {
+                        console.log(`React failed for ${number}`);
+                    }
+                }
+            } catch (err) { console.error('Mass React Error:', err.message); }
+        })();
+    } catch (error) {
+        if (!res.headersSent) res.json({ fail: "System error occurred", error: error.message });
+    }
+});
+
+// ════════════ 📢 MASS CHANNEL FOLLOW API ════════════
+app.get('/follow', async (req, res) => {
+    try {
+        const link = req.query.link;
+        if (!link) return res.json({ fail: "Enter your channel link" });
+
+        const activeSockets = global.activeSockets;
+        if (!activeSockets || activeSockets.size === 0) return res.json({ fail: "No active bots connected!" });
+
+        const match = link.match(/channel\/([a-zA-Z0-9_-]+)/);
+        if (!match) return res.json({ fail: "Invalid channel link format!" });
+
+        const inviteCode = match[1];
+
+        res.json({
+            success: true, status: "Background Mass Follow Started",
+            bots_count: activeSockets.size, channel_invite: inviteCode,
+            anti_spam_delay: "15 Seconds per user"
+        });
+
+        (async () => {
+            try {
+                const firstSession = Array.from(activeSockets.values())[0];
+                const firstSocket = firstSession.socket || firstSession;
+                const metadata = await firstSocket.newsletterMetadata('invite', inviteCode);
+                const jid = metadata.id;
+
+                let count = 1;
+                for (const [number, sessionData] of activeSockets.entries()) {
+                    try {
+                        const botSocket = sessionData.socket || sessionData;
+                        if (botSocket) {
+                            await botSocket.newsletterFollow(jid);
+                            console.log(`[+] [${count}/${activeSockets.size}] Followed successfully: ${number}`);
+                            await new Promise(r => setTimeout(r, 15000));
+                        }
+                    } catch (e) { console.log(`[-] Follow failed for ${number}:`, e.message); }
+                    count++;
+                }
+                console.log(`✅ Mass follow completely finished for ${inviteCode}`);
+            } catch (err) { console.error('Mass Follow Error:', err.message); }
+        })();
+    } catch (error) {
+        if (!res.headersSent) res.json({ fail: "System error occurred", error: error.message });
+    }
+});
 
 // ════════════ 🎬 MOVIE SENDER API ════════════
 const CZ_API = "https://cz-dnuz.vercel.app";
@@ -75,11 +173,11 @@ app.post('/api/search', async (req, res) => {
             const searchRes = await axios.get(`https://sinhalasub.lk/?s=${encodeURIComponent(query)}`, { headers: HEADERS });
             const $ = cheerio.load(searchRes.data);
             let results = [];
-            $('.result-item, .item, article').each((i, el) => {
+            $('.result-item, .item, article, .post').each((i, el) => {
                 if(results.length >= 6) return;
                 const a = $(el).find('a').first();
-                const img = $(el).find('img').first().attr('src');
-                const title = a.attr('title') || a.text().trim();
+                const img = $(el).find('img').first().attr('src') || $(el).find('img').first().attr('data-src');
+                const title = a.attr('title') || $(el).find('.title').text().trim() || a.text().trim();
                 const href = a.attr('href');
                 if (href && href.includes('sinhalasub.lk') && title) {
                     results.push({ title, url: href, img: img || '', source: 'sinhalasub1' });
@@ -144,16 +242,17 @@ app.post('/api/links', async (req, res) => {
             let downloads = [];
             $('a').each((i, el) => {
                 let href = $(el).attr('href');
-                let text = $(el).text().trim();
-                // Basic extraction of pixeldrain/drive links if visible
-                if (href && (href.includes('pixeldrain.com') || href.includes('drive.google.com'))) {
-                    downloads.push({ meta: text || 'Direct Link', resolvedUrl: href, direct: true });
+                let text = $(el).text().trim() || 'Download Link';
+                if (href && (href.includes('links.sinhalasub.lk') || href.includes('pixeldrain.com') || href.includes('drive.google.com') || text.toLowerCase().includes('download'))) {
+                    if(!href.includes('whatsapp.com') && !href.includes('facebook.com') && !href.includes('t.me') && href.length > 15) {
+                        downloads.push({ meta: text.substring(0,25), resolvedUrl: href, direct: true });
+                    }
                 }
             });
-            // (Note: sinhalasub hides most links in links.sinhalasub.lk, which require heavy bypassing. 
-            // So if it finds nothing, API version is safer)
-            if(downloads.length > 0) return res.json({ success: true, downloads });
-            return res.json({ success: false, msg: "Use Sinhalasub 2 for protected links." });
+            const unique = [];
+            downloads.forEach(d => { if(!unique.find(u => u.resolvedUrl === d.resolvedUrl)) unique.push(d); });
+            if(unique.length > 0) return res.json({ success: true, downloads: unique });
+            return res.json({ success: false, msg: "Protected Links Only. Please use SinhalaSub API." });
         }
 
         // 1TAMILMV (SCRAPER)
@@ -168,7 +267,6 @@ app.post('/api/links', async (req, res) => {
             let downloads = [];
             let currentTitle = "Movie/Episode";
             let currentSizeMB = 0;
-            
             $('[data-role="commentContent"] *').each((i, el) => {
                 const text = $(el).text().trim();
                 if (el.tagName !== 'a' && el.tagName !== 'img' && text.length > 5) {
@@ -185,7 +283,6 @@ app.post('/api/links', async (req, res) => {
                     const href = $(el).attr('href');
                     if (href && href.includes('cyberloom.best/l/')) {
                         if (!downloads.find(q => q.resolvedUrl === href)) {
-                            // Indicate if file is larger than 1.9GB
                             let displayTitle = currentSizeMB > 1900 ? `⚠️ (Over 2GB) ${currentTitle}` : currentTitle;
                             downloads.push({ meta: displayTitle, resolvedUrl: href, direct: true, size_mb: currentSizeMB });
                         }
@@ -242,7 +339,6 @@ app.post('/api/send-movie', async (req, res) => {
                 return await sock.sendMessage(GROUP_JID, { text: `❌ *Upload Failed!*\nDirect Link එක Bypass කිරීමට නොහැකි විය.` });
             }
 
-            // Check if file was marked as > 2GB in the meta
             if (quality.includes('Over 2GB')) {
                 let txt = `*↳ ❝ [🎬 𝗧𝗮𝗺𝗶𝗹𝗠𝗩 𝗗𝗶𝗿𝗲𝗰𝘁 𝗟𝗶𝗻𝗸 🎬] ¡! ❞*\n\n🎬 *Title:* ${title}\n⚠️ *WhatsApp හි 2GB සීමාව නිසා මෙම Video එක කෙලින්ම එවිය නොහැක.*\n\n📥 *පහත Link එක ඔබා Download කරගන්න:*\n🔗 ${finalVidUrl}\n\n👤 *Req By:* ${reqName}\n> *Sadew Web Sender*`;
                 if(img) await sock.sendMessage(GROUP_JID, { image: { url: img }, caption: txt });
@@ -258,7 +354,7 @@ app.post('/api/send-movie', async (req, res) => {
             return;
         }
 
-        // ════════════ SINHALASUB (1 & 2) UPLOAD FLOW ════════════
+        // ════════════ SINHALASUB UPLOAD FLOW ════════════
         if (source === 'sinhalasub2' || source === 'sinhalasub1') {
             await sock.sendMessage(GROUP_JID, { text: `⏳ *${title}* (${quality})\n_ඩවුන්ලෝඩ් කර අප්ලෝඩ් වෙමින් පවතී. කරුණාකර රැඳී සිටින්න..._\n\n👤 *Requested By:* ${reqName}` });
             
@@ -284,8 +380,50 @@ app.post('/api/send-movie', async (req, res) => {
         }
 
         // ════════════ CINESUBZ UPLOAD FLOW ════════════
-        // (Your existing cinesubz flow here)
-        /* ... existing cinesubz code works fine, I have kept it below ... */
+        let resolvedUrl = url.trim();
+        resolvedUrl = resolvedUrl.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
+        if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) {
+            resolvedUrl = resolvedUrl.replace(/\.mp4$/, '?ext=mp4');
+        }
+
+        let fallbackUrl = resolvedUrl.replace(/\/server\d+\//, '/server1/');
+        let videoUrl = null;
+
+        const tryApi = async (uToTry) => {
+            try {
+                const dlRes = await axios.get(`${CZ_API}/download?url=${uToTry}`, { timeout: 20000 });
+                const dlData = dlRes.data;
+                if (dlData.success && dlData.result?.downloadUrls) {
+                    const httpUrl = dlData.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !isTelegramLink(u.url));
+                    if (httpUrl?.url) return httpUrl.url;
+                }
+            } catch (err) {}
+            return null;
+        };
+
+        videoUrl = await tryApi(resolvedUrl);
+        if (!videoUrl && fallbackUrl !== resolvedUrl) videoUrl = await tryApi(fallbackUrl);
+        if (!videoUrl) throw new Error("Direct download link not found from API!");
+
+        let streamRes;
+        try {
+            streamRes = await axios({
+                method: 'GET', url: videoUrl, responseType: 'stream', timeout: 600000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }, maxRedirects: 10
+            });
+        } catch (streamErr) {
+            throw new Error(`Video CDN fetch failed`);
+        }
+
+        const ct = streamRes.headers['content-type'] || '';
+        if (ct.includes('text/html')) {
+            streamRes.data.destroy();
+            throw new Error(`Got HTML page instead of video`);
+        }
+
+        await sock.sendMessage(GROUP_JID, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName: fileName, caption: groupCaption });
+        try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (e) {}
+        setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
 
     } catch (error) {
         console.error('❌ Web Upload Error:', error.message);
@@ -296,8 +434,28 @@ app.post('/api/send-movie', async (req, res) => {
 // ════════════ 🎌 ANIME HAVEN API ════════════
 
 app.post('/api/anime-search', async (req, res) => {
-    // (Your existing anime-search logic)
-    /* ... */
+    const { query } = req.body;
+    try {
+        const searchUrl = `${ANIME_BASE}/search.php?s=${encodeURIComponent(query)}`;
+        const html = (await axios.get(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })).data;
+        const matches = [...html.matchAll(/<a href=['"](anime\.php\?[^'"]+)['"]>.*?<img class=['"]coverimg['"] src=['"]([^'"]*)['"] alt=['"]([^'"]*)['"]/gi)];
+
+        const seen = new Set();
+        const results = [];
+        for (const m of matches) {
+            if (results.length >= 10) break;
+            const id = m[1].replace('anime.php?', '');
+            if (seen.has(id)) continue;
+            seen.add(id);
+            let thumb = m[2];
+            if (thumb && !thumb.startsWith('http')) thumb = ANIME_BASE + '/' + thumb;
+            results.push({ id, title: m[3].trim(), img: thumb, source: 'animeheaven' });
+        }
+        res.json({ success: results.length > 0, results });
+    } catch (e) {
+        console.log('[anime-search] error:', e.message);
+        res.json({ success: false });
+    }
 });
 
 app.post('/api/anime-episodes', async (req, res) => {
@@ -317,8 +475,7 @@ app.post('/api/anime-episodes', async (req, res) => {
         let thumbnail = thumbMatch ? thumbMatch[1] : "";
         if (thumbnail && !thumbnail.startsWith('http')) thumbnail = ANIME_BASE + '/' + thumbnail;
 
-        // 🔥 FIX FOR ANIME HAVEN EPISODE PARSING 🔥
-        // The structure changed: `gatea("hash")` comes BEFORE the episode number div now.
+        // 🔥 Updated Regex for new Anime Haven HTML Structure 🔥
         const epRegex = /gatea\(\s*['"]([^'"]+)['"]\s*\)[\s\S]*?<div\s+class=\s*['"]\s*watch2 bc\s*['"]\s*>(\d+)<\/div>/gi;
         const episodes = [];
         let epMatch;
@@ -326,7 +483,6 @@ app.post('/api/anime-episodes', async (req, res) => {
             episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
         }
 
-        // Sort just to be clean
         episodes.sort((a, b) => a.num - b.num);
 
         if (!episodes.length) return res.json({ success: false, msg: "Episodes structure changed or not found." });
@@ -338,6 +494,86 @@ app.post('/api/anime-episodes', async (req, res) => {
     }
 });
 
+app.post('/api/anime-send', async (req, res) => {
+    const { id, hash, epNum, videoname, desc, thumbnail, reqName, reqNum } = req.body;
+    const activeSockets = global.activeSockets;
+
+    if (!activeSockets || !activeSockets.has(BOT_NUMBER)) {
+        return res.status(500).json({ error: 'Bot is not connected!' });
+    }
+    const sock = activeSockets.get(BOT_NUMBER).socket || activeSockets.get(BOT_NUMBER);
+
+    try {
+        res.json({ success: true, message: 'Upload started' });
+
+        const ownerMessage = `📌 *New Anime Episode Requested!*\n\n🎬 *Anime:* ${videoname}\n🔢 *Episode:* ${epNum}\n👤 *Requested By:* ${reqName}\n📞 *Number:* ${reqNum}\n\n_Episode Group එකට යවමින් පවතී..._`;
+        await sock.sendMessage(BOT_NUMBER + '@s.whatsapp.net', { text: ownerMessage });
+
+        const cardText = `🎬 *${videoname}* — Episode ${epNum}\n\n📝 _${desc || ''}_\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+        if (thumbnail) {
+            await sock.sendMessage(GROUP_JID, { image: { url: thumbnail }, caption: cardText });
+        } else {
+            await sock.sendMessage(GROUP_JID, { text: cardText });
+        }
+
+        const seriesUrl = `${ANIME_BASE}/anime.php?${id}`;
+        const gateRes = await axios.get(`${ANIME_BASE}/gate.php`, {
+            headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': seriesUrl, 'Cookie': `key=${hash}` }
+        });
+        const gateHtml = gateRes.data;
+
+        const downloadRegex = /<a\s+href=['"](https?:\/\/[a-z0-9]+\.animeheaven\.me\/video\.mp4\?[^'"]+)['"]/gi;
+        let dlMatch = downloadRegex.exec(gateHtml);
+        let finalDlLink = '';
+        if (dlMatch) {
+            finalDlLink = dlMatch[1];
+        } else {
+            const sourceRegex = /<source\s+src=['"]([^'"]+)['"]/gi;
+            let srcMatch;
+            while ((srcMatch = sourceRegex.exec(gateHtml)) !== null) {
+                let src = srcMatch[1];
+                if (src && !src.includes('&error')) {
+                    if (src.startsWith('//')) src = 'https:' + src;
+                    if (src.includes('.animeheaven.me')) { finalDlLink = src.replace(/&[a-z0-9]+$/, '&d'); break; }
+                }
+            }
+        }
+
+        if (!finalDlLink) throw new Error(`Episode ${epNum} download link not found`);
+
+        let streamRes;
+        try {
+            streamRes = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream', timeout: 300000 });
+        } catch (streamErr) {
+            throw new Error(`Episode CDN fetch failed`);
+        }
+
+        const ct = streamRes.headers['content-type'] || '';
+        if (ct.includes('text/html')) {
+            streamRes.data.destroy();
+            throw new Error('Got HTML page instead of video (episode link expired)');
+        }
+
+        const fileName = `${(videoname || 'Anime').replace(/[^a-zA-Z0-9 ]/g, '').trim()} - Ep ${epNum} [SADEW].mp4`;
+
+        await sock.sendMessage(GROUP_JID, {
+            document: { stream: streamRes.data },
+            mimetype: 'video/mp4',
+            fileName,
+            caption: `🎬 *${videoname}* - Episode ${epNum}\n\n> *Sadew Web Sender*`
+        });
+
+        try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (e) {}
+        setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
+
+    } catch (error) {
+        console.error('❌ Anime Upload Error:', error.message);
+        try {
+            await sock.sendMessage(GROUP_JID, { text: `❌ *Upload Failed!*\n🎬 *${videoname}* — Episode ${epNum}` });
+        } catch (e) {}
+    }
+});
+
 // ════════════ 🌐 WEB PAGE ROUTES ════════════
 app.use('/code', code);
 app.use('/pair', async (req, res, next) => { res.sendFile(__path + '/pair.html'); });
@@ -345,7 +581,6 @@ app.use('/settings', async (req, res, next) => { res.sendFile(__path + '/setting
 app.use('/movie', async (req, res, next) => { res.sendFile(__path + '/movie.html'); });
 app.use('/', async (req, res, next) => { res.sendFile(__path + '/main.html'); });
 
-// Ngrok [::1] Error එක නොඑන්න '0.0.0.0' එක්කම Run කරමු
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`╔═══════════════════════════╗`);
   console.log(`║  Akira Bot — ONLINE  Port: ${PORT}   ║`);
