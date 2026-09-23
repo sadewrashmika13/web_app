@@ -16,9 +16,8 @@ app.get('/livestats', (req, res) => { res.json({ success: true }); });
 app.get('/react', async (req, res) => { res.json({ success: true }); });
 app.get('/follow', async (req, res) => { res.json({ success: true }); });
 
-// ════════════ 🎬 CONSTANTS & AI KEYS ════════════
 const CZ_API = "https://cz-dnuz.vercel.app";
-const ZANTA_API = "https://api.zanta-mini.store/api/sinhalasub";
+const ZANTA_API_BASE = "https://api.zanta-mini.store";
 const ZANTA_KEY = "zan_FIAO7Ayh_eo1vllkep6";
 const ANIME_BASE = "https://animeheaven.me";
 const GROUP_JID = '120363425721300928@g.us'; 
@@ -26,31 +25,27 @@ const BOT_NUMBER = '94705236759';
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
 const GEMINI_KEYS = [
+    "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA", 
+    "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ", 
+    "AQ.Ab8RN6IMIGwHe7iM4N6ao40c9m8rTOPkJNyr5CPKKH1bnfEz2g",
     "AQ.Ab8RN6KKBj5fsS4YXlCZK6I4X03dKQ1-FC1UhyP_bMJNcQ67xg",
     "AQ.Ab8RN6JLDmH2b1M6SLF7IhvqU78ynkTHcHDPNa82S375zF9Q8g"
 ];
 
-// 🔥 AI SUMMARY GEN WITH FALLBACK 🔥
+// 🔥 හරියටම ඔයා ඉල්ලපු 3.1-flash-lite එක විතරයි! 🔥
 async function getGeminiSummary(movieTitle) {
     const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
     
-    // 3.1-flash-lite මුලින්ම ට්‍රයි කරනවා, ඒක නැත්තන් අනිවාර්යයෙන්ම වැඩ කරන 1.5-flash එකෙන් හදලා දෙනවා!
-    const modelsToTry = ["gemini-3.1-flash-lite", "gemini-1.5-flash"]; 
-
     for (let key of GEMINI_KEYS) {
-        for (let model of modelsToTry) {
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-                const response = await axios.post(url, { contents: [{ parts: [{ text: prompt }] }] }, { timeout: 8000 });
-                if (response.data && response.data.candidates && response.data.candidates[0].content.parts[0].text) {
-                    return response.data.candidates[0].content.parts[0].text.trim();
-                }
-            } catch (err) { 
-                // Model එක තාම ගූගල් දීලා නැත්තන්, ඊළඟ Model එකෙන් Auto Try වෙනවා
+        try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`;
+            const response = await axios.post(url, { contents: [{ parts: [{ text: prompt }] }] }, { timeout: 8000 });
+            if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                return response.data.candidates[0].content.parts[0].text.trim();
             }
-        }
+        } catch (err) { }
     }
-    return "";
+    return ""; 
 }
 
 function getActiveSocket() {
@@ -66,20 +61,23 @@ async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 600000) {
     return Promise.race([sendPromise, timeoutPromise]);
 }
 
-// ════════════ 🚀 ULTRA FAST QUEUE MANAGER (0 DELAY) ════════════
+// ════════════ 🚀 STRICTLY SEQUENTIAL QUEUE (කලින් තිබ්බ පරණ සුපිරි විදිහ) ════════════
 const taskQueue = {
     queue: [],
     active: null,
-    add: function(task) { this.queue.push(task); this.processNext(); },
+    add: function(task) { 
+        this.queue.push(task); 
+        this.processNext(); 
+    },
     processNext: async function() {
         if (this.active || this.queue.length === 0) return;
         this.active = this.queue.shift();
         try {
             console.log(`[QUEUE] Starting Task: ${this.active.info.title}`);
             await this.active.run();
-        } catch (e) { console.error(`[QUEUE] Error in Task:`, e.message); }
-        
-        // 🔥 Delay එක සම්පූර්ණයෙන්ම අයින් කළා. පට්ට Speed එකෙන් ඊළඟ එකට යනවා! 🔥
+        } catch (e) { 
+            console.error(`[QUEUE] Error:`, e.message); 
+        }
         this.active = null;
         this.processNext();
     }
@@ -92,18 +90,21 @@ app.post('/api/search', async (req, res) => {
     const { query, source } = req.body;
     try {
         if (source === 'sinhalasub2') {
-            const searchRes = await axios.get(`${ZANTA_API}/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
-            if (searchRes.data?.success && searchRes.data.results?.length > 0) {
-                return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source: 'sinhalasub2' })) });
-            }
+            const searchRes = await axios.get(`${ZANTA_API_BASE}/api/sinhalasub/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
+            if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
             return res.json({ success: false });
         }
 
         if (source === 'slcartoons') {
-            const searchRes = await axios.get(`https://api.zanta-mini.store/api/slcartoons/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
-            if (searchRes.data?.success && searchRes.data.results?.length > 0) {
-                return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source: 'slcartoons' })) });
-            }
+            const searchRes = await axios.get(`${ZANTA_API_BASE}/api/slcartoons/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
+            if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
+            return res.json({ success: false });
+        }
+
+        // 🔥 MOVIE SUB LK (Working API) 🔥
+        if (source === 'moviesublk') {
+            const searchRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
+            if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
             return res.json({ success: false });
         }
 
@@ -125,9 +126,7 @@ app.post('/api/search', async (req, res) => {
         }
         
         const searchRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`);
-        if (searchRes.data.success && searchRes.data.result?.length > 0) {
-            return res.json({ success: true, results: searchRes.data.result.slice(0, 8).map(mv => ({ ...mv, source: 'cinesubz' })) });
-        }
+        if (searchRes.data.success && searchRes.data.result?.length > 0) return res.json({ success: true, results: searchRes.data.result.slice(0, 8).map(mv => ({ ...mv, source: 'cinesubz' })) });
         res.json({ success: false });
     } catch (error) { res.json({ success: false }); }
 });
@@ -137,7 +136,7 @@ app.post('/api/links', async (req, res) => {
     const { url, source } = req.body;
     try {
         if (source === 'sinhalasub2') {
-            const dlRes = await axios.get(`${ZANTA_API}/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
+            const dlRes = await axios.get(`${ZANTA_API_BASE}/api/sinhalasub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
             const pixelLinks = (dlRes.data.results.links || []).filter(l => l.quality === 'Pixeldrain');
             if (!pixelLinks.length) return res.json({ success: false });
@@ -146,16 +145,30 @@ app.post('/api/links', async (req, res) => {
         }
 
         if (source === 'slcartoons') {
-            const dlRes = await axios.get(`https://api.zanta-mini.store/api/slcartoons/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
+            const dlRes = await axios.get(`${ZANTA_API_BASE}/api/slcartoons/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.results) return res.json({ success: false });
             const details = dlRes.data.results;
             let downloads = [];
-            if (details.episodes?.length > 0) {
-                details.episodes.forEach(ep => { if (ep.stream_url) downloads.push({ meta: ep.title, resolvedUrl: ep.stream_url, direct: true }); });
-            } else if (details.download_links?.length > 0) {
-                details.download_links.forEach(dl => { if (dl.final_link && !dl.final_link.includes('t.me')) downloads.push({ meta: dl.info || 'Direct Link', resolvedUrl: dl.final_link, direct: true }); });
-            }
+            if (details.episodes?.length > 0) details.episodes.forEach(ep => { if (ep.stream_url) downloads.push({ meta: ep.title, resolvedUrl: ep.stream_url, direct: true }); });
+            else if (details.download_links?.length > 0) details.download_links.forEach(dl => { if (dl.final_link && !dl.final_link.includes('t.me')) downloads.push({ meta: dl.info || 'Direct Link', resolvedUrl: dl.final_link, direct: true }); });
             if (downloads.length > 0) return res.json({ success: true, downloads, thumbnail: details.thumbnail });
+            return res.json({ success: false });
+        }
+
+        // 🔥 MOVIE SUB LK (Working API) 🔥
+        if (source === 'moviesublk') {
+            const dlRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
+            if (!dlRes.data?.success) return res.json({ success: false });
+            const data = dlRes.data;
+            let downloads = [];
+            if (data.episodes && data.episodes.length > 0) {
+                data.episodes.forEach(ep => { downloads.push({ meta: ep.title || 'Episode', resolvedUrl: ep.stream_url || ep.url, direct: true }); });
+            } else if (data.direct_download_url) {
+                downloads.push({ meta: "📥 Download Movie", resolvedUrl: data.direct_download_url, direct: true });
+            } else if (data.download_links && data.download_links.length > 0) {
+                data.download_links.forEach(dl => { downloads.push({ meta: dl.info || dl.quality || 'Link', resolvedUrl: dl.final_link || dl.url, direct: true }); });
+            }
+            if (downloads.length > 0) return res.json({ success: true, downloads, thumbnail: data.image });
             return res.json({ success: false });
         }
 
@@ -205,22 +218,34 @@ app.post('/api/send-movie', async (req, res) => {
                 const isBatch = typeof batchIndex !== 'undefined';
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
 
+                let finalVidUrl = url;
+
+                // WhiteShadow Bypass for GDrive (MovieSubLK API)
+                if (source === 'moviesublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
+                    let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
+                    if (match) {
+                        const fileId = match[1];
+                        const wsRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/download/gdrive?url=${encodeURIComponent(`https://drive.google.com/file/d/${fileId}/view`)}&apitoken=4ehG6P`);
+                        if (wsRes.data?.success && wsRes.data.downloadUrl) {
+                            finalVidUrl = wsRes.data.downloadUrl;
+                        }
+                    }
+                }
+
                 if (isFirstInBatch) {
-                    // 🔥 OWNER INBOX: Shows both Name & Number 🔥
                     await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
                     
                     const aiSummary = await getGeminiSummary(title);
                     
                     let cap = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n`;
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    // 🔥 GROUP CAPTION: Shows ONLY Name (Privacy Protected) 🔥
                     cap += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
 
                     if (img) await sendMediaSafely(sock, GROUP_JID, { image: { url: img }, caption: cap }, 60000);
                     else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
                 }
 
-                let streamRes = await axios({ method: 'GET', url: url, responseType: 'stream', timeout: 0, maxRedirects: 10, headers: HEADERS });
+                let streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 0, headers: HEADERS });
                 
                 if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
                     try{ streamRes.data.destroy(); }catch(e){}
@@ -229,7 +254,6 @@ app.post('/api/send-movie', async (req, res) => {
                 }
 
                 let fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
-                // 🔥 NO NUMBER IN GROUP BATCH CAPTIONS 🔥
                 let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${quality}*\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*` : `🎬 *${title}*\n> *Sadew Web Sender*`;
 
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: smallCaption });
@@ -293,14 +317,22 @@ app.post('/api/anime-send', async (req, res) => {
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
 
                 if (isFirstInBatch) {
-                    // 🔥 OWNER INBOX: Name & Number 🔥
                     await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${videoname} - Ep ${epNum}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
                     
                     const aiSummary = await getGeminiSummary(videoname);
                     
+                    // 🔥 AI එක Fail වුණොත් Original Description එක ගන්න කෑල්ල 🔥
+                    const seriesHtml = (await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS })).data;
+                    const descMatch = seriesHtml.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
+                    let origDesc = descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '') : videoname;
+                    if (origDesc.length > 300) origDesc = origDesc.substring(0, 300) + '...';
+
                     let cardText = `🎬 *${videoname}*\n\n`;
-                    if (aiSummary) cardText += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    // 🔥 GROUP CAPTION: Name ONLY 🔥
+                    if (aiSummary) {
+                        cardText += `📖 *Summary:*\n${aiSummary}\n\n`;
+                    } else {
+                        cardText += `📝 *Description:*\n${origDesc}\n\n`; // AI වැඩ නැත්තන් මේක යයි!
+                    }
                     cardText += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
 
                     if (thumbnail) await sendMediaSafely(sock, GROUP_JID, { image: { url: thumbnail }, caption: cardText }, 60000);
@@ -308,23 +340,47 @@ app.post('/api/anime-send', async (req, res) => {
                 }
 
                 const gateHtml = (await axios.get(`${ANIME_BASE}/gate.php`, { headers: { ...HEADERS, 'Referer': `${ANIME_BASE}/anime.php?${id}`, 'Cookie': `key=${hash}` } })).data;
-                const dlMatch = /<a\s+href=['"](https?:\/\/[a-z0-9]+\.animeheaven\.me\/video\.mp4\?[^'"]+)['"]/gi.exec(gateHtml);
-                if (!dlMatch) throw new Error("Anime DL link not found");
+                
+                let finalDlLink = '';
+                const downloadRegex = /<a\s+href=['"](https?:\/\/[a-z0-9]+\.animeheaven\.me\/video\.mp4\?[^'"]+)['"]/gi;
+                let dlMatch = downloadRegex.exec(gateHtml);
 
-                const streamRes = await axios({ url: dlMatch[1], method: 'GET', responseType: 'stream', timeout: 300000 });
+                if (dlMatch) {
+                    finalDlLink = dlMatch[1];
+                } else {
+                    const sourceRegex = /<source\s+src=['"]([^'"]+)['"]/gi;
+                    let srcMatch;
+                    while ((srcMatch = sourceRegex.exec(gateHtml)) !== null) {
+                        let src = srcMatch[1];
+                        if (src && !src.includes('&error')) {
+                            if (src.startsWith('//')) src = 'https:' + src;
+                            if (src.includes('.animeheaven.me')) { finalDlLink = src.replace(/&[a-z0-9]+$/, '&d'); break; }
+                        }
+                    }
+                }
+
+                if (!finalDlLink) throw new Error("Anime DL link not found");
+
+                const streamRes = await axios({ 
+                    url: finalDlLink, 
+                    method: 'GET', 
+                    responseType: 'stream', 
+                    timeout: 0,
+                    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' }
+                });
+
                 if ((streamRes.headers['content-type'] || '').includes('text/html')) {
                     try { streamRes.data.destroy(); } catch(e){}
                     throw new Error("Blocked by AnimeHaven");
                 }
 
                 const fileName = `${videoname.replace(/[^a-zA-Z0-9 ]/g, '').trim()} - Ep ${epNum} [SADEW].mp4`;
-                // 🔥 GROUP BATCH: Name ONLY 🔥
                 let epCaption = `🎬 Episode ${epNum}\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*`;
 
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption });
                 
             } catch (err) {
-                try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${videoname} - Ep ${epNum}` }, 30000); } catch(e){}
+                try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${videoname} - Ep ${epNum}\n_Network dropped or timeout._` }, 30000); } catch(e){}
             }
         }
     });
