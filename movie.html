@@ -14,8 +14,13 @@
     --crimson-dim: rgba(232,40,63,.35);
     --amber:#F5A623;
     --amber-dim: rgba(245,166,35,.35);
+    --orange:#e57b16;
+    --orange-dim: rgba(229,123,22,.35);
+    --teal:#0ea5e9;
+    --teal-dim: rgba(14,165,233,.35);
     --violet:#7C5CFC;
     --violet-dim: rgba(124,92,252,.35);
+    
     --stub:#F7F4EF;
     --stub-ink:#1A1720;
     --stub-mute:#8B8478;
@@ -33,12 +38,11 @@
     overflow-x:hidden;
   }
 
-  /* ambient glow — single slow breathing light, not a flashing effect */
   .ambient{
     position:fixed; inset:0; z-index:-1; pointer-events:none;
     background:
       radial-gradient(ellipse 60% 40% at 50% -10%, var(--crimson-dim), transparent 60%),
-      radial-gradient(ellipse 45% 35% at 90% 15%, var(--amber-dim), transparent 60%);
+      radial-gradient(ellipse 45% 35% at 90% 15%, var(--teal-dim), transparent 60%);
     opacity:.55;
     animation: breathe 9s ease-in-out infinite;
   }
@@ -71,31 +75,37 @@
   }
   @keyframes rise{ from{ opacity:0; transform:translateY(14px);} to{ opacity:1; transform:translateY(0);} }
 
-  /* ── source toggle — sliding glass pill, 3 segments ── */
+  /* ── source toggle — sliding glass pill, 5 segments ── */
   .source-toggle{
-    position:relative; display:flex; padding:4px; border-radius:999px; width:min(420px, 92vw);
+    position:relative; display:flex; padding:4px; border-radius:999px; width:min(720px, 98vw);
     margin:0 auto; background:var(--glass); border:1px solid var(--glass-brd); backdrop-filter:blur(10px);
     -webkit-backdrop-filter:blur(10px);
     opacity:0; animation: rise .8s .44s ease forwards;
+    overflow-x: auto; -ms-overflow-style: none; scrollbar-width: none;
   }
+  .source-toggle::-webkit-scrollbar { display: none; }
+
   .source-toggle .thumb{
-    position:absolute; top:4px; left:4px; width:calc(33.333% - 4px); height:calc(100% - 8px);
+    position:absolute; top:4px; left:4px; width:calc(20% - 1.6px); height:calc(100% - 8px);
     border-radius:999px; background:var(--crimson);
     box-shadow:0 0 22px var(--crimson-dim);
     transition: transform .35s cubic-bezier(.65,0,.35,1), background .35s ease, box-shadow .35s ease;
     z-index:0;
   }
-  .source-toggle.sinhalasub .thumb{ transform:translateX(100%); background:var(--amber); box-shadow:0 0 22px var(--amber-dim); }
-  .source-toggle.animeheaven .thumb{ transform:translateX(200%); background:var(--violet); box-shadow:0 0 22px var(--violet-dim); }
+  .source-toggle[data-active="cinesubz"] .thumb { transform:translateX(0%); background:var(--crimson); box-shadow:0 0 22px var(--crimson-dim); }
+  .source-toggle[data-active="sinhalasub2"] .thumb { transform:translateX(100%); background:var(--amber); box-shadow:0 0 22px var(--amber-dim); }
+  .source-toggle[data-active="sinhalasub1"] .thumb { transform:translateX(200%); background:var(--orange); box-shadow:0 0 22px var(--orange-dim); }
+  .source-toggle[data-active="1tamilmv"] .thumb { transform:translateX(300%); background:var(--teal); box-shadow:0 0 22px var(--teal-dim); }
+  .source-toggle[data-active="animeheaven"] .thumb { transform:translateX(400%); background:var(--violet); box-shadow:0 0 22px var(--violet-dim); }
 
   .src-btn{
-    position:relative; z-index:1; flex:1; border:none; background:transparent; cursor:pointer;
-    padding:9px 10px; font-family:'Inter'; font-weight:600; font-size:12.5px;
+    position:relative; z-index:1; flex:1; min-width: 100px; border:none; background:transparent; cursor:pointer;
+    padding:9px 4px; font-family:'Inter'; font-weight:600; font-size:11.5px;
     color:var(--mute); border-radius:999px; transition:color .3s ease;
-    display:flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap;
+    display:flex; align-items:center; justify-content:center; gap:4px; white-space:nowrap;
   }
   .src-btn.active{ color:#fff; }
-  .src-btn svg{ width:14px; height:14px; flex-shrink:0; }
+  .src-btn svg{ width:12px; height:12px; flex-shrink:0; }
 
   /* ── search ── */
   .search-wrap{
@@ -109,8 +119,11 @@
   }
   .search-box::placeholder{ color:var(--mute); }
   .search-box:focus{ border-color:var(--crimson); box-shadow:0 0 0 3px var(--crimson-dim); }
-  .source-toggle.sinhalasub ~ .search-wrap .search-box:focus{ border-color:var(--amber); box-shadow:0 0 0 3px var(--amber-dim); }
-  .source-toggle.animeheaven ~ .search-wrap .search-box:focus{ border-color:var(--violet); box-shadow:0 0 0 3px var(--violet-dim); }
+  
+  .source-toggle[data-active="sinhalasub2"] ~ .search-wrap .search-box:focus{ border-color:var(--amber); box-shadow:0 0 0 3px var(--amber-dim); }
+  .source-toggle[data-active="sinhalasub1"] ~ .search-wrap .search-box:focus{ border-color:var(--orange); box-shadow:0 0 0 3px var(--orange-dim); }
+  .source-toggle[data-active="1tamilmv"] ~ .search-wrap .search-box:focus{ border-color:var(--teal); box-shadow:0 0 0 3px var(--teal-dim); }
+  .source-toggle[data-active="animeheaven"] ~ .search-wrap .search-box:focus{ border-color:var(--violet); box-shadow:0 0 0 3px var(--violet-dim); }
 
   .search-btn{
     padding:0 22px; border-radius:14px; border:none; cursor:pointer;
@@ -125,9 +138,7 @@
 
   /* ── movie grid — ticket-stub cards ── */
   .container{ max-width:1080px; margin:0 auto; padding:36px 22px 90px; }
-  .movie-grid{
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:22px;
-  }
+  .movie-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:22px; }
 
   .ticket{
     cursor:pointer; border-radius:16px; overflow:hidden;
@@ -147,11 +158,14 @@
     padding:4px 9px; border-radius:999px; backdrop-filter:blur(6px);
     background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.18); color:#fff;
   }
+  
+  /* 5 Badge Styles */
   .ticket .badge.cinesubz{ border-color:var(--crimson); color:#ff8a94; }
-  .ticket .badge.sinhalasub{ border-color:var(--amber); color:#ffcf85; }
+  .ticket .badge.sinhalasub2{ border-color:var(--amber); color:#ffcf85; }
+  .ticket .badge.sinhalasub1{ border-color:var(--orange); color:#fcd34d; }
+  .ticket .badge.1tamilmv{ border-color:var(--teal); color:#bae6fd; }
   .ticket .badge.animeheaven{ border-color:var(--violet); color:#c9bbff; }
 
-  /* perforation between poster and stub */
   .perforation{ position:relative; height:0; background:var(--void-2); }
   .perforation::before{
     content:""; position:absolute; top:-1px; left:0; right:0; height:2px;
@@ -246,15 +260,24 @@
   <h1>Find it. Send it. <em>Done.</em></h1>
   <p class="sub">Search a film or anime episode and drop it straight into the group — pick your source, pick a quality, it's gone.</p>
 
-  <div class="source-toggle" id="sourceToggle">
+  <!-- 🚀 NEW 5-SEGMENT SOURCE TOGGLE -->
+  <div class="source-toggle" id="sourceToggle" data-active="cinesubz">
     <div class="thumb"></div>
     <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
       CineSubz
     </button>
-    <button class="src-btn" data-source="sinhalasub" onclick="setSource('sinhalasub')">
+    <button class="src-btn" data-source="sinhalasub2" onclick="setSource('sinhalasub2')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-      SinhalaSub
+      SinhalaSub API
+    </button>
+    <button class="src-btn" data-source="sinhalasub1" onclick="setSource('sinhalasub1')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      SinhalaSub Web
+    </button>
+    <button class="src-btn" data-source="1tamilmv" onclick="setSource('1tamilmv')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+      1TamilMV
     </button>
     <button class="src-btn" data-source="animeheaven" onclick="setSource('animeheaven')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.5 5.5L20 9l-4.5 3.9L16.9 19 12 15.8 7.1 19l1.4-6.1L4 9l5.5-.5z"/></svg>
@@ -294,20 +317,23 @@
 
 <script>
   let currentSource = 'cinesubz';
-  let currentMovieMeta = {};   // { title, img, imdb }
-  let currentAnime = {};       // { id, videoname, desc, thumbnail }
+  let currentMovieMeta = {};   
+  let currentAnime = {};       
 
+  // Updated Placeholders for 5 endpoints
   const placeholders = {
-    cinesubz: 'Search a movie name…',
-    sinhalasub: 'Search a movie name…',
-    animeheaven: 'Search an anime name…'
+    cinesubz: 'Search CineSubz…',
+    sinhalasub2: 'Search SinhalaSub (API)…',
+    sinhalasub1: 'Search SinhalaSub (Web)…',
+    '1tamilmv': 'Search 1TamilMV…',
+    animeheaven: 'Search Anime Haven…'
   };
 
+  // 🔥 Smart UI Source Switcher (Updates the sliding pill automatically using data-active)
   function setSource(src){
     currentSource = src;
     const toggle = document.getElementById('sourceToggle');
-    toggle.classList.remove('sinhalasub', 'animeheaven');
-    if (src !== 'cinesubz') toggle.classList.add(src);
+    toggle.setAttribute('data-active', src);
     document.querySelectorAll('.src-btn').forEach(b => b.classList.toggle('active', b.dataset.source === src));
     document.getElementById('movieGrid').innerHTML = '';
     document.getElementById('statusMsg').textContent = '';
@@ -359,8 +385,13 @@
             badgeClass = 'animeheaven'; badgeText = 'Anime Haven';
             metaHtml = `<span>Tap for episodes</span>`;
           } else {
-            badgeClass = mv.source === 'sinhalasub' ? 'sinhalasub' : 'cinesubz';
-            badgeText = mv.source === 'sinhalasub' ? 'SinhalaSub' : 'CineSubz';
+            // Apply correct badge and styling dynamically based on source
+            badgeClass = mv.source;
+            if(mv.source === 'sinhalasub2') badgeText = 'SinhalaSub API';
+            else if(mv.source === 'sinhalasub1') badgeText = 'SinhalaSub Web';
+            else if(mv.source === '1tamilmv') badgeText = '1TamilMV';
+            else badgeText = 'CineSubz';
+
             const metaBits = [];
             if(mv.imdb) metaBits.push(`<span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.9 7 .7-5.3 4.9 1.6 7-6.3-3.7L5.7 21.5l1.6-7L2 9.6l7-.7z"/></svg>${mv.imdb}</span>`);
             if(mv.date) metaBits.push(`<span>${mv.date}</span>`);
@@ -370,7 +401,7 @@
 
           card.innerHTML = `
             <div class="poster">
-              <img src="${mv.img}" alt="${mv.title}" loading="lazy">
+              <img src="${mv.img || 'https://via.placeholder.com/400x600/100e16/ffffff?text=No+Cover'}" alt="${mv.title}" loading="lazy">
               <span class="badge ${badgeClass}">${badgeText}</span>
             </div>
             <div class="perforation"></div>
@@ -399,12 +430,11 @@
     const modal = document.getElementById('movieModal');
     modal.classList.add('open');
     document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modalImg').src = img;
+    document.getElementById('modalImg').src = img || 'https://via.placeholder.com/400x600/100e16/ffffff?text=No+Cover';
     document.getElementById('qualityButtons').innerHTML = '';
     const modalStatus = document.getElementById('modalStatus');
     modalStatus.style.color = '#F5C453';
 
-    // ── Anime Haven: fetch episode list, render as pills ──
     if(currentSource === 'animeheaven'){
       modalStatus.textContent = 'Fetching episodes…';
       try{
@@ -441,7 +471,6 @@
       return;
     }
 
-    // ── CineSubz / SinhalaSub: fetch quality links ──
     currentMovieMeta = { title, img, imdb };
     modalStatus.textContent = 'Fetching download links…';
     try{
@@ -451,6 +480,7 @@
       });
       const data = await res.json();
       if(data.rating) currentMovieMeta.imdb = data.rating;
+      if(data.thumbnail) document.getElementById('modalImg').src = data.thumbnail;
 
       if(data.success && data.downloads?.length){
         modalStatus.textContent = 'Pick a quality:';
@@ -465,7 +495,7 @@
         });
       } else {
         modalStatus.style.color = 'var(--crimson)';
-        modalStatus.textContent = 'No download links found for this one.';
+        modalStatus.textContent = data.msg || 'No download links found for this one.';
       }
     } catch(e){
       modalStatus.style.color = 'var(--crimson)';
