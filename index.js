@@ -3,6 +3,8 @@ const axios = require('axios');
 const path = require('path');
 const crypto = require('crypto');
 const cheerio = require('cheerio');
+const qs = require('qs');
+const https = require('https');
 const app = express();
 const __path = process.cwd();
 const PORT = process.env.PORT || 8000;
@@ -11,6 +13,8 @@ let code = require('./pair');
 require('events').EventEmitter.defaultMaxListeners = 500;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 app.get('/livestats', (req, res) => { res.json({ success: true }); });
 app.get('/react', async (req, res) => { res.json({ success: true }); });
@@ -61,7 +65,7 @@ async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 600000) {
     return Promise.race([sendPromise, timeoutPromise]);
 }
 
-// ════════════ 🚀 STRICTLY SEQUENTIAL QUEUE (කලින් තිබ්බ පරණ සුපිරි විදිහ) ════════════
+// ════════════ 🚀 STRICTLY SEQUENTIAL QUEUE ════════════
 const taskQueue = {
     queue: [],
     active: null,
@@ -101,9 +105,15 @@ app.post('/api/search', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 MOVIE SUB LK (Working API) 🔥
         if (source === 'moviesublk') {
             const searchRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
+            if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
+            return res.json({ success: false });
+        }
+
+        // 🔥 KDRAMA SEARCH 🔥
+        if (source === 'kdrama') {
+            const searchRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
             if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
             return res.json({ success: false });
         }
@@ -155,7 +165,6 @@ app.post('/api/links', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 MOVIE SUB LK (FIXED) 🔥
         if (source === 'moviesublk') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
@@ -163,22 +172,34 @@ app.post('/api/links', async (req, res) => {
             const data = dlRes.data;
             let downloads = [];
 
-            // 1. Quality Links තියෙනවා නම් ඒ ටික ගන්නවා
             if (data.download_links && Array.isArray(data.download_links) && data.download_links.length > 0) {
                 data.download_links.forEach((dl, idx) => {
                     if (dl.final_link || dl.url || dl.link) {
                         downloads.push({ meta: dl.info || dl.quality || `Link ${idx+1}`, resolvedUrl: dl.final_link || dl.url || dl.link, direct: true });
                     }
                 });
-            } 
-            // 2. නැත්නම් Direct Download URL එකක් තියෙනවා නම් ඒක ගන්නවා (Series වලට ZIP විදිහට)
-            else if (data.direct_download_url) {
+            } else if (data.direct_download_url) {
                 let btnName = data.is_series ? "📥 Download Full Series (ZIP)" : "📥 Download Movie";
                 downloads.push({ meta: btnName, resolvedUrl: data.direct_download_url, direct: true });
             }
 
             if (downloads.length > 0) return res.json({ success: true, downloads, thumbnail: data.image });
             return res.json({ success: false });
+        }
+
+        // 🔥 KDRAMA LINKS 🔥
+        if (source === 'kdrama') {
+            const dlRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
+            if (!dlRes.data?.success || !dlRes.data.results?.episodes_list?.length) return res.json({ success: false });
+            
+            const episodes = dlRes.data.results.episodes_list;
+            let downloads = episodes.map(ep => ({
+                meta: ep.title || 'Episode',
+                resolvedUrl: ep.download_link,
+                direct: false
+            }));
+            
+            return res.json({ success: true, downloads, thumbnail: dlRes.data.results.thumbnail });
         }
 
         if (source === '1tamilmv') {
@@ -229,7 +250,6 @@ app.post('/api/send-movie', async (req, res) => {
 
                 let finalVidUrl = url;
 
-                // WhiteShadow Bypass for GDrive (MovieSubLK API)
                 if (source === 'moviesublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
                     let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
                     if (match) {
@@ -238,6 +258,35 @@ app.post('/api/send-movie', async (req, res) => {
                         if (wsRes.data?.success && wsRes.data.downloadUrl) {
                             finalVidUrl = wsRes.data.downloadUrl;
                         }
+                    }
+                }
+
+                // 🔥 KDRAMA BYPASS SCRAPER 🔥
+                if (source === 'kdrama') {
+                    const page1 = await axios.get(url, { httpsAgent });
+                    const $1 = cheerio.load(page1.data);
+                    const formData = {};
+                    $1('form').first().find('input[type="hidden"]').each((i, el) => {
+                        formData[$1(el).attr('name')] = $1(el).attr('value');
+                    });
+
+                    const page2 = await axios.post(url, qs.stringify(formData), {
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Referer': url,
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        },
+                        httpsAgent
+                    });
+                    const $2 = cheerio.load(page2.data);
+                    
+                    let directLink = $2('a').filter((i, el) => $2(el).text().trim() === 'Start download').attr('href');
+                    if (!directLink) directLink = $2('.btn-success').attr('href') || $2('a[href*=".mkv"]').attr('href') || $2('a[href*=".mp4"]').attr('href');
+
+                    if (directLink) {
+                        finalVidUrl = directLink;
+                    } else {
+                        throw new Error("KDrama Direct Link Bypass Failed");
                     }
                 }
 
@@ -254,7 +303,7 @@ app.post('/api/send-movie', async (req, res) => {
                     else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
                 }
 
-                let streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 0, headers: HEADERS });
+                let streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 0, headers: HEADERS, httpsAgent });
                 
                 if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
                     try{ streamRes.data.destroy(); }catch(e){}
@@ -262,10 +311,13 @@ app.post('/api/send-movie', async (req, res) => {
                     return;
                 }
 
-                let fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
+                const mimeType = (finalVidUrl.includes('.mkv') || (streamRes.headers['content-type'] && streamRes.headers['content-type'].includes('matroska'))) ? 'video/x-matroska' : 'video/mp4';
+                const fileExt = mimeType === 'video/x-matroska' ? 'mkv' : 'mp4';
+                let fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.${fileExt}`;
+                
                 let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${quality}*\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*` : `🎬 *${title}*\n> *Sadew Web Sender*`;
 
-                await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: smallCaption });
+                await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption });
                 
             } catch (err) {
                 try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${title} - ${quality}\n_Stream Error_` }, 30000); } catch(e){}
@@ -330,7 +382,6 @@ app.post('/api/anime-send', async (req, res) => {
                     
                     const aiSummary = await getGeminiSummary(videoname);
                     
-                    // 🔥 AI එක Fail වුණොත් Original Description එක ගන්න කෑල්ල 🔥
                     const seriesHtml = (await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS })).data;
                     const descMatch = seriesHtml.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
                     let origDesc = descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '') : videoname;
@@ -340,7 +391,7 @@ app.post('/api/anime-send', async (req, res) => {
                     if (aiSummary) {
                         cardText += `📖 *Summary:*\n${aiSummary}\n\n`;
                     } else {
-                        cardText += `📝 *Description:*\n${origDesc}\n\n`; // AI වැඩ නැත්තන් මේක යයි!
+                        cardText += `📝 *Description:*\n${origDesc}\n\n`;
                     }
                     cardText += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
 
