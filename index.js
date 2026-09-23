@@ -155,19 +155,28 @@ app.post('/api/links', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 MOVIE SUB LK (Working API) 🔥
+        // 🔥 MOVIE SUB LK (FIXED) 🔥
         if (source === 'moviesublk') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
+            
             const data = dlRes.data;
             let downloads = [];
-            if (data.episodes && data.episodes.length > 0) {
-                data.episodes.forEach(ep => { downloads.push({ meta: ep.title || 'Episode', resolvedUrl: ep.stream_url || ep.url, direct: true }); });
-            } else if (data.direct_download_url) {
-                downloads.push({ meta: "📥 Download Movie", resolvedUrl: data.direct_download_url, direct: true });
-            } else if (data.download_links && data.download_links.length > 0) {
-                data.download_links.forEach(dl => { downloads.push({ meta: dl.info || dl.quality || 'Link', resolvedUrl: dl.final_link || dl.url, direct: true }); });
+
+            // 1. Quality Links තියෙනවා නම් ඒ ටික ගන්නවා
+            if (data.download_links && Array.isArray(data.download_links) && data.download_links.length > 0) {
+                data.download_links.forEach((dl, idx) => {
+                    if (dl.final_link || dl.url || dl.link) {
+                        downloads.push({ meta: dl.info || dl.quality || `Link ${idx+1}`, resolvedUrl: dl.final_link || dl.url || dl.link, direct: true });
+                    }
+                });
+            } 
+            // 2. නැත්නම් Direct Download URL එකක් තියෙනවා නම් ඒක ගන්නවා (Series වලට ZIP විදිහට)
+            else if (data.direct_download_url) {
+                let btnName = data.is_series ? "📥 Download Full Series (ZIP)" : "📥 Download Movie";
+                downloads.push({ meta: btnName, resolvedUrl: data.direct_download_url, direct: true });
             }
+
             if (downloads.length > 0) return res.json({ success: true, downloads, thumbnail: data.image });
             return res.json({ success: false });
         }
