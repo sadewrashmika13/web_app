@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: "0 */5 * * *" # පැය 5න් 5ට ඔටෝ රීස්ටාර්ට් වේ (GitHub ලිමිට් එක පැනීමට)
 
+# අලුත් කෝඩ් එකක් දාපු ගමන් පරණ බොට්ව Auto Stop කරන කෑල්ල මෙන්න 👇
+concurrency:
+  group: bot-runner
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,8 +36,13 @@ jobs:
     - name: Start Bot and Permanent Web Link
       env:
         NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        GEMINI_KEY_1: ${{ secrets.GEMINI_KEY_1 }}
+        GEMINI_KEY_2: ${{ secrets.GEMINI_KEY_2 }}
+        GEMINI_KEY_3: ${{ secrets.GEMINI_KEY_3 }}
+        GEMINI_KEY_4: ${{ secrets.GEMINI_KEY_4 }}
+        GEMINI_KEY_5: ${{ secrets.GEMINI_KEY_5 }}
+        GEMINI_KEY_6: ${{ secrets.GEMINI_KEY_6 }}
       run: |
         npm install -g concurrently ngrok
         ngrok config add-authtoken $NGROK_AUTHTOKEN
         concurrently "npm start" "ngrok http --url=undertone-stylishly-opponent.ngrok-free.dev 8000"
-
