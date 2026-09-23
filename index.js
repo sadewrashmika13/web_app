@@ -36,8 +36,11 @@ const GEMINI_KEYS = [
     "AQ.Ab8RN6JLDmH2b1M6SLF7IhvqU78ynkTHcHDPNa82S375zF9Q8g"
 ];
 
-async function getGeminiSummary(movieTitle) {
-    const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
+async function getGeminiSummary(rawTitle) {
+    let cleanTitle = rawTitle.split('|')[0].split('-')[0].replace(/sinhala subtitles?/i, '').replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim();
+    if (!cleanTitle || cleanTitle.length < 2) cleanTitle = rawTitle;
+
+    const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${cleanTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
     
     for (let key of GEMINI_KEYS) {
         try {
@@ -183,7 +186,7 @@ app.post('/api/links', async (req, res) => {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
             
-            const data = dlRes.data;
+            const data = dlRes.data.results;
             let downloads = [];
 
             if (data.download_links && Array.isArray(data.download_links) && data.download_links.length > 0) {
@@ -212,7 +215,7 @@ app.post('/api/links', async (req, res) => {
         if (source === 'baiscopes') {
             const resData = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/movie?q=${encodeURIComponent(url)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`);
             if (resData.data?.status && resData.data.data?.dl_links) {
-                let downloads = resData.data.data.dl_links.filter(l => l.direct && !l.direct.includes('t.me')).map(l => ({ meta: l.size || 'Download', resolvedUrl: l.direct, direct: true }));
+                let downloads = resData.data.data.dl_links.filter(l => l.direct).map(l => ({ meta: l.size ? `${l.size} MB` : 'Download', resolvedUrl: l.direct, direct: true }));
                 return res.json({ success: true, downloads, thumbnail: resData.data.data.poster });
             }
             return res.json({ success: false });
@@ -318,6 +321,14 @@ app.post('/api/send-movie', async (req, res) => {
                     if (img) await sendMediaSafely(sock, GROUP_JID, { image: { url: img }, caption: cap }, 60000);
                     else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
                 }
+
+                // --- 🛡️ TELEGRAM LINK CHECK ---
+                if (finalVidUrl.includes('t.me')) {
+                    const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${title}\n✨ *Quality:* ${quality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්‍රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+                    await sendMediaSafely(sock, GROUP_JID, { text: teleText }, 30000);
+                    return; // Skip the download stream entirely
+                }
+                // ------------------------------
 
                 let streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 0, headers: HEADERS, httpsAgent });
                 
