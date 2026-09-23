@@ -186,7 +186,7 @@ app.post('/api/links', async (req, res) => {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
             
-            const data = dlRes.data.results;
+            const data = dlRes.data;
             let downloads = [];
 
             if (data.download_links && Array.isArray(data.download_links) && data.download_links.length > 0) {
