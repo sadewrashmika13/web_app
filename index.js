@@ -30,16 +30,25 @@ const GEMINI_KEYS = [
     "AQ.Ab8RN6JLDmH2b1M6SLF7IhvqU78ynkTHcHDPNa82S375zF9Q8g"
 ];
 
+// 🔥 AI SUMMARY GEN WITH FALLBACK 🔥
 async function getGeminiSummary(movieTitle) {
-    const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
-    for (let i = 0; i < GEMINI_KEYS.length; i++) {
-        try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent?key=${GEMINI_KEYS[i]}`;
-            const response = await axios.post(url, { contents: [{ parts: [{ text: prompt }] }] }, { timeout: 8000 });
-            if (response.data && response.data.candidates && response.data.candidates[0].content.parts[0].text) {
-                return response.data.candidates[0].content.parts[0].text.trim();
+    const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
+    
+    // 3.1-flash-lite මුලින්ම ට්‍රයි කරනවා, ඒක නැත්තන් අනිවාර්යයෙන්ම වැඩ කරන 1.5-flash එකෙන් හදලා දෙනවා!
+    const modelsToTry = ["gemini-3.1-flash-lite", "gemini-1.5-flash"]; 
+
+    for (let key of GEMINI_KEYS) {
+        for (let model of modelsToTry) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+                const response = await axios.post(url, { contents: [{ parts: [{ text: prompt }] }] }, { timeout: 8000 });
+                if (response.data && response.data.candidates && response.data.candidates[0].content.parts[0].text) {
+                    return response.data.candidates[0].content.parts[0].text.trim();
+                }
+            } catch (err) { 
+                // Model එක තාම ගූගල් දීලා නැත්තන්, ඊළඟ Model එකෙන් Auto Try වෙනවා
             }
-        } catch (err) { console.log(`[GEMINI] Key ${i+1} failed. Moving to next...`); }
+        }
     }
     return "";
 }
@@ -57,7 +66,7 @@ async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 600000) {
     return Promise.race([sendPromise, timeoutPromise]);
 }
 
-// ════════════ 🚀 ULTRA FAST QUEUE MANAGER ════════════
+// ════════════ 🚀 ULTRA FAST QUEUE MANAGER (0 DELAY) ════════════
 const taskQueue = {
     queue: [],
     active: null,
@@ -69,8 +78,8 @@ const taskQueue = {
             console.log(`[QUEUE] Starting Task: ${this.active.info.title}`);
             await this.active.run();
         } catch (e) { console.error(`[QUEUE] Error in Task:`, e.message); }
-        console.log(`[QUEUE] Waiting 3 seconds before next task...`);
-        await new Promise(r => setTimeout(r, 3000));
+        
+        // 🔥 Delay එක සම්පූර්ණයෙන්ම අයින් කළා. පට්ට Speed එකෙන් ඊළඟ එකට යනවා! 🔥
         this.active = null;
         this.processNext();
     }
@@ -82,7 +91,6 @@ app.get('/api/queue', (req, res) => { res.json({ active: taskQueue.active ? task
 app.post('/api/search', async (req, res) => {
     const { query, source } = req.body;
     try {
-        // 🔥 RESTORED: SINHALASUB API 🔥
         if (source === 'sinhalasub2') {
             const searchRes = await axios.get(`${ZANTA_API}/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
             if (searchRes.data?.success && searchRes.data.results?.length > 0) {
@@ -128,7 +136,6 @@ app.post('/api/search', async (req, res) => {
 app.post('/api/links', async (req, res) => {
     const { url, source } = req.body;
     try {
-        // 🔥 RESTORED: SINHALASUB API 🔥
         if (source === 'sinhalasub2') {
             const dlRes = await axios.get(`${ZANTA_API}/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
@@ -199,18 +206,21 @@ app.post('/api/send-movie', async (req, res) => {
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
 
                 if (isFirstInBatch) {
+                    // 🔥 OWNER INBOX: Shows both Name & Number 🔥
                     await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
+                    
                     const aiSummary = await getGeminiSummary(title);
                     
                     let cap = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n`;
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    cap += `👤 *Required By:* ${reqName} (${reqNum})\n\n> *Sadew Web Sender*`;
+                    // 🔥 GROUP CAPTION: Shows ONLY Name (Privacy Protected) 🔥
+                    cap += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
 
                     if (img) await sendMediaSafely(sock, GROUP_JID, { image: { url: img }, caption: cap }, 60000);
                     else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
                 }
 
-                let streamRes = await axios({ method: 'GET', url: url, responseType: 'stream', timeout: 0, headers: HEADERS });
+                let streamRes = await axios({ method: 'GET', url: url, responseType: 'stream', timeout: 0, maxRedirects: 10, headers: HEADERS });
                 
                 if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
                     try{ streamRes.data.destroy(); }catch(e){}
@@ -219,9 +229,9 @@ app.post('/api/send-movie', async (req, res) => {
                 }
 
                 let fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.mp4`;
-                let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${quality}*\n👤 *Required By:* ${reqName} (${reqNum})\n> *Sadew Web Sender*` : `🎬 *${title}*\n> *Sadew Web Sender*`;
+                // 🔥 NO NUMBER IN GROUP BATCH CAPTIONS 🔥
+                let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${quality}*\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*` : `🎬 *${title}*\n> *Sadew Web Sender*`;
 
-                // 🔥 ULTRA FAST DIRECT STREAM 🔥
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: smallCaption });
                 
             } catch (err) {
@@ -283,12 +293,15 @@ app.post('/api/anime-send', async (req, res) => {
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
 
                 if (isFirstInBatch) {
+                    // 🔥 OWNER INBOX: Name & Number 🔥
                     await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${videoname} - Ep ${epNum}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
+                    
                     const aiSummary = await getGeminiSummary(videoname);
                     
                     let cardText = `🎬 *${videoname}*\n\n`;
                     if (aiSummary) cardText += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    cardText += `👤 *Required By:* ${reqName} (${reqNum})\n\n> *Sadew Web Sender*`;
+                    // 🔥 GROUP CAPTION: Name ONLY 🔥
+                    cardText += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
 
                     if (thumbnail) await sendMediaSafely(sock, GROUP_JID, { image: { url: thumbnail }, caption: cardText }, 60000);
                     else await sendMediaSafely(sock, GROUP_JID, { text: cardText }, 30000);
@@ -305,9 +318,9 @@ app.post('/api/anime-send', async (req, res) => {
                 }
 
                 const fileName = `${videoname.replace(/[^a-zA-Z0-9 ]/g, '').trim()} - Ep ${epNum} [SADEW].mp4`;
-                let epCaption = `🎬 Episode ${epNum}\n👤 *Required By:* ${reqName} (${reqNum})\n> *Sadew Web Sender*`;
+                // 🔥 GROUP BATCH: Name ONLY 🔥
+                let epCaption = `🎬 Episode ${epNum}\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*`;
 
-                // 🔥 ULTRA FAST DIRECT STREAM 🔥
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption });
                 
             } catch (err) {
