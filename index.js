@@ -36,7 +36,6 @@ const GEMINI_KEYS = [
     "AQ.Ab8RN6JLDmH2b1M6SLF7IhvqU78ynkTHcHDPNa82S375zF9Q8g"
 ];
 
-// 🔥 හරියටම ඔයා ඉල්ලපු 3.1-flash-lite එක විතරයි! 🔥
 async function getGeminiSummary(movieTitle) {
     const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
     
@@ -111,10 +110,25 @@ app.post('/api/search', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 KDRAMA SEARCH 🔥
         if (source === 'kdrama') {
             const searchRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
             if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
+            return res.json({ success: false });
+        }
+
+        if (source === 'baiscopes') {
+            const searchRes = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/search?q=${encodeURIComponent(query)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`);
+            if (searchRes.data?.status && searchRes.data.data?.length > 0) {
+                return res.json({ success: true, results: searchRes.data.data.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.image, source })) });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'sublk') {
+            const searchRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/movie/sublk?q=${encodeURIComponent(query)}&apitoken=4ehG6P`);
+            if (searchRes.data?.status && searchRes.data.results?.length > 0) {
+                return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.link, img: mv.image, source })) });
+            }
             return res.json({ success: false });
         }
 
@@ -187,19 +201,30 @@ app.post('/api/links', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 KDRAMA LINKS 🔥
         if (source === 'kdrama') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success || !dlRes.data.results?.episodes_list?.length) return res.json({ success: false });
-            
             const episodes = dlRes.data.results.episodes_list;
-            let downloads = episodes.map(ep => ({
-                meta: ep.title || 'Episode',
-                resolvedUrl: ep.download_link,
-                direct: false
-            }));
-            
+            let downloads = episodes.map(ep => ({ meta: ep.title || 'Episode', resolvedUrl: ep.download_link, direct: false }));
             return res.json({ success: true, downloads, thumbnail: dlRes.data.results.thumbnail });
+        }
+
+        if (source === 'baiscopes') {
+            const resData = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/movie?q=${encodeURIComponent(url)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`);
+            if (resData.data?.status && resData.data.data?.dl_links) {
+                let downloads = resData.data.data.dl_links.filter(l => l.direct && !l.direct.includes('t.me')).map(l => ({ meta: l.size || 'Download', resolvedUrl: l.direct, direct: true }));
+                return res.json({ success: true, downloads, thumbnail: resData.data.data.poster });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'sublk') {
+            const resData = await axios.get(`https://whiteshadow-x-api.onrender.com/api/movie/sublk?url=${encodeURIComponent(url)}&apitoken=4ehG6P`);
+            if (resData.data?.result?.downloadLinks) {
+                let downloads = resData.data.result.downloadLinks.map(l => ({ meta: `${l.quality} - ${l.size}`, resolvedUrl: l.downloadUrl, direct: false }));
+                return res.json({ success: true, downloads, thumbnail: resData.data.result.image });
+            }
+            return res.json({ success: false });
         }
 
         if (source === '1tamilmv') {
@@ -250,7 +275,8 @@ app.post('/api/send-movie', async (req, res) => {
 
                 let finalVidUrl = url;
 
-                if (source === 'moviesublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
+                // Google Drive Bypass for both MovieSubLK & Sub.LK
+                if ((source === 'moviesublk' || source === 'sublk') && (url.includes('drive.google') || url.includes('drive.usercontent') || source === 'sublk')) {
                     let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
                     if (match) {
                         const fileId = match[1];
@@ -258,36 +284,26 @@ app.post('/api/send-movie', async (req, res) => {
                         if (wsRes.data?.success && wsRes.data.downloadUrl) {
                             finalVidUrl = wsRes.data.downloadUrl;
                         }
+                    } else if (source === 'sublk') {
+                        // Sometimes Sublk API returns standard urls for other clouds, if it's Gdrive, it'll have the above match.
+                        // If it somehow returned a direct WS api bypass url, we'll try catching it.
                     }
                 }
 
-                // 🔥 KDRAMA BYPASS SCRAPER 🔥
                 if (source === 'kdrama') {
                     const page1 = await axios.get(url, { httpsAgent });
                     const $1 = cheerio.load(page1.data);
                     const formData = {};
-                    $1('form').first().find('input[type="hidden"]').each((i, el) => {
-                        formData[$1(el).attr('name')] = $1(el).attr('value');
-                    });
+                    $1('form').first().find('input[type="hidden"]').each((i, el) => { formData[$1(el).attr('name')] = $1(el).attr('value'); });
 
-                    const page2 = await axios.post(url, qs.stringify(formData), {
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'Referer': url,
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        },
-                        httpsAgent
-                    });
+                    const page2 = await axios.post(url, qs.stringify(formData), { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': url, 'User-Agent': 'Mozilla/5.0' }, httpsAgent });
                     const $2 = cheerio.load(page2.data);
                     
                     let directLink = $2('a').filter((i, el) => $2(el).text().trim() === 'Start download').attr('href');
                     if (!directLink) directLink = $2('.btn-success').attr('href') || $2('a[href*=".mkv"]').attr('href') || $2('a[href*=".mp4"]').attr('href');
 
-                    if (directLink) {
-                        finalVidUrl = directLink;
-                    } else {
-                        throw new Error("KDrama Direct Link Bypass Failed");
-                    }
+                    if (directLink) finalVidUrl = directLink;
+                    else throw new Error("KDrama Direct Link Bypass Failed");
                 }
 
                 if (isFirstInBatch) {
@@ -421,24 +437,12 @@ app.post('/api/anime-send', async (req, res) => {
 
                 if (!finalDlLink) throw new Error("Anime DL link not found");
 
-                const streamRes = await axios({ 
-                    url: finalDlLink, 
-                    method: 'GET', 
-                    responseType: 'stream', 
-                    timeout: 0,
-                    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' }
-                });
-
-                if ((streamRes.headers['content-type'] || '').includes('text/html')) {
-                    try { streamRes.data.destroy(); } catch(e){}
-                    throw new Error("Blocked by AnimeHaven");
-                }
+                const streamRes = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream', timeout: 0, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' } });
+                if ((streamRes.headers['content-type'] || '').includes('text/html')) { try { streamRes.data.destroy(); } catch(e){} throw new Error("Blocked by AnimeHaven"); }
 
                 const fileName = `${videoname.replace(/[^a-zA-Z0-9 ]/g, '').trim()} - Ep ${epNum} [SADEW].mp4`;
                 let epCaption = `🎬 Episode ${epNum}\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*`;
-
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption });
-                
             } catch (err) {
                 try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${videoname} - Ep ${epNum}\n_Network dropped or timeout._` }, 30000); } catch(e){}
             }
