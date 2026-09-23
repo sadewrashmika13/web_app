@@ -338,7 +338,18 @@ app.post('/api/anime-episodes', async (req, res) => {
     }
 });
 
-// app.post('/api/anime-send', async (req, res) => { ... existing anime send ... })
-
 // ════════════ 🌐 WEB PAGE ROUTES ════════════
-// app.use('/', ... )
+app.use('/code', code);
+app.use('/pair', async (req, res, next) => { res.sendFile(__path + '/pair.html'); });
+app.use('/settings', async (req, res, next) => { res.sendFile(__path + '/settings.html'); });
+app.use('/movie', async (req, res, next) => { res.sendFile(__path + '/movie.html'); });
+app.use('/', async (req, res, next) => { res.sendFile(__path + '/main.html'); });
+
+// Ngrok [::1] Error එක නොඑන්න '0.0.0.0' එක්කම Run කරමු
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`╔═══════════════════════════╗`);
+  console.log(`║  Akira Bot — ONLINE  Port: ${PORT}   ║`);
+  console.log(`╚═══════════════════════════╝`);
+});
+
+module.exports = app;
