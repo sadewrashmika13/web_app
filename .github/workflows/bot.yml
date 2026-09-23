@@ -5,9 +5,8 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch: 
   schedule:
-    - cron: "0 */5 * * *" # පැය 5න් 5ට ඔටෝ රීස්ටාර්ට් වේ (GitHub ලිමිට් එක පැනීමට)
+    - cron: "0 */5 * * *" 
 
-# අලුත් කෝඩ් එකක් දාපු ගමන් පරණ බොට්ව Auto Stop කරන කෑල්ල මෙන්න 👇
 concurrency:
   group: bot-runner
   cancel-in-progress: true
@@ -31,7 +30,9 @@ jobs:
         sudo apt-get install ffmpeg imagemagick -y
 
     - name: Install Project Dependencies
-      run: npm install
+      run: |
+        npm install
+        npm install dotenv
 
     - name: Start Bot and Permanent Web Link
       env:
