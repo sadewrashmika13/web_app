@@ -29,7 +29,6 @@ const GROUP_JID = '120363425721300928@g.us';
 const BOT_NUMBER = '94705236759'; 
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
-// 🔥 අලුත් ක්‍රමයට API Keys ගැනීම (Github Secrets හරහා) 🔥
 const GEMINI_KEYS = [
     process.env.GEMINI_KEY_1,
     process.env.GEMINI_KEY_2,
@@ -39,7 +38,6 @@ const GEMINI_KEYS = [
     process.env.GEMINI_KEY_6
 ].filter(Boolean);
 
-// 🔥 ඔයාගේ 3.1-flash-lite එක (කිසිම ෆිල්ම් එකක් Block වෙන්නේ නැති වෙන්න හැදුවා) 🔥
 async function getGeminiSummary(movieTitle) {
     const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
     
@@ -71,13 +69,13 @@ function getActiveSocket() {
     return sessionData.socket || sessionData;
 }
 
-async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 600000) {
+// 🔥 Timeout එක විනාඩි 30ක් දක්වා වැඩි කළා 🔥
+async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 1800000) {
     const sendPromise = sock.sendMessage(jid, msgParams);
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
     return Promise.race([sendPromise, timeoutPromise]);
 }
 
-// ════════════ 🚀 STRICTLY SEQUENTIAL QUEUE ════════════
 const taskQueue = {
     queue: [],
     active: null,
@@ -101,7 +99,6 @@ const taskQueue = {
 
 app.get('/api/queue', (req, res) => { res.json({ active: taskQueue.active ? taskQueue.active.info : null, queue: taskQueue.queue.map(t => t.info) }); });
 
-// ── SEARCH ──
 app.post('/api/search', async (req, res) => {
     const { query, source } = req.body;
     try {
@@ -164,24 +161,19 @@ app.post('/api/search', async (req, res) => {
     } catch (error) { res.json({ success: false }); }
 });
 
-// ── QUALITY / DOWNLOAD LINKS ──
 app.post('/api/links', async (req, res) => {
     const { url, source } = req.body;
     try {
-        // 🔥 Sinhalasub2 වල Pixeldrain ෆිල්ටර් එක අයින් කරලා තියෙන ඔක්කොම ලින්ක් පෙන්නන්න හැදුවා 🔥
         if (source === 'sinhalasub2') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/sinhalasub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
-            
             const links = dlRes.data.results.links || [];
             if (!links.length) return res.json({ success: false });
-            
             const downloads = links.map(l => ({ 
                 meta: `${l.quality || 'Download'} - ${l.size || ''}`, 
                 resolvedUrl: l.direct_link || l.link, 
                 direct: true 
-            })).filter(l => l.resolvedUrl); // හිස් ලින්ක් අයින් කරයි
-            
+            })).filter(l => l.resolvedUrl);
             return res.json({ success: true, downloads, thumbnail: dlRes.data.results.thumbnail, rating: dlRes.data.results.rating });
         }
 
@@ -199,10 +191,8 @@ app.post('/api/links', async (req, res) => {
         if (source === 'moviesublk') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
-            
             const data = dlRes.data;
             let downloads = [];
-
             if (data.download_links && Array.isArray(data.download_links) && data.download_links.length > 0) {
                 data.download_links.forEach((dl, idx) => {
                     if (dl.final_link || dl.url || dl.link) {
@@ -213,7 +203,6 @@ app.post('/api/links', async (req, res) => {
                 let btnName = data.is_series ? "📥 Download Full Series (ZIP)" : "📥 Download Movie";
                 downloads.push({ meta: btnName, resolvedUrl: data.direct_download_url, direct: true });
             }
-
             if (downloads.length > 0) return res.json({ success: true, downloads, thumbnail: data.image });
             return res.json({ success: false });
         }
@@ -251,14 +240,12 @@ app.post('/api/links', async (req, res) => {
         if (source === 'kdrama') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success || !dlRes.data.results?.episodes_list?.length) return res.json({ success: false });
-            
             const episodes = dlRes.data.results.episodes_list;
             let downloads = episodes.map(ep => ({
                 meta: ep.title || 'Episode',
                 resolvedUrl: ep.download_link,
                 direct: false
             }));
-            
             return res.json({ success: true, downloads, thumbnail: dlRes.data.results.thumbnail });
         }
 
@@ -310,25 +297,17 @@ app.post('/api/send-movie', async (req, res) => {
 
                 let finalVidUrl = url;
 
-                if (source === 'moviesublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
-                    let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
+                // 🔥 GLOBAL GOOGLE DRIVE BYPASS (හැම සයිට් එකකටම වැඩ) 🔥
+                if (finalVidUrl.includes('drive.google') || finalVidUrl.includes('drive.usercontent')) {
+                    let match = finalVidUrl.match(/\/file\/d\/([^\/]+)/) || finalVidUrl.match(/[?&]id=([^&]+)/) || finalVidUrl.match(/\/d\/([^\/]+)/);
                     if (match) {
                         const fileId = match[1];
-                        const wsRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/download/gdrive?url=${encodeURIComponent(`https://drive.google.com/file/d/${fileId}/view`)}&apitoken=4ehG6P`);
-                        if (wsRes.data?.success && wsRes.data.downloadUrl) {
-                            finalVidUrl = wsRes.data.downloadUrl;
-                        }
-                    }
-                }
-
-                if (source === 'sublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
-                    let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
-                    if (match) {
-                        const fileId = match[1];
-                        const wsRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/download/gdrive?url=${encodeURIComponent(`https://drive.google.com/file/d/${fileId}/view`)}&apitoken=4ehG6P`);
-                        if (wsRes.data?.success && wsRes.data.downloadUrl) {
-                            finalVidUrl = wsRes.data.downloadUrl;
-                        }
+                        try {
+                            const wsRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/download/gdrive?url=${encodeURIComponent(`https://drive.google.com/file/d/${fileId}/view`)}&apitoken=4ehG6P`);
+                            if (wsRes.data?.success && wsRes.data.downloadUrl) {
+                                finalVidUrl = wsRes.data.downloadUrl;
+                            }
+                        } catch(e) {}
                     }
                 }
 
@@ -339,7 +318,6 @@ app.post('/api/send-movie', async (req, res) => {
                     $1('form').first().find('input[type="hidden"]').each((i, el) => {
                         formData[$1(el).attr('name')] = $1(el).attr('value');
                     });
-
                     const page2 = await axios.post(url, qs.stringify(formData), {
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
@@ -349,10 +327,8 @@ app.post('/api/send-movie', async (req, res) => {
                         httpsAgent
                     });
                     const $2 = cheerio.load(page2.data);
-                    
                     let directLink = $2('a').filter((i, el) => $2(el).text().trim() === 'Start download').attr('href');
                     if (!directLink) directLink = $2('.btn-success').attr('href') || $2('a[href*=".mkv"]').attr('href') || $2('a[href*=".mp4"]').attr('href');
-
                     if (directLink) {
                         finalVidUrl = directLink;
                     } else {
@@ -396,7 +372,6 @@ app.post('/api/send-movie', async (req, res) => {
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption });
                 
             } catch (err) {
-                // 🔥 දැන් අපිට මොකක්ද අවුල කියලා හරියටම බලාගන්න පුළුවන් 🔥
                 const errMsg = err.response ? `HTTP ${err.response.status}` : err.message;
                 try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${title} - ${quality}\n_Error: ${errMsg}_` }, 30000); } catch(e){}
             }
@@ -533,4 +508,3 @@ app.use('/', async (req, res, next) => { res.sendFile(__path + '/main.html'); })
 
 app.listen(PORT, '0.0.0.0', () => { console.log(`Akira Bot — ONLINE  Port: ${PORT}`); });
 module.exports = app;
-
