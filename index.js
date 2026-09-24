@@ -39,14 +39,23 @@ const GEMINI_KEYS = [
     process.env.GEMINI_KEY_6
 ].filter(Boolean);
 
-// 🔥 හරියටම ඔයා ඉල්ලපු 3.1-flash-lite එක විතරයි! 🔥
+// 🔥 ඔයාගේ 3.1-flash-lite එක (කිසිම ෆිල්ම් එකක් Block වෙන්නේ නැති වෙන්න හැදුවා) 🔥
 async function getGeminiSummary(movieTitle) {
     const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
     
     for (let key of GEMINI_KEYS) {
         try {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`;
-            const response = await axios.post(url, { contents: [{ parts: [{ text: prompt }] }] }, { timeout: 8000 });
+            const response = await axios.post(url, { 
+                contents: [{ parts: [{ text: prompt }] }],
+                safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                ]
+            }, { timeout: 15000 });
+            
             if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
                 return response.data.candidates[0].content.parts[0].text.trim();
             }
@@ -114,14 +123,12 @@ app.post('/api/search', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 BAISCOPES SEARCH 🔥
         if (source === 'baiscopes') {
             const searchRes = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/search?q=${encodeURIComponent(query)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`, { headers: HEADERS });
             if (searchRes.data?.status && searchRes.data.data?.length > 0) return res.json({ success: true, results: searchRes.data.data.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.image, source })) });
             return res.json({ success: false });
         }
 
-        // 🔥 SUBLK SEARCH 🔥
         if (source === 'sublk') {
             const searchRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/movie/sublk/search?q=${encodeURIComponent(query)}&apitoken=4ehG6P`, { headers: HEADERS });
             if (searchRes.data?.status && searchRes.data.result?.length > 0) return res.json({ success: true, results: searchRes.data.result.slice(0, 8).map(mv => ({ title: mv.title, url: mv.link, img: mv.image, source })) });
@@ -161,12 +168,20 @@ app.post('/api/search', async (req, res) => {
 app.post('/api/links', async (req, res) => {
     const { url, source } = req.body;
     try {
+        // 🔥 Sinhalasub2 වල Pixeldrain ෆිල්ටර් එක අයින් කරලා තියෙන ඔක්කොම ලින්ක් පෙන්නන්න හැදුවා 🔥
         if (source === 'sinhalasub2') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/sinhalasub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
-            const pixelLinks = (dlRes.data.results.links || []).filter(l => l.quality === 'Pixeldrain');
-            if (!pixelLinks.length) return res.json({ success: false });
-            const downloads = pixelLinks.map(l => ({ meta: l.size, resolvedUrl: l.direct_link, direct: true }));
+            
+            const links = dlRes.data.results.links || [];
+            if (!links.length) return res.json({ success: false });
+            
+            const downloads = links.map(l => ({ 
+                meta: `${l.quality || 'Download'} - ${l.size || ''}`, 
+                resolvedUrl: l.direct_link || l.link, 
+                direct: true 
+            })).filter(l => l.resolvedUrl); // හිස් ලින්ක් අයින් කරයි
+            
             return res.json({ success: true, downloads, thumbnail: dlRes.data.results.thumbnail, rating: dlRes.data.results.rating });
         }
 
@@ -203,7 +218,6 @@ app.post('/api/links', async (req, res) => {
             return res.json({ success: false });
         }
 
-        // 🔥 BAISCOPES LINKS (FIXED) 🔥
         if (source === 'baiscopes') {
             try {
                 const resData = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/movie?q=${encodeURIComponent(url)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`, { headers: HEADERS });
@@ -212,14 +226,13 @@ app.post('/api/links', async (req, res) => {
                         meta: l.size ? `${l.size}` : (l.quality || 'Download'), 
                         resolvedUrl: l.direct || l.link || l.url, 
                         direct: true 
-                    })).filter(l => l.resolvedUrl); // හිස් ලින්ක් අයින් කරයි
+                    })).filter(l => l.resolvedUrl); 
                     return res.json({ success: true, downloads, thumbnail: resData.data.data.poster });
                 }
             } catch (err) {}
             return res.json({ success: false });
         }
 
-        // 🔥 SUBLK LINKS 🔥
         if (source === 'sublk') {
             try {
                 const resData = await axios.get(`https://whiteshadow-x-api.onrender.com/api/movie/sublk?url=${encodeURIComponent(url)}&apitoken=4ehG6P`, { headers: HEADERS });
@@ -297,7 +310,6 @@ app.post('/api/send-movie', async (req, res) => {
 
                 let finalVidUrl = url;
 
-                // 🛑 Moviesublk (කිසිම වෙනසක් කරලා නෑ) 🛑
                 if (source === 'moviesublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
                     let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
                     if (match) {
@@ -309,7 +321,6 @@ app.post('/api/send-movie', async (req, res) => {
                     }
                 }
 
-                // 🔥 SUBLK BYPASS 🔥
                 if (source === 'sublk' && (url.includes('drive.google') || url.includes('drive.usercontent'))) {
                     let match = url.match(/\/file\/d\/([^\/]+)/) || url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
                     if (match) {
@@ -321,7 +332,6 @@ app.post('/api/send-movie', async (req, res) => {
                     }
                 }
 
-                // 🔥 KDRAMA BYPASS SCRAPER 🔥
                 if (source === 'kdrama') {
                     const page1 = await axios.get(url, { httpsAgent });
                     const $1 = cheerio.load(page1.data);
@@ -363,7 +373,6 @@ app.post('/api/send-movie', async (req, res) => {
                     else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
                 }
 
-                // --- 🛡️ BAISCOPES TELEGRAM LINK CHECK ---
                 if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
                     const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${title}\n✨ *Quality:* ${quality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්‍රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
                     await sendMediaSafely(sock, GROUP_JID, { text: teleText }, 30000);
@@ -387,7 +396,9 @@ app.post('/api/send-movie', async (req, res) => {
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption });
                 
             } catch (err) {
-                try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${title} - ${quality}\n_Stream Error_` }, 30000); } catch(e){}
+                // 🔥 දැන් අපිට මොකක්ද අවුල කියලා හරියටම බලාගන්න පුළුවන් 🔥
+                const errMsg = err.response ? `HTTP ${err.response.status}` : err.message;
+                try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${title} - ${quality}\n_Error: ${errMsg}_` }, 30000); } catch(e){}
             }
         }
     });
@@ -522,3 +533,7 @@ app.use('/', async (req, res, next) => { res.sendFile(__path + '/main.html'); })
 
 app.listen(PORT, '0.0.0.0', () => { console.log(`Akira Bot — ONLINE  Port: ${PORT}`); });
 module.exports = app;
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-24T16:01:21+05:30.
+</ADDITIONAL_METADATA>
