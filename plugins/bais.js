@@ -65,12 +65,11 @@ module.exports = {
         const CZ_API = "https://cz-dnuz.vercel.app";
         
         // 🔥 META AI FAKE QUOTE 🔥
-        const metaAiName = "Meta AI";
-        const metaQuote = {
-            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_CZ" },
-            message: { contactMessage: { displayName: metaAiName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${metaAiName}\nORG:WhatsApp\nTEL;waid=16505361212:+1 (650) 536-1212\nEND:VCARD` } }
+        const metaName = "Meta AI";
+        const shonux = {
+            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_FAKE_ID_TS" },
+            message: { contactMessage: { displayName: metaName, vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${metaName};;;;\nFN:${metaName}\nORG:Meta Platforms\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD` } }
         };
-
         if (command === "cz" || command === "cinesubz" || command === "cinesend") {
             const fullText = args.join(" ").trim();
             if (!fullText) return reply("🎬 *කරුණාකර Movie එකේ නම ලබා දෙන්න!*\n_උදා: .cz batman_");
