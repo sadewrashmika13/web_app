@@ -336,6 +336,48 @@ app.post('/api/send-movie', async (req, res) => {
                     }
                 }
 
+                // 🔥 CINESUBZ WEB SERVER BYPASS (SERVER 1-20 FIX + TELEGRAM BLOCK) 🔥
+                if (source === 'cinesubz' && (finalVidUrl.includes('drive.csplayer') || finalVidUrl.includes('server'))) {
+                    const tryDownloadUrl = async (urlToTry) => {
+                        try {
+                            const dlApiUrl = `${CZ_API}/download?url=${encodeURIComponent(urlToTry)}`;
+                            const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
+                            if (dlRes.data?.success && dlRes.data?.result?.downloadUrls) {
+                                const httpUrl = dlRes.data.result.downloadUrls.find(u => 
+                                    u.url && u.url.startsWith('http') && 
+                                    !u.url.includes('t.me') && 
+                                    !u.url.includes('telegram.me') && 
+                                    !u.url.includes('telegram.dog')
+                                );
+                                if (httpUrl) return httpUrl.url;
+                            }
+                        } catch (e) { return null; }
+                        return null;
+                    };
+
+                    let resolvedStreamUrl = await tryDownloadUrl(finalVidUrl);
+
+                    if (!resolvedStreamUrl && finalVidUrl.includes('/server')) {
+                        console.log("[WEB CZ] Original server failed. Trying alternate servers 1-20...");
+                        const altServers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'];
+                        for (let s of altServers) {
+                            const altUrl = finalVidUrl.replace(/\/server\d+\//, `/server${s}/`);
+                            if (altUrl === finalVidUrl) continue;
+                            resolvedStreamUrl = await tryDownloadUrl(altUrl);
+                            if (resolvedStreamUrl) {
+                                console.log(`[WEB CZ] Bypassed successfully using server${s} !`);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (resolvedStreamUrl) {
+                        finalVidUrl = resolvedStreamUrl;
+                    } else {
+                        throw new Error("DanuZz API Cinesubz bypass failed on Web Server.");
+                    }
+                }
+
                 if (isFirstInBatch) {
                     await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
                     
@@ -350,7 +392,7 @@ app.post('/api/send-movie', async (req, res) => {
                 }
 
                 if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
-                    const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${title}\n✨ *Quality:* ${quality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්‍රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+                    const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${title}\n✨ *Quality:* ${quality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
                     await sendMediaSafely(sock, GROUP_JID, { text: teleText }, 30000);
                     return; 
                 }
