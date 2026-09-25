@@ -2,7 +2,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 // ════════════════════════════════════════════════════════
-// GLOBAL STORE — short IDs for button data (URL truncation fix)
+// GLOBAL STORE
 // ════════════════════════════════════════════════════════
 if (!global.czStore) global.czStore = {};
 function genId() { return crypto.randomBytes(4).toString('hex'); }
@@ -129,8 +129,13 @@ module.exports = {
 
                 downloads.forEach((dl) => {
                     const resolvedUrl = dl.resolvedUrl || dl.url || '';
-                    const label = dl.meta || dl.quality || 'HD';
                     if (!resolvedUrl) return;
+
+                    // ⚠️ WhatsApp අකුරු 20 සීමාව නිසා අකුරු කැපීම
+                    let label = dl.meta || dl.quality || 'HD';
+                    label = label.replace('WEBRip', '').replace('English', '').replace('•', '-').trim();
+                    if (label.length > 17) label = label.substring(0, 17).trim(); 
+
                     const dlId = storeData({ title: movie.title, quality: label, url: resolvedUrl, targetJid: movie.targetJid, img: movie.img, date: movie.date, genres: movie.genres, imdb: movie.imdb, runtime: movie.runtime });
                     buttons.push({ buttonId: `.cs_dl ${dlId}`, buttonText: { displayText: `🎥 ${label}` }, type: 1 });
                 });
@@ -179,16 +184,14 @@ module.exports = {
                         return null;
                     };
 
-                    // Try original link first
                     let resolvedStreamUrl = await tryDownloadUrl(finalVidUrl);
 
-                    // ⚠️ DANUZZ API WORKAROUND: Try servers 1 to 20 automatically!
                     if (!resolvedStreamUrl && finalVidUrl.includes('/server')) {
                         console.log("[CZ] Original server failed. Trying alternate servers 1-20...");
                         const altServers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'];
                         for (let s of altServers) {
                             const altUrl = finalVidUrl.replace(/\/server\d+\//, `/server${s}/`);
-                            if (altUrl === finalVidUrl) continue; // Skip if it's the same URL
+                            if (altUrl === finalVidUrl) continue; 
                             resolvedStreamUrl = await tryDownloadUrl(altUrl);
                             if (resolvedStreamUrl) {
                                 console.log(`[CZ] Successfully bypassed using server${s} !`);
