@@ -54,22 +54,16 @@ module.exports = {
     commands: ["cz", "cinesubz", "cinesend", "cs_sel", "cs_dl"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
-
-         const botName = "Meta AI";
-        const shonux = {
-            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_FAKE_ID_TS" },
-            message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${botName};;;;\nFN:${botName}\nORG:Meta Platforms\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD` } }
-        };
-        
         const botName = "👑 SADEW-MINI 👑";
         const CZ_API = "https://cz-dnuz.vercel.app";
         
-        // 🔥 META AI FAKE QUOTE 🔥
+        // 🔥 META AI FAKE QUOTE (SHONUX) 🔥
         const metaName = "Meta AI";
         const shonux = {
             key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_FAKE_ID_TS" },
             message: { contactMessage: { displayName: metaName, vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${metaName};;;;\nFN:${metaName}\nORG:Meta Platforms\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD` } }
         };
+
         if (command === "cz" || command === "cinesubz" || command === "cinesend") {
             const fullText = args.join(" ").trim();
             if (!fullText) return reply("🎬 *කරුණාකර Movie එකේ නම ලබා දෙන්න!*\n_උදා: .cz batman_");
@@ -90,9 +84,7 @@ module.exports = {
                     return reply("❌ *සමාවෙන්න, Movies කිසිවක් හමුවූයේ නැත.*");
                 }
 
-                // තවමත් Result 10ක් එන්නමයි හදලා තියෙන්නේ! (Cinesubz වල ඊට අඩුවෙන් තිබ්බොත් තියෙන ගාන එයි)
                 const topResults = data.result.slice(0, 10);
-                
                 let listText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝘀𝘂𝗯𝘇 𝗦𝗲𝗮𝗿𝗰𝗵 🎬] ¡! ❞*\n\n🔍 *සෙව්වේ:* ${query}\n📊 *Results:* ${topResults.length}\n`;
                 if (targetJid) listText += `🎯 *Target Send To:* \`${targetJid}\`\n\n`; else listText += `\n`;
 
@@ -119,7 +111,7 @@ module.exports = {
                     footer: botName, 
                     buttons: buttons, 
                     headerType: 4 // Image header
-                }, { quoted: metaQuote });
+                }, { quoted: shonux });
                 
                 await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
             } catch (e) {
@@ -166,9 +158,15 @@ module.exports = {
                     buttons.push({ buttonId: `.cs_dl ${dlId}`, buttonText: { displayText: `🎥 ${label}` }, type: 1 });
                 });
 
-                const msgOpts = { caption: capText, footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
-                if (movie.img) msgOpts.image = { url: movie.img };
-                await socket.sendMessage(sender, msgOpts, { quoted: msg });
+                const msgOpts = { footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
+                if (movie.img) {
+                    msgOpts.image = { url: movie.img };
+                    msgOpts.caption = capText;
+                } else {
+                    msgOpts.text = capText;
+                }
+                
+                await socket.sendMessage(sender, msgOpts, { quoted: shonux });
                 await socket.sendMessage(sender, { react: { text: "🎬", key: msg.key } });
                 delete global.czStore[id];
 
@@ -243,8 +241,8 @@ module.exports = {
 
                 if (dl.targetJid) {
                     try {
-                        if (dl.img) await socket.sendMessage(destJid, { image: { url: dl.img }, caption: targetCardText }, { quoted: metaQuote });
-                        else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: metaQuote });
+                        if (dl.img) await socket.sendMessage(destJid, { image: { url: dl.img }, caption: targetCardText }, { quoted: shonux });
+                        else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: shonux });
                     } catch (cardErr) {}
                 }
 
@@ -266,7 +264,7 @@ module.exports = {
                     const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
                     const finalCap = `${captionBase}\n📦 *Size:* ${size}\n\n> 👑 *SADEW-MINI* 👑`;
                     
-                    await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: finalCap }, { quoted: metaQuote });
+                    await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: finalCap }, { quoted: shonux });
                     await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
 
                     try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (err) {}
