@@ -54,6 +54,13 @@ module.exports = {
     commands: ["cz", "cinesubz", "cinesend", "cs_sel", "cs_dl"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
+
+         const botName = "Meta AI";
+        const shonux = {
+            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_FAKE_ID_TS" },
+            message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${botName};;;;\nFN:${botName}\nORG:Meta Platforms\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD` } }
+        };
+        
         const botName = "👑 SADEW-MINI 👑";
         const CZ_API = "https://cz-dnuz.vercel.app";
         
