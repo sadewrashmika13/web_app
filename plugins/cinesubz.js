@@ -15,7 +15,7 @@ function storeData(data, ttlMs = 15 * 60 * 1000) {
     return id;
 }
 
-// 🎯 ULTRA SMART PARSER — කොමාවක් තිබ්බත් නැතත් අනිවාර්යයෙන්ම JID එක වෙන් කරගන්නා ක්‍රමය!
+// 🎯 ULTRA SMART PARSER
 function parseCineSend(fullText) {
     if (!fullText) return { query: "", targetJid: null };
 
@@ -68,13 +68,11 @@ module.exports = {
     name: "cinesubz-downloader",
     category: 0,
     description: "Search and download Sinhala Subbed movies from Cinesubz (Inbox/Groups)",
-    // සියලුම Commands මෙතනට ඇතුලත් කර ඇත
     commands: ["cz", "cinesubz", "cinesend", "cs_sel", "cs_dl"],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const botName = "👑 SADEW-MINI 👑";
         const CZ_API = "https://cz-dnuz.vercel.app";
-        const OLD_API = "https://cinesubz-api-cnw.vercel.app/api";
         const metaQuote = {
             key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_CZ" },
             message: { contactMessage: { displayName: botName, vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${botName}\nORG:Sadew Cinesubz\nTEL;waid=94700000000:+94 70 000 0000\nEND:VCARD` } }
@@ -94,19 +92,16 @@ module.exports = {
             if (command === "cinesend" && !targetJid) {
                 return reply("❌ *කරුණාකර කොමාවකින් (,) වෙන් කර නිවැරදි Group JID එකක් හෝ Phone Number එකක් ලබාදෙන්න!*\n_උදා: .cinesend Harry Potter , 0771234567_");
             }
-            if (!query) {
-                return reply("🎬 *කරුණාකර Movie එකේ නම ලබා දෙන්න!*");
-            }
+            if (!query) return reply("🎬 *කරුණාකර Movie එකේ නම ලබා දෙන්න!*");
 
             try {
                 await socket.sendMessage(sender, { react: { text: "🔍", key: msg.key } });
 
-                console.log(`[CZ SEARCH] Pure Movie Query: "${query}" | TargetJID: "${targetJid || 'None'}"`);
-
-                const res = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`, { timeout: 15000 });
+                // 🔥 NEW API SEARCH
+                const res = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`, { timeout: 20000 });
                 const data = res.data;
 
-                if (!data.success || !data.result?.length) {
+                if (!data.success || !data.result || data.result.length === 0) {
                     await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
                     return reply("❌ *සමාවෙන්න, Movies කිසිවක් හමුවූයේ නැත.*");
                 }
@@ -153,7 +148,7 @@ module.exports = {
         }
 
         // ════════════════════════════════════════════════════════
-        // 2. MOVIE SELECT (.cs_sel) — details + quality buttons
+        // 2. MOVIE SELECT (.cs_sel) — Get Download Links
         // ════════════════════════════════════════════════════════
         else if (command === "cs_sel") {
             const id = args[0];
@@ -166,41 +161,20 @@ module.exports = {
 
                 let downloads = [];
 
-                // TRY 1: New API (/movidl)
+                // 🔥 NEW API: Resolves all download links directly (/movidl)
                 try {
                     const movidlUrl = `${CZ_API}/movidl?url=${encodeURIComponent(movie.url)}`;
-                    const dlRes = await axios.get(movidlUrl, { timeout: 20000 });
+                    const dlRes = await axios.get(movidlUrl, { timeout: 25000 });
                     downloads = dlRes.data.result?.downloads || [];
-                    console.log("[CZ] movidl downloads:", downloads.length);
                 } catch (dlErr) {
-                    console.log("[CZ] movidl Error:", dlErr.message);
-
-                    // TRY 2: Old API Fallback
-                    if (dlErr.response && (dlErr.response.status >= 500 || dlErr.response.status === 404)) {
-                        try {
-                            const oldRes = await axios.get(`${OLD_API}/extract?id=${movie.id}&type=mv`, { timeout: 15000 });
-                            if (oldRes.data?.data) {
-                                const directVideo = oldRes.data.data.find(v => v.is_direct_mp4) || oldRes.data.data[0];
-                                if (directVideo?.link?.includes('player')) {
-                                    downloads = [
-                                        { meta: "480p", resolvedUrl: directVideo.link, isPlayer: true },
-                                        { meta: "720p", resolvedUrl: directVideo.link, isPlayer: true }
-                                    ];
-                                    console.log("[CZ] Old API fallback success");
-                                }
-                            }
-                        } catch (oldErr) {
-                            console.log("[CZ] Old API also failed:", oldErr.message);
-                        }
-                    }
+                    console.log("[CZ] /movidl Error:", dlErr.message);
                 }
 
-                if (!downloads.length) {
+                if (!downloads || downloads.length === 0) {
                     delete global.czStore[id];
                     return reply("❌ *මෙම චිත්‍රපටය සඳහා Download Links හමු නොවිණි.*");
                 }
 
-                // Quality buttons — short IDs (no URL truncation)
                 const buttons = [];
                 let capText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 🎬] ¡! ❞*\n\n`;
                 capText += `🎬 *Title:* ${movie.title}\n📅 *Year:* ${movie.date || 'N/A'}\n🎭 *Genres:* ${movie.genres || 'N/A'}\n⭐ *IMDB:* ${movie.imdb || 'N/A'}\n⏱ *Runtime:* ${movie.runtime || 'N/A'}\n`;
@@ -208,15 +182,14 @@ module.exports = {
                 capText += `\n> *ඔබට අවශ්‍ය Quality එක පහලින් තෝරන්න* ⬇️`;
 
                 downloads.forEach((dl) => {
-                    const resolvedUrl = dl.resolvedUrl || '';
-                    const label = dl.meta || 'HD';
+                    const resolvedUrl = dl.resolvedUrl || dl.url || '';
+                    const label = dl.meta || dl.quality || 'HD';
                     if (!resolvedUrl) return;
 
                     const dlId = storeData({
                         title: movie.title,
                         quality: label,
                         url: resolvedUrl,
-                        isPlayer: !!dl.isPlayer,
                         targetJid: movie.targetJid,
                         img: movie.img, date: movie.date, genres: movie.genres, imdb: movie.imdb, runtime: movie.runtime
                     });
@@ -242,12 +215,12 @@ module.exports = {
 
             } catch (e) {
                 console.error("[CZ] Select Error:", e.message);
-                reply("❌ *Movie details error.*");
+                reply("❌ *Movie details ලබා ගැනීමේදී දෝෂයක්.*");
             }
         }
 
         // ════════════════════════════════════════════════════════
-        // 3. DOWNLOAD (.cs_dl) — EXACT OLD CODE LOGIC + TARGET JID
+        // 3. DOWNLOAD (.cs_dl) — Stream the movie
         // ════════════════════════════════════════════════════════
         else if (command === "cs_dl") {
             const id = args[0];
@@ -278,7 +251,7 @@ module.exports = {
                     `> 👑 *SADEW-MINI* 👑`;
 
                 const fileName = `${(dl.title || 'Movie').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dl.quality}.mp4`;
-                let downloadSuccess = false;
+                let finalVidUrl = dl.url.trim();
 
                 const sendDetailsCardToTarget = async () => {
                     try {
@@ -289,153 +262,83 @@ module.exports = {
                     }
                 };
 
-                // ═══════ OLD API (Player page — extract from HTML) ═══════
-                if (dl.isPlayer) {
+                // 🔥 NEW API: If it's a drive player link, use the /download endpoint to extract the real MP4 link
+                if (finalVidUrl.includes('drive.csplayer') || finalVidUrl.includes('server')) {
                     try {
-                        console.log("[CZ] Old API player extract:", dl.url);
-                        const htmlRes = await axios.get(dl.url, { timeout: 15000 });
-                        const match = htmlRes.data.match(/const ALL_QUALITIES = (\[.*?\]);/);
-
-                        if (match) {
-                            const qualities = JSON.parse(match[1]);
-                            const reqQ = dl.quality.toLowerCase().includes('480') ? '480p' : '720p';
-                            const matched = qualities.find(q =>
-                                q.html?.toLowerCase().includes(reqQ) || q.url?.toLowerCase().includes(reqQ)
-                            );
-
-                            if (matched?.url) {
-                                console.log(`[CZ] Old API ${reqQ} URL:`, matched.url);
-                                if (dl.targetJid) await sendDetailsCardToTarget();
-                                
-                                const finalCap = `${captionBase}\n\n> 👑 *SADEW-MINI* 👑`;
-                                await socket.sendMessage(destJid, {
-                                    document: { url: matched.url },
-                                    mimetype: "video/mp4",
-                                    fileName, caption: finalCap
-                                }, { quoted: metaQuote });
-                                downloadSuccess = true;
-                            }
+                        const dlApiUrl = `${CZ_API}/download?url=${encodeURIComponent(finalVidUrl)}`;
+                        console.log("[CZ] Extracting drive link:", dlApiUrl);
+                        const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
+                        
+                        if (dlRes.data?.success && dlRes.data?.result?.downloadUrls) {
+                            const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.includes('t.me'));
+                            if (httpUrl) finalVidUrl = httpUrl.url;
                         }
                     } catch (e) {
-                        console.log("[CZ] Old API extraction failed:", e.message);
+                        console.log("[CZ] /download resolve failed:", e.message);
                     }
                 }
 
-                // ═══════ NEW API (/download) — EXACT OLD LOGIC ═══════
-                if (!downloadSuccess && !dl.isPlayer) {
-                    let resolvedUrl = dl.url.trim();
+                if (dl.targetJid) await sendDetailsCardToTarget();
 
-                    // OLD CODE URL FIXES — critical for API to work!
-                    resolvedUrl = resolvedUrl.replace(/\/(server\d+)\/\d+:\//g, '/$1/');
-                    if (resolvedUrl.endsWith('.mp4') && !resolvedUrl.includes('?ext=')) {
-                        resolvedUrl = resolvedUrl.replace(/\.mp4$/, '?ext=mp4');
+                // FULL STREAM DOWNLOAD (Direct stream pipe)
+                try {
+                    console.log("[CZ] Streaming from:", finalVidUrl);
+                    const streamRes = await axios({
+                        method: 'GET', 
+                        url: finalVidUrl,
+                        responseType: 'stream', 
+                        timeout: 1800000, // 30 mins
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+                        maxRedirects: 10
+                    });
+                    
+                    const ct = streamRes.headers['content-type'] || '';
+                    if (ct.includes('text/html')) { 
+                        streamRes.data.destroy(); 
+                        throw new Error("HTML page received instead of video"); 
                     }
 
-                    let fallbackUrl = resolvedUrl.replace(/\/server\d+\//, '/server1/');
+                    const cl = parseInt(streamRes.headers['content-length'] || '0');
+                    const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
+                    
+                    const finalCap = `${captionBase}\n📦 *Size:* ${size}\n\n> 👑 *SADEW-MINI* 👑`;
 
-                    const tryDownloadApi = async (urlToTry) => {
-                        try {
-                            // ⚠️ NO encodeURIComponent — API expects RAW URL!
-                            const dlApiUrl = `${CZ_API}/download?url=${urlToTry}`;
-                            console.log("[CZ] Trying /download:", dlApiUrl);
-
-                            const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
-                            const dlData = dlRes.data;
-
-                            if (dlData.success && dlData.result?.downloadUrls) {
-                                // Log ALL URLs for debug
-                                console.log("[CZ] All download URLs:", JSON.stringify(dlData.result.downloadUrls.map(u => u.url)));
-
-                                const isTelegram = (url) => {
-                                    const l = url.toLowerCase();
-                                    return l.includes('t.me/') || l.includes('telegram.me/') ||
-                                           l.includes('telegram.dog/') || l.includes('telegram.org/');
-                                };
-
-                                // Find REAL video URL (not telegram)
-                                const httpUrl = dlData.result.downloadUrls.find(u =>
-                                    u.url && u.url.startsWith('http') && !isTelegram(u.url)
-                                );
-
-                                if (!httpUrl?.url) {
-                                    console.log("[CZ] ❌ Only Telegram links found — no direct download");
-                                    return false;
-                                }
-
-                                const vidUrl = httpUrl.url;
-                                console.log("[CZ] Direct URL:", vidUrl);
-
-                                if (dl.targetJid) await sendDetailsCardToTarget();
-
-                                    // FULL STREAM DOWNLOAD (Direct stream pipe)
-                                    try {
-                                        const streamRes = await axios({
-                                            method: 'GET', url: vidUrl,
-                                            responseType: 'stream', timeout: 300000,
-                                            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-                                            maxRedirects: 10
-                                        });
-                                        const ct = streamRes.headers['content-type'] || '';
-                                        if (ct.includes('text/html')) { streamRes.data.destroy(); return false; }
-
-                                        const cl = parseInt(streamRes.headers['content-length'] || '0');
-                                        const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
-                                        
-                                        const finalCap = `${captionBase}\n📦 *Size:* ${size}\n\n> 👑 *SADEW-MINI* 👑`;
-
-                                        console.log(`[CZ] Streaming ${size}...`);
-                                        await socket.sendMessage(destJid, {
-                                            document: { stream: streamRes.data },
-                                            mimetype: "video/mp4", fileName, caption: finalCap
-                                        }, { quoted: metaQuote });
-                                        console.log("[CZ] Stream SUCCESS ✅");
-
-                                        // 🧹 RAM Cleanup (Memory Management for 512MB Heroku)
-                                        try {
-                                            if (streamRes.data && typeof streamRes.data.destroy === 'function') {
-                                                streamRes.data.destroy(); // Destroy axios stream stream completely
-                                            }
-                                        } catch (err) {}
-
-                                        // Force Garbage Collection if enabled
-                                        setTimeout(() => {
-                                            try { if (global.gc) global.gc(); } catch (e) {}
-                                            console.log("🧹 [CZ] Post-Download RAM Cleanup Executed");
-                                        }, 5000);
-
-                                        return true;
-                                    } catch (e2) {
-                                        console.log("[CZ] Stream failed:", e2.message);
-                                    }
-                            }
-                            return false;
-                        } catch (e) {
-                            console.log("[CZ] /download error:", e.message);
-                            return false;
-                        }
-                    };
-
-                    // Try original server, then fallback to server1
-                    downloadSuccess = await tryDownloadApi(resolvedUrl);
-                    if (!downloadSuccess && fallbackUrl !== resolvedUrl) {
-                        console.log("[CZ] Trying server1 fallback...");
-                        downloadSuccess = await tryDownloadApi(fallbackUrl);
-                    }
-                }
-
-                if (downloadSuccess) {
+                    console.log(`[CZ] Uploading ${size} to WhatsApp...`);
+                    
+                    // Upload to WhatsApp
+                    await socket.sendMessage(destJid, {
+                        document: { stream: streamRes.data },
+                        mimetype: "video/mp4", 
+                        fileName, 
+                        caption: finalCap
+                    }, { quoted: metaQuote });
+                    
+                    console.log("[CZ] Stream SUCCESS ✅");
                     await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
-                } else {
-                    await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                    await reply("❌ *Download Failed! සර්වර් එකේ ලින්ක් එක Expire වී ඇත.*");
-                }
 
+                    // 🧹 RAM Cleanup
+                    try {
+                        if (streamRes.data && typeof streamRes.data.destroy === 'function') {
+                            streamRes.data.destroy(); 
+                        }
+                    } catch (err) {}
+
+                    setTimeout(() => {
+                        try { if (global.gc) global.gc(); } catch (e) {}
+                    }, 5000);
+
+                } catch (e2) {
+                    console.log("[CZ] Stream failed:", e2.message);
+                    await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
+                    await reply(`❌ *Download Failed!* Error: ${e2.message}`);
+                }
+                
                 delete global.czStore[id];
 
             } catch (e) {
-                console.error("[CZ] DL Error:", e.message);
+                console.error("[CZ] DL System Error:", e.message);
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                reply("❌ *Download Failed!*");
+                reply("❌ *Download Error!*");
             }
         }
     }
