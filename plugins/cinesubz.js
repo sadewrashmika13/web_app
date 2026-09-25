@@ -131,7 +131,6 @@ module.exports = {
                     const resolvedUrl = dl.resolvedUrl || dl.url || '';
                     if (!resolvedUrl) return;
 
-                    // ⚠️ WhatsApp අකුරු 20 සීමාව නිසා අකුරු කැපීම
                     let label = dl.meta || dl.quality || 'HD';
                     label = label.replace('WEBRip', '').replace('English', '').replace('•', '-').trim();
                     if (label.length > 17) label = label.substring(0, 17).trim(); 
@@ -164,95 +163,4 @@ module.exports = {
                 else await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*\n_Link සකසමින්..._`);
 
                 const captionBase = `🎬 *Movie Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📅 *Release Year:* ${dl.date || 'N/A'}`;
-                const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n🎬 *Title:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📅 *Year:* ${dl.date || 'N/A'}\n🎭 *Genres:* ${dl.genres || 'N/A'}\n⭐ *IMDb:* ${dl.imdb || 'N/A'}\n⏱ *Runtime:* ${dl.runtime || 'N/A'}\n\n🍿 *චිත්‍රපටය පහතින් ලබාගන්න.* \n\n> 👑 *SADEW-MINI* 👑`;
-                const fileName = `${(dl.title || 'Movie').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dl.quality}.mp4`;
-                
-                let finalVidUrl = dl.url.trim();
-                let apiBypassWorked = false;
-
-                // 🔥 NEW API: Extract real MP4 link with AUTO SERVER 1-20 FIX 🔥
-                if (finalVidUrl.includes('drive.csplayer') || finalVidUrl.includes('server')) {
-                    const tryDownloadUrl = async (urlToTry) => {
-                        try {
-                            const dlApiUrl = `${CZ_API}/download?url=${encodeURIComponent(urlToTry)}`;
-                            const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
-                            if (dlRes.data?.success && dlRes.data?.result?.downloadUrls) {
-                                const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.includes('t.me'));
-                                if (httpUrl) return httpUrl.url;
-                            }
-                        } catch (e) { return null; }
-                        return null;
-                    };
-
-                    let resolvedStreamUrl = await tryDownloadUrl(finalVidUrl);
-
-                    if (!resolvedStreamUrl && finalVidUrl.includes('/server')) {
-                        console.log("[CZ] Original server failed. Trying alternate servers 1-20...");
-                        const altServers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'];
-                        for (let s of altServers) {
-                            const altUrl = finalVidUrl.replace(/\/server\d+\//, `/server${s}/`);
-                            if (altUrl === finalVidUrl) continue; 
-                            resolvedStreamUrl = await tryDownloadUrl(altUrl);
-                            if (resolvedStreamUrl) {
-                                console.log(`[CZ] Successfully bypassed using server${s} !`);
-                                break;
-                            }
-                        }
-                    }
-
-                    if (resolvedStreamUrl) {
-                        finalVidUrl = resolvedStreamUrl;
-                        apiBypassWorked = true;
-                    }
-
-                    if (!apiBypassWorked) {
-                        await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                        return reply("❌ *DanuZz API Error:* මෙම චිත්‍රපටයේ ලින්ක් එක සර්වර් 20ම පරීක්ෂා කිරීමෙන් පසුවත් Bypass කිරීමට අසමත් විය.");
-                    }
-                }
-
-                if (dl.targetJid) {
-                    try {
-                        if (dl.img) await socket.sendMessage(destJid, { image: { url: dl.img }, caption: targetCardText }, { quoted: metaQuote });
-                        else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: metaQuote });
-                    } catch (cardErr) {}
-                }
-
-                // FULL STREAM DOWNLOAD
-                try {
-                    console.log("[CZ] Streaming from:", finalVidUrl);
-                    const streamRes = await axios({
-                        method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 1800000,
-                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }, maxRedirects: 10
-                    });
-                    
-                    const ct = streamRes.headers['content-type'] || '';
-                    if (ct.includes('text/html')) { 
-                        streamRes.data.destroy(); 
-                        throw new Error("HTML page received instead of video"); 
-                    }
-
-                    const cl = parseInt(streamRes.headers['content-length'] || '0');
-                    const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
-                    const finalCap = `${captionBase}\n📦 *Size:* ${size}\n\n> 👑 *SADEW-MINI* 👑`;
-                    
-                    await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: finalCap }, { quoted: metaQuote });
-                    await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
-
-                    try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (err) {}
-                    setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
-
-                } catch (e2) {
-                    await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                    await reply(`❌ *Download Failed!* Error: ${e2.message}`);
-                }
-                
-                delete global.czStore[id];
-
-            } catch (e) {
-                await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                reply("❌ *Download Error!*");
-            }
-        }
-    }
-};
+                const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n🎬 *Title:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📅 *Year:* ${dl.date || 'N/A'}\n🎭 *Genres:* ${dl.genres || 'N/A'}\n⭐ *IMDb:* ${dl.imdb || 'N/A'}\n
