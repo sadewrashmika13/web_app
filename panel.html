@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SADEW-MINI | Central Panel</title>
+    <!-- Tailwind CSS (No installation needed) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Smooth transitions */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-900 text-white font-sans p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-6xl mx-auto">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-10">
+            <h1 class="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+                👑 Sadew-Mini Central Panel
+            </h1>
+            <button id="addNewBtn" onclick="prepareNewAdmin()" class="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold py-2 px-4 md:px-6 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.5)] transition-transform transform hover:scale-105">
+                + Add New Admin
+            </button>
+        </div>
+
+        <!-- 🎛️ VIEW 1: MAIN DASHBOARD -->
+        <div id="dashboardView" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 fade-in">
+            <!-- Cards will be generated here by JavaScript -->
+        </div>
+
+        <!-- ⚙️ VIEW 2: SETTINGS PAGE (Hidden by default) -->
+        <div id="settingsView" class="hidden max-w-md mx-auto bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl fade-in">
+            <h2 id="settingsTitle" class="text-2xl font-bold text-cyan-400 mb-6 text-center">⚙️ Settings</h2>
+            
+            <div class="space-y-5">
+                <input type="hidden" id="adminIdInput">
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Bot WhatsApp Number</label>
+                    <input type="text" id="botNumberInput" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors" placeholder="e.g. 9470523...">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Group JID</label>
+                    <input type="text" id="groupJidInput" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors" placeholder="e.g. 12036... @g.us">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Custom Footer Text</label>
+                    <input type="text" id="footerTextInput" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors" placeholder="e.g. Nimal Web Sender">
+                </div>
+
+                <div class="pt-4 flex gap-4">
+                    <button onclick="showDashboard()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        Cancel
+                    </button>
+                    <button onclick="saveSettings()" class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-[1.02] shadow-lg">
+                        💾 Save
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 🧠 VANILLA JAVASCRIPT LOGIC -->
+    <script>
+        // අද UI එක ටෙස්ට් කරන්න දාපු තාවකාලික ඩේටාබේස් එක (Array එකක්)
+        let adminsData = [
+            { admin_id: 'admin_01', bot_number: '94705236759', group_jid: '120363425721@g.us', footer_text: 'Sadew Web Sender' },
+            { admin_id: 'admin_02', bot_number: '94711223344', group_jid: '120361111111@g.us', footer_text: 'Nimal Movies' }
+        ];
+
+        // 1. Dashboard එකේ Box ටික හදන ෆන්ක්ෂන් එක
+        function renderDashboard() {
+            const dashboard = document.getElementById('dashboardView');
+            dashboard.innerHTML = ''; // කලින් තියෙන ඒවා මකනවා
+
+            // Admin ලගේ Box ටික
+            adminsData.forEach(admin => {
+                const cardHtml = `
+                    <div onclick="editAdmin('${admin.admin_id}')" class="bg-slate-800 p-6 rounded-2xl border border-slate-700 hover:border-cyan-500 hover:shadow-[0_0_20px_rgba(6,182,212,0.2)] cursor-pointer transition-all transform hover:-translate-y-1">
+                        <div class="text-4xl mb-4 text-center">👤</div>
+                        <h2 class="text-xl font-bold text-slate-100 text-center">${admin.admin_id.toUpperCase()}</h2>
+                        <p class="text-sm text-slate-400 mt-3 truncate">📞 ${admin.bot_number || 'No Number'}</p>
+                        <p class="text-sm text-slate-400 truncate">📝 ${admin.footer_text || 'No Footer'}</p>
+                    </div>
+                `;
+                dashboard.innerHTML += cardHtml;
+            });
+
+            // "New Admin" හිස් Box එක
+            const newAdminCard = `
+                <div onclick="prepareNewAdmin()" class="bg-slate-800/50 p-6 rounded-2xl border border-dashed border-slate-600 hover:border-cyan-400 hover:bg-slate-800 flex flex-col justify-center items-center cursor-pointer transition-all group">
+                    <div class="text-5xl text-slate-500 group-hover:text-cyan-400 transition-colors">+</div>
+                    <h2 class="text-lg font-bold text-slate-500 group-hover:text-cyan-400 mt-2">New Admin</h2>
+                </div>
+            `;
+            dashboard.innerHTML += newAdminCard;
+        }
+
+        // 2. අලුත් Admin කෙනෙක් හදන්න Settings Page එකට යාම
+        function prepareNewAdmin() {
+            // දැනට ඉන්න ගාණ බලලා අලුත් ID එකක් හදනවා (උදා: admin_03)
+            const nextId = "admin_" + String(adminsData.length + 1).padStart(2, '0');
+            
+            document.getElementById('adminIdInput').value = nextId;
+            document.getElementById('botNumberInput').value = '';
+            document.getElementById('groupJidInput').value = '';
+            document.getElementById('footerTextInput').value = '';
+            document.getElementById('settingsTitle').innerText = "⚙️ Settings: " + nextId.toUpperCase();
+            
+            showSettingsView();
+        }
+
+        // 3. ඉන්න Admin කෙනෙක්ව Edit කරන්න Settings Page එකට යාම
+        function editAdmin(adminId) {
+            const admin = adminsData.find(a => a.admin_id === adminId);
+            if(admin) {
+                document.getElementById('adminIdInput').value = admin.admin_id;
+                document.getElementById('botNumberInput').value = admin.bot_number;
+                document.getElementById('groupJidInput').value = admin.group_jid;
+                document.getElementById('footerTextInput').value = admin.footer_text;
+                document.getElementById('settingsTitle').innerText = "⚙️ Settings: " + admin.admin_id.toUpperCase();
+                
+                showSettingsView();
+            }
+        }
+
+        // 4. Save කිරීම (අදට මේක Local Array එකට විතරයි සේව් වෙන්නේ)
+        function saveSettings() {
+            const adminId = document.getElementById('adminIdInput').value;
+            const botNumber = document.getElementById('botNumberInput').value;
+            const groupJid = document.getElementById('groupJidInput').value;
+            const footerText = document.getElementById('footerTextInput').value;
+
+            if(!botNumber || !groupJid) {
+                alert("⚠️ Bot Number and Group JID are required!");
+                return;
+            }
+
+            // මේ ID එක තියෙන කෙනෙක් ඉන්නවද බලනවා
+            const existingIndex = adminsData.findIndex(a => a.admin_id === adminId);
+            
+            const newAdminData = { admin_id: adminId, bot_number: botNumber, group_jid: groupJid, footer_text: footerText };
+
+            if(existingIndex >= 0) {
+                // ඉන්න කෙනෙක් නම් Update කරනවා
+                adminsData[existingIndex] = newAdminData;
+            } else {
+                // අලුත් කෙනෙක් නම් Array එකට Add කරනවා
+                adminsData.push(newAdminData);
+            }
+
+            alert("✅ Settings Saved Successfully!");
+            renderDashboard(); // Box ටික ආයෙත් අලුත් කරනවා
+            showDashboard();   // Dashboard එකට යනවා
+        }
+
+        // --- පේජ් මාරු කරන පොඩි ෆන්ක්ෂන්ස් ---
+        function showSettingsView() {
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('addNewBtn').classList.add('hidden');
+            document.getElementById('settingsView').classList.remove('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('settingsView').classList.add('hidden');
+            document.getElementById('dashboardView').classList.remove('hidden');
+            document.getElementById('addNewBtn').classList.remove('hidden');
+        }
+
+        // මුලින්ම පේජ් එක ලෝඩ් වෙද්දී Box ටික හදනවා
+        window.onload = () => {
+            renderDashboard();
+        };
+    </script>
+</body>
+</html>
