@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>SADEW-MINI | Sub Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ─────────────────────────────────────────
+           BASE RESET
+        ───────────────────────────────────────── */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg:           #06000f;
+            --purple-1:     #9333ea;
+            --purple-2:     #7c3aed;
+            --purple-3:     #a855f7;
+            --red-1:        #dc2626;
+            --red-2:        #ef4444;
+            --glass-bg:     rgba(139,92,246,0.05);
+            --glass-border: rgba(139,92,246,0.18);
+            --text:         #e9e0ff;
+            --muted:        rgba(196,181,253,0.45);
+        }
+
+        html, body { height: 100%; }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* ─────────────────────────────────────────
+           BACKGROUND SCENE  (unchanged from main)
+        ───────────────────────────────────────── */
+        #bg-scene {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        #bg-scene::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 70% 55% at 15% 30%, rgba(120,40,220,0.18) 0%, transparent 65%),
+                radial-gradient(ellipse 55% 45% at 85% 75%, rgba(80,10,160,0.14) 0%, transparent 65%),
+                radial-gradient(ellipse 40% 35% at 50% 95%, rgba(180,20,20,0.1)  0%, transparent 60%),
+                var(--bg);
+            animation: bgBreath 10s ease-in-out infinite alternate;
+        }
+        @keyframes bgBreath {
+            from { opacity: 0.75; }
+            to   { opacity: 1; }
+        }
+
+        /* Moving dot-grid */
+        .grid-overlay {
+            position: absolute;
+            inset: -50px;
+            background-image: radial-gradient(circle, rgba(139,92,246,0.12) 1px, transparent 1px);
+            background-size: 40px 40px;
+            animation: gridDrift 25s linear infinite;
+        }
+        @keyframes gridDrift {
+            from { transform: translate(0, 0); }
+            to   { transform: translate(40px, 40px); }
+        }
+
+        /* Scan-line sweep */
+        .scan-line {
+            position: absolute;
+            left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(
+                90deg,
+                transparent 0%,
+                rgba(147,51,234,0.3) 20%,
+                rgba(220,38,38,0.4) 50%,
+                rgba(147,51,234,0.3) 80%,
+                transparent 100%
+            );
+            animation: scanSweep 6s ease-in-out infinite;
+            opacity: 0;
+        }
+        @keyframes scanSweep {
+            0%   { top: -2px;   opacity: 0; }
+            5%   { opacity: 1; }
+            95%  { opacity: 1; }
+            100% { top: 100vh; opacity: 0; }
+        }
+
+        /* Floating orbs */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(70px);
+            animation: orbFloat ease-in-out infinite alternate;
+        }
+        @keyframes orbFloat {
+            from { transform: translate(0, 0) scale(1); }
+            to   { transform: translate(var(--tx, 40px), var(--ty, 40px)) scale(1.08); }
+        }
+
+        .orb-a {
+            width: 520px; height: 520px;
+            background: radial-gradient(circle, rgba(147,51,234,0.35), transparent 70%);
+            top: -160px; left: -160px;
+            animation-duration: 8s;
+            --tx: 60px; --ty: 90px;
+        }
+        .orb-b {
+            width: 420px; height: 420px;
+            background: radial-gradient(circle, rgba(109,40,217,0.3), transparent 70%);
+            bottom: -80px; right: -100px;
+            animation-duration: 10s;
+            animation-delay: -4s;
+            --tx: -50px; --ty: -60px;
+        }
+        .orb-c {
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(220,38,38,0.22), transparent 70%);
+            top: 35%; right: 18%;
+            animation-duration: 12s;
+            animation-delay: -6s;
+            --tx: 35px; --ty: -70px;
+        }
+        .orb-d {
+            width: 240px; height: 240px;
+            background: radial-gradient(circle, rgba(167,85,247,0.25), transparent 70%);
+            bottom: 25%; left: 12%;
+            animation-duration: 9s;
+            animation-delay: -2s;
+            --tx: -45px; --ty: 55px;
+        }
+        .orb-e {
+            width: 180px; height: 180px;
+            background: radial-gradient(circle, rgba(239,68,68,0.18), transparent 70%);
+            top: 60%; left: 40%;
+            animation-duration: 14s;
+            animation-delay: -8s;
+            --tx: 50px; --ty: 30px;
+        }
+
+        /* ─────────────────────────────────────────
+           LAYOUT
+        ───────────────────────────────────────── */
+        .content {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 36px 24px 60px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* ─────────────────────────────────────────
+           HEADER  (no add-button)
+        ───────────────────────────────────────── */
+        header {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        .logo-wrap { display: flex; flex-direction: column; gap: 4px; }
+
+        .logo {
+            font-size: clamp(1.4rem, 3vw, 2rem);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1;
+        }
+        .logo .l-white  { color: #ede9ff; }
+        .logo .l-purple {
+            background: linear-gradient(120deg, #c084fc, #9333ea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .logo .l-red {
+            background: linear-gradient(120deg, #ef4444, #dc2626);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-sub {
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot-live {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 8px rgba(34,197,94,0.8);
+            animation: livePulse 2s ease-in-out infinite;
+        }
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%       { opacity: 0.5; transform: scale(0.75); }
+        }
+
+        /* ─────────────────────────────────────────
+           DIVIDER
+        ───────────────────────────────────────── */
+        .divider {
+            height: 1px;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(139,92,246,0.25) 30%,
+                rgba(220,38,38,0.2)   70%,
+                transparent
+            );
+            margin: 24px 0 0;
+            flex-shrink: 0;
+        }
+
+        /* ─────────────────────────────────────────
+           SETTINGS WRAPPER  (vertical centering)
+        ───────────────────────────────────────── */
+        .settings-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 0;
+        }
+
+        /* ─────────────────────────────────────────
+           SETTINGS PANEL
+        ───────────────────────────────────────── */
+        .settings-panel {
+            width: 100%;
+            max-width: 480px;
+            background: rgba(139,92,246,0.04);
+            border: 1px solid rgba(139,92,246,0.15);
+            border-radius: 26px;
+            padding: 44px 40px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            animation: fadeUp 0.45s cubic-bezier(.22,.8,.37,1) both;
+            box-shadow:
+                0 0 80px rgba(147,51,234,0.1),
+                inset 0 1px 0 rgba(255,255,255,0.04);
+            position: relative;
+            overflow: hidden;
+        }
+        /* top accent shimmer on panel */
+        .settings-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(147,51,234,0.7) 35%,
+                rgba(220,38,38,0.7)  65%,
+                transparent
+            );
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(28px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Panel icon */
+        .settings-icon {
+            width: 64px; height: 64px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(147,51,234,0.2), rgba(220,38,38,0.15));
+            border: 1px solid rgba(139,92,246,0.25);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.9rem;
+            margin: 0 auto 22px;
+            box-shadow: 0 0 35px rgba(147,51,234,0.22), 0 0 70px rgba(220,38,38,0.08);
+        }
+
+        /* Panel title */
+        .settings-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 6px;
+            background: linear-gradient(120deg, #c084fc, #a855f7, #e879f9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Admin ID badge */
+        .admin-id-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 34px;
+        }
+        .badge-pill {
+            background: linear-gradient(135deg, rgba(147,51,234,0.15), rgba(220,38,38,0.1));
+            border: 1px solid rgba(139,92,246,0.25);
+            border-radius: 100px;
+            padding: 5px 16px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(196,181,253,0.75);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .badge-dot {
+            width: 5px; height: 5px;
+            border-radius: 50%;
+            background: var(--red-2);
+            box-shadow: 0 0 6px rgba(239,68,68,0.7);
+            animation: livePulse 2s ease-in-out infinite;
+        }
+
+        /* ─────────────────────────────────────────
+           FORM FIELDS
+        ───────────────────────────────────────── */
+        .field-group { margin-bottom: 18px; }
+
+        .field-label {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: rgba(196,181,253,0.6);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .field-input {
+            width: 100%;
+            background: rgba(10,2,25,0.8);
+            border: 1px solid rgba(139,92,246,0.18);
+            border-radius: 12px;
+            padding: 13px 16px;
+            color: #ede9ff;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+        }
+        .field-input::placeholder { color: rgba(139,92,246,0.28); }
+        .field-input:focus {
+            border-color: rgba(220,38,38,0.45);
+            box-shadow: 0 0 0 3px rgba(220,38,38,0.08), 0 0 30px rgba(147,51,234,0.1);
+            background: rgba(15,4,35,0.9);
+        }
+
+        /* ─────────────────────────────────────────
+           SAVE BUTTON  (single, full-width)
+        ───────────────────────────────────────── */
+        .btn-save {
+            width: 100%;
+            margin-top: 28px;
+            background: linear-gradient(135deg, #7c3aed 0%, #9333ea 40%, #dc2626 100%);
+            border: none;
+            color: #fff;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.03em;
+            padding: 15px;
+            border-radius: 14px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.25s, box-shadow 0.25s;
+            box-shadow:
+                0 0 25px rgba(147,51,234,0.4),
+                0 0 60px rgba(220,38,38,0.15);
+        }
+        .btn-save::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -120%;
+            width: 80%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            animation: shimmer 3s ease-in-out infinite;
+        }
+        @keyframes shimmer {
+            0%        { left: -120%; }
+            50%, 100% { left: 140%; }
+        }
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow:
+                0 0 40px rgba(147,51,234,0.6),
+                0 0 80px rgba(220,38,38,0.25);
+        }
+        .btn-save:active { transform: translateY(0); }
+
+        /* ─────────────────────────────────────────
+           FLASH TOAST
+        ───────────────────────────────────────── */
+        .flash-toast {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(24px);
+            border-radius: 14px;
+            padding: 14px 28px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(.22,.8,.37,1);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .flash-toast.toast-error {
+            background: linear-gradient(135deg, rgba(220,38,38,0.14), rgba(120,10,30,0.2));
+            border: 1px solid rgba(220,38,38,0.4);
+            color: #fca5a5;
+            box-shadow: 0 0 40px rgba(220,38,38,0.2), 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .flash-toast.toast-success {
+            background: linear-gradient(135deg, rgba(22,163,74,0.14), rgba(5,46,22,0.25));
+            border: 1px solid rgba(34,197,94,0.4);
+            color: #86efac;
+            box-shadow: 0 0 40px rgba(34,197,94,0.15), 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .flash-toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast-icon { font-size: 1rem; flex-shrink: 0; }
+
+        /* ─────────────────────────────────────────
+           RESPONSIVE
+        ───────────────────────────────────────── */
+        @media (max-width: 600px) {
+            .content { padding: 24px 16px 48px; }
+            .settings-panel { padding: 32px 22px; }
+            .flash-toast { white-space: normal; text-align: center; max-width: 88vw; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ─── BACKGROUND SCENE ─── -->
+    <div id="bg-scene" aria-hidden="true">
+        <div class="grid-overlay"></div>
+        <div class="scan-line"></div>
+        <div class="orb orb-a"></div>
+        <div class="orb orb-b"></div>
+        <div class="orb orb-c"></div>
+        <div class="orb orb-d"></div>
+        <div class="orb orb-e"></div>
+    </div>
+
+    <!-- ─── MAIN CONTENT ─── -->
+    <main class="content">
+
+        <!-- Header (no Add-New button) -->
+        <header>
+            <div class="logo-wrap">
+                <div class="logo">
+                    <span class="l-white">SADEW</span><span class="l-purple">·MINI</span>
+                    <span class="l-red"> ✦</span>
+                </div>
+                <div class="logo-sub">
+                    <span class="dot-live"></span>
+                    Sub Admin Panel &nbsp;·&nbsp; Live System
+                </div>
+            </div>
+        </header>
+
+        <div class="divider"></div>
+
+        <!-- Settings Panel (visible by default, vertically centered) -->
+        <div class="settings-wrapper">
+            <div class="settings-panel">
+
+                <div class="settings-icon">🤖</div>
+                <h2 class="settings-title">Configure Your Bot</h2>
+
+                <!-- Admin ID badge (populated from URL) -->
+                <div class="admin-id-badge">
+                    <div class="badge-pill">
+                        <span class="badge-dot"></span>
+                        <span id="adminIdBadge">Loading...</span>
+                    </div>
+                </div>
+
+                <!-- Hidden store for admin ID -->
+                <input type="hidden" id="adminIdInput">
+
+                <!-- Fields -->
+                <div class="field-group">
+                    <label class="field-label" for="botNumberInput">📞 Bot WhatsApp Number</label>
+                    <input
+                        type="text"
+                        id="botNumberInput"
+                        class="field-input"
+                        placeholder="e.g. 9470523..."
+                    >
+                </div>
+
+                <div class="field-group">
+                    <label class="field-label" for="groupJidInput">🔗 Group JID</label>
+                    <input
+                        type="text"
+                        id="groupJidInput"
+                        class="field-input"
+                        placeholder="e.g. 12036...@g.us"
+                    >
+                </div>
+
+                <div class="field-group">
+                    <label class="field-label" for="footerTextInput">📝 Custom Footer Text</label>
+                    <input
+                        type="text"
+                        id="footerTextInput"
+                        class="field-input"
+                        placeholder="e.g. Nimal Web Sender"
+                    >
+                </div>
+
+                <!-- Single save button -->
+                <button class="btn-save" onclick="saveSettings()">
+                    💾 &nbsp;Save Settings
+                </button>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ─── JAVASCRIPT ─── -->
+    <script>
+        /* ────────────────────────────────────────
+           URL ADMIN ID EXTRACTION
+           Works for paths like:
+             /panel/admin_02
+             /sub_admin/admin_02
+             /admin_02
+             ?admin=admin_02  (fallback)
+        ──────────────────────────────────────── */
+        function getAdminIdFromUrl() {
+            // Primary: last non-empty segment of the pathname
+            const parts = window.location.pathname.split('/').filter(Boolean);
+            if (parts.length > 0) {
+                const last = parts[parts.length - 1];
+                // Accept anything that looks like admin_XX or similar slug
+                if (last && last !== 'sub_admin.html' && !/\.[a-z]+$/i.test(last)) {
+                    return last;
+                }
+            }
+            // Fallback: ?admin= query param
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('admin')) return params.get('admin');
+            // Final fallback
+            return 'admin_01';
+        }
+
+        /* ────────────────────────────────────────
+           INIT — populate admin ID on load
+        ──────────────────────────────────────── */
+        (function init() {
+            const adminId = getAdminIdFromUrl();
+            document.getElementById('adminIdInput').value      = adminId;
+            document.getElementById('adminIdBadge').textContent = adminId.toUpperCase();
+            document.title = `SADEW-MINI | ${adminId.toUpperCase()}`;
+        })();
+
+        /* ────────────────────────────────────────
+           FLASH TOAST  (success / error)
+        ──────────────────────────────────────── */
+        let activeToast = null;
+
+        function showFlash(type, message) {
+            // Remove existing toast if still visible
+            if (activeToast) {
+                activeToast.remove();
+                activeToast = null;
+            }
+
+            const toast = document.createElement('div');
+            toast.className = `flash-toast toast-${type}`;
+
+            const icon = type === 'success' ? '✅' : '⚠️';
+            toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
+
+            document.body.appendChild(toast);
+            activeToast = toast;
+
+            // Trigger entrance
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => toast.classList.add('visible'));
+            });
+
+            // Auto-dismiss
+            setTimeout(() => {
+                toast.classList.remove('visible');
+                setTimeout(() => {
+                    toast.remove();
+                    if (activeToast === toast) activeToast = null;
+                }, 350);
+            }, type === 'success' ? 3000 : 2800);
+        }
+
+        /* ────────────────────────────────────────
+           SAVE SETTINGS  (dummy — wire to API)
+        ──────────────────────────────────────── */
+        function saveSettings() {
+            const adminId    = document.getElementById('adminIdInput').value.trim();
+            const botNumber  = document.getElementById('botNumberInput').value.trim();
+            const groupJid   = document.getElementById('groupJidInput').value.trim();
+            const footerText = document.getElementById('footerTextInput').value.trim();
+
+            // Validation
+            if (!botNumber) {
+                showFlash('error', 'Bot WhatsApp Number is required.');
+                document.getElementById('botNumberInput').focus();
+                return;
+            }
+            if (!groupJid) {
+                showFlash('error', 'Group JID is required.');
+                document.getElementById('groupJidInput').focus();
+                return;
+            }
+
+            // ── Dummy save logic ──
+            // Replace this block with your actual API call (fetch / axios)
+            const payload = {
+                admin_id:    adminId,
+                bot_number:  botNumber,
+                group_jid:   groupJid,
+                footer_text: footerText || ''
+            };
+
+            console.log('[SADEW-MINI] Saving sub-admin config:', payload);
+            // e.g. await fetch('/api/admin/save', { method:'POST', body: JSON.stringify(payload) });
+
+            showFlash('success', `Settings saved for ${adminId.toUpperCase()} ✦`);
+        }
+
+        /* ────────────────────────────────────────
+           ENTER key → Save
+        ──────────────────────────────────────── */
+        document.querySelectorAll('.field-input').forEach(input => {
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') saveSettings();
+            });
+        });
+    </script>
+</body>
+</html>
