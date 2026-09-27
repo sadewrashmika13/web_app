@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SADEW-MINI | Central Panel</title>
+    <script>
+        // 🔥 Security Check: හරියට ලොග් වෙලාද ආවේ කියලා බලනවා
+        if (!sessionStorage.getItem('sadew_auth') || sessionStorage.getItem('sadew_user') !== 'sadew') {
+            window.location.href = '/portal'; // ලොග් වෙලා නැත්තම් ආයෙත් ලොගින් එකටම විසි කරනවා!
+        }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
