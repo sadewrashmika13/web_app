@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sadew Movie Desk</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  /* ─── ROOT TOKENS (BLACK & LIGHT BLUE) ─── */
+  :root {
+    --bg-dark: #000000;
+    --bg-panel: #050505;
+    --bg-card: #0a0a0a;
+    --cyan: #0ea5e9;
+    --cyan-glow: rgba(14, 165, 233, 0.4);
+    --cyan-dim: rgba(14, 165, 233, 0.1);
+    --border: #1a1a1a;
+    --border-active: rgba(14, 165, 233, 0.5);
+    --text-main: #f0f6fc;
+    --text-muted: #8b949e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    background: var(--bg-dark);
+    color: var(--text-main);
+    font-family: 'Space Grotesk', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ─── APP LAYOUT (PANEL STYLE) ─── */
+  .app-container {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar {
+    width: 280px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    z-index: 10;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+  }
+
+  .brand {
+    margin-bottom: 30px;
+    display: flex;
+    flex-direction: column;
+  }
+  .brand h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 24px;
+    color: #fff;
+    text-shadow: 0 0 15px var(--cyan-glow);
+  }
+  .brand span {
+    font-size: 11px;
+    color: var(--cyan);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+
+  .source-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .source-nav::-webkit-scrollbar { display: none; }
+
+  .src-btn {
+    text-align: left;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .src-btn:hover {
+    background: rgba(255,255,255,0.03);
+    color: #fff;
+  }
+  .src-btn.active {
+    background: var(--cyan-dim);
+    color: var(--cyan);
+    border: 1px solid var(--border-active);
+    box-shadow: inset 4px 0 0 var(--cyan);
+  }
+
+  /* ─── MAIN CONTENT (SCROLLABLE PORTION) ─── */
+  .main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    position: relative;
+    scroll-behavior: smooth;
+  }
+
+  /* Top Bar */
+  .top-bar {
+    position: sticky;
+    top: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  #pageHeading {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    color: #fff;
+  }
+  #pageHeading em {
+    color: var(--cyan);
+    font-style: normal;
+  }
+
+  .search-wrap {
+    display: flex;
+    gap: 12px;
+    max-width: 600px;
+  }
+  .search-box {
+    flex: 1;
+    padding: 14px 20px;
+    border-radius: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.3s;
+  }
+  .search-box:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 15px var(--cyan-glow);
+  }
+  .search-btn {
+    padding: 0 24px;
+    border-radius: 12px;
+    background: var(--cyan);
+    color: #000;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .search-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px var(--cyan-glow);
+  }
+
+  /* Content Body */
+  .content-body {
+    padding: 30px 40px;
+    flex: 1;
+  }
+
+  .status {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .movie-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 24px;
+    margin-bottom: 50px;
+  }
+
+  /* ─── MOVIE CARDS ─── */
+  .skeleton-card {
+    border-radius: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    aspect-ratio: 2/3;
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton-card::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(14,165,233,0.1), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer { 0% {transform: translateX(-100%)} 100% {transform: translateX(100%)} }
+
+  .ticket {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  .ticket:hover {
+    border-color: var(--cyan);
+    box-shadow: 0 10px 30px var(--cyan-glow);
+    transform: translateY(-5px);
+  }
+  .ticket .poster {
+    aspect-ratio: 2/3;
+    overflow: hidden;
+    position: relative;
+  }
+  .ticket .poster img {
+    width: 100%; height: 100%; object-fit: cover;
+    transition: transform 0.4s ease;
+  }
+  .ticket:hover .poster img { transform: scale(1.05); }
+  .ticket .badge {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(0,0,0,0.8);
+    border: 1px solid var(--cyan);
+    color: var(--cyan);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    backdrop-filter: blur(4px);
+  }
+  .stub {
+    padding: 15px;
+    border-top: 1px solid var(--border);
+  }
+  .stub h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    line-height: 1.4;
+  }
+
+  /* ─── WA BANNER (CYAN THEME) ─── */
+  .wa-banner-container {
+    width: 100%; max-width: 600px; margin: 0 auto;
+    background: linear-gradient(135deg, rgba(14,165,233,0.1) 0%, rgba(0,0,0,0.5) 100%);
+    border: 1px solid var(--border-active);
+    border-radius: 20px; padding: 30px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .wa-banner-container h3 {
+    font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 10px;
+  }
+  .wa-banner-container h2 {
+    font-size: 18px; color: var(--cyan); margin-bottom: 15px;
+  }
+  .wa-banner-container p {
+    font-size: 14px; color: var(--text-muted); margin-bottom: 25px; line-height: 1.6;
+  }
+  .wa-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: var(--cyan); color: #000; text-decoration: none;
+    font-weight: 700; font-size: 14px; padding: 12px 28px; border-radius: 12px;
+    transition: all 0.3s;
+  }
+  .wa-btn:hover { box-shadow: 0 0 20px var(--cyan-glow); transform: translateY(-2px); }
+
+  /* ─── MODAL (BLACK & CYAN) ─── */
+  .modal {
+    display: none; position: fixed; inset: 0; z-index: 999;
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+    align-items: center; justify-content: center; padding: 20px;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .modal.open { display: flex; opacity: 1; }
+  .modal-card {
+    width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+    background: var(--bg-panel); border: 1px solid var(--border-active);
+    border-radius: 20px; transform: scale(0.95); transition: transform 0.3s;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.8), 0 0 30px var(--cyan-dim);
+  }
+  .modal.open .modal-card { transform: scale(1); }
+  .modal-head { position: relative; }
+  .modal-head img {
+    width: 100%; height: 220px; object-fit: cover;
+    mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+  }
+  .close-btn {
+    position: absolute; top: 15px; right: 15px; width: 32px; height: 32px;
+    background: rgba(0,0,0,0.6); border: 1px solid var(--cyan);
+    color: var(--cyan); border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 10; font-size: 18px;
+    transition: all 0.3s;
+  }
+  .close-btn:hover { background: var(--cyan); color: #000; }
+  .modal-title {
+    position: absolute; bottom: 15px; left: 20px; right: 20px;
+    font-size: 20px; font-weight: 700; color: #fff; z-index: 10;
+  }
+  .modal-body { padding: 10px 20px 25px; }
+  .field {
+    width: 100%; padding: 14px 16px; margin-bottom: 15px; border-radius: 12px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: #fff; outline: none; font-family: 'Space Grotesk', sans-serif;
+  }
+  .field:focus { border-color: var(--cyan); box-shadow: 0 0 10px var(--cyan-glow); }
+  .modal-status { font-size: 13px; color: var(--cyan); text-align: center; margin-bottom: 15px; }
+  .quality-row { display: flex; flex-wrap: wrap; gap: 10px; max-height: 250px; overflow-y: auto; padding-right: 5px; }
+  .quality-row::-webkit-scrollbar { width: 4px; }
+  .quality-row::-webkit-scrollbar-thumb { background: var(--cyan-dim); border-radius: 4px; }
+  .qbtn {
+    flex: 1; min-width: 120px; padding: 12px; border-radius: 10px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--text-main); font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.3s;
+  }
+  .qbtn:hover { background: var(--cyan-dim); border-color: var(--cyan); color: var(--cyan); }
+  .all-btn { flex: 100%; background: var(--cyan); color: #000; border: none; }
+  .all-btn:hover { background: #0284c7; color: #fff; box-shadow: 0 0 15px var(--cyan-glow); }
+
+  /* ─── UPLOAD BANNER ─── */
+  .upload-banner {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.9); border-bottom: 1px solid var(--cyan);
+    padding: 15px 25px; z-index: 1000; transform: translateY(-100%); transition: transform 0.4s;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; gap: 10px;
+  }
+  .upload-banner.show { transform: translateY(0); }
+  .ub-info { display: flex; align-items: center; gap: 15px; }
+  .ub-icon { width: 24px; height: 24px; color: var(--cyan); animation: spin 1s linear infinite; }
+  .ub-text { flex: 1; }
+  .ub-title { font-weight: 700; font-size: 14px; color: #fff; }
+  .ub-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .ub-progress { width: 100%; height: 3px; background: var(--border); border-radius: 4px; overflow: hidden; position: relative; }
+  .ub-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 30%; background: var(--cyan); animation: slide 1.5s ease-in-out infinite alternate; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+  @keyframes slide { 0% { left: 0; width: 30%; } 100% { left: 70%; width: 30%; } }
+
+  /* ─── MOBILE RESPONSIVE ─── */
+  @media (max-width: 768px) {
+    .app-container { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 15px; box-shadow: none; }
+    .source-nav { flex-direction: row; overflow-x: auto; gap: 10px; margin-top: 15px; padding-bottom: 5px; }
+    .src-btn { white-space: nowrap; text-align: center; border-radius: 8px; }
+    .src-btn.active { box-shadow: none; border-bottom: 2px solid var(--cyan); border-radius: 8px 8px 0 0; background: transparent; }
+    .top-bar { padding: 15px 20px; }
+    .content-body { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── UPLOAD BANNER ─── -->
+<div id="uploadBanner" class="upload-banner">
+  <div class="ub-info">
+    <svg class="ub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+    <div class="ub-text">
+      <div class="ub-title" id="ubTitle">Checking server queue...</div>
+      <div class="ub-sub" id="ubSub">Please wait</div>
+    </div>
+    <button onclick="document.getElementById('uploadBanner').classList.remove('show')" style="background:none;border:none;color:var(--text-muted);font-size:24px;cursor:pointer;">×</button>
+  </div>
+  <div class="ub-progress"><div class="ub-bar"></div></div>
+</div>
+
+<!-- ─── PANEL LAYOUT ─── -->
+<div class="app-container">
+  
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <h2>Movie Desk</h2>
+      <span>Pro Dashboard</span>
+    </div>
+    
+    <nav class="source-nav" id="sourceToggle">
+      <button class="src-btn active" data-source="cinesubz"    onclick="setSource('cinesubz',this)">🎬 CineSubz</button>
+      <button class="src-btn"        data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">🇱🇰 SinhalaSub</button>
+      <button class="src-btn"        data-source="slcartoons"  onclick="setSource('slcartoons',this)">🧸 SL Cartoons</button>
+      <button class="src-btn"        data-source="moviesublk"  onclick="setSource('moviesublk',this)">🍿 MovieSubLK</button>
+      <button class="src-btn"        data-source="1tamilmv"    onclick="setSource('1tamilmv',this)">⚔️ 1TamilMV</button>
+      <button class="src-btn"        data-source="animeheaven" onclick="setSource('animeheaven',this)">🎌 AnimeHaven</button>
+      <button class="src-btn"        data-source="kdrama"      onclick="setSource('kdrama',this)">🎭 KDrama</button>
+      <button class="src-btn"        data-source="baiscopes"   onclick="setSource('baiscopes',this)">🔥 Baiscopes</button>
+      <button class="src-btn"        data-source="sublk"       onclick="setSource('sublk',this)">🎥 Sub.lk</button>
+    </nav>
+  </aside>
+
+  <!-- MAIN SCROLLABLE CONTENT -->
+  <main class="main-content">
+    
+    <header class="top-bar">
+      <h1 id="pageHeading">Search movie and upload group <em>and enjoy</em></h1>
+      <div class="search-wrap">
+        <input type="text" id="movieName" class="search-box" placeholder="Search a movie, cartoon or anime…" onkeydown="if(event.key==='Enter')searchMovie()">
+        <button class="search-btn" onclick="searchMovie()">Search</button>
+      </div>
+    </header>
+
+    <div class="content-body">
+      <p class="status" id="statusMsg">Select a source and search to begin.</p>
+      
+      <div class="movie-grid" id="movieGrid">
+        <!-- Movies will load here -->
+      </div>
+
+      <!-- WhatsApp Banner -->
+      <div class="wa-banner-container" id="waBanner">
+        <h3 id="waBannerTopTitle">Sadew x Mini Movie Sender</h3>
+        <h2 id="waBannerMainTitle">🍿 Join Our Movie Group!</h2>
+        <p id="waBannerDesc">Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!</p>
+        <a id="waGroupLink" href="https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E" target="_blank" class="wa-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          Join WhatsApp Group
+        </a>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ─── MODAL ─── -->
+<div class="modal" id="movieModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <button class="close-btn" onclick="closeModal()">×</button>
+      <img id="modalImg" src="">
+      <div class="modal-title" id="modalTitle"></div>
+    </div>
+    <div class="modal-body">
+      <input type="text" id="reqName" class="field" placeholder="Requester Name (E.g. Sadew)">
+      <input type="text" id="reqNum"  class="field" placeholder="Phone Number (e.g. 0771234567)">
+      <p class="modal-status" id="modalStatus"></p>
+      <div class="quality-row" id="qualityButtons"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── JAVASCRIPT ─── -->
+<script>
+  /* ================================================================
+   *  ✏️  EDIT YOUR DETAILS HERE — ADMIN CONFIG
+   * ================================================================ */
+  const ADMIN_CONFIG = {
+    admin_id:          "admin_01", // 🔥 මෙතන admin_02, admin_03 විදිහට ෆයිල් එකෙන් ෆයිල් එකට වෙනස් කරන්න
+    pageTitle:         "Sadew Movie Desk",
+    headerTitle:       "Search movie and upload group",
+    headerTitleEm:     "and enjoy",
+    waBannerTopTitle:  "Sadew x Mini Movie Sender",
+    waBannerMainTitle: "🍿 Join Our Movie Group!",
+    waBannerDesc:      "Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!",
+    waGroupLink:       "https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E",
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.title = ADMIN_CONFIG.pageTitle;
+    document.getElementById('pageHeading').innerHTML    = `${ADMIN_CONFIG.headerTitle} <em>${ADMIN_CONFIG.headerTitleEm}</em>`;
+    document.getElementById('waBannerTopTitle').textContent  = ADMIN_CONFIG.waBannerTopTitle;
+    document.getElementById('waBannerMainTitle').textContent = ADMIN_CONFIG.waBannerMainTitle;
+    document.getElementById('waBannerDesc').textContent      = ADMIN_CONFIG.waBannerDesc;
+    document.getElementById('waGroupLink').href              = ADMIN_CONFIG.waGroupLink;
+  });
+
+  /* ================================================================
+   *  APP LOGIC — WITH DYNAMIC ADMIN ID
+   * ================================================================ */
+  let currentSource   = 'cinesubz';
+  let currentMovieMeta = {};
+  let currentDownloads = [];
+  let pollInterval = null;
+
+  function startQueuePolling(){
+    if(pollInterval) clearInterval(pollInterval);
+    document.getElementById('uploadBanner').classList.add('show');
+    pollInterval = setInterval(async ()=>{
+      try{
+        const res  = await fetch('/api/queue');
+        const data = await res.json();
+        const titleEl = document.getElementById('ubTitle');
+        const subEl   = document.getElementById('ubSub');
+        if(!data.active && data.queue.length===0){
+          titleEl.textContent="✅ All Tasks Completed!";
+          subEl.textContent="Your videos have been sent to the group.";
+          setTimeout(()=>document.getElementById('uploadBanner').classList.remove('show'),4000);
+          clearInterval(pollInterval); return;
+        }
+        if(data.active){
+          const myNum  = document.getElementById('reqNum').value.trim();
+          const isMine = data.active.userNum===myNum;
+          if(isMine){
+            titleEl.textContent=`🚀 Sending Your Request: ${data.active.title} (${data.active.quality})`;
+            subEl.textContent="Server is actively uploading this to WhatsApp...";
+          }else{
+            titleEl.textContent=`⏳ Waiting in Queue... (Position: ${data.queue.length+1})`;
+            subEl.textContent=`Currently processing someone else's request: ${data.active.title}`;
+          }
+        }
+      }catch(e){}
+    },3000);
+  }
+
+  function setSource(src,btnElement){
+    currentSource=src;
+    document.querySelectorAll('.src-btn').forEach(b=>b.classList.remove('active'));
+    btnElement.classList.add('active');
+  }
+
+  function showSkeleton(){
+    const grid=document.getElementById('movieGrid');
+    grid.innerHTML='';
+    for(let i=0;i<8;i++){
+      const s=document.createElement('div'); s.className='skeleton-card'; grid.appendChild(s);
+    }
+  }
+
+  async function searchMovie(){
+    const query=document.getElementById('movieName').value.trim();
+    if(!query) return;
+    const statusEl=document.getElementById('statusMsg');
+    statusEl.textContent='Searching…';
+    showSkeleton();
+    try{
+      const endpoint=currentSource==='animeheaven'?'/api/anime-search':'/api/search';
+      const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,source:currentSource})});
+      const data=await res.json();
+      const grid=document.getElementById('movieGrid');
+      grid.innerHTML='';
+      if(data.success && data.results?.length){
+        statusEl.textContent=`${data.results.length} results found`;
+        data.results.forEach(mv=>{
+          const card=document.createElement('div');
+          card.className='ticket';
+          let cap=mv.source?mv.source.charAt(0).toUpperCase()+mv.source.slice(1):'CineSubz';
+          card.innerHTML=`<div class="poster"><img src="${mv.img||'https://via.placeholder.com/400'}"><span class="badge">${cap}</span></div><div class="stub"><h4>${mv.title}</h4></div>`;
+          card.onclick=()=>openModal(mv.title,mv.img,mv.url||mv.id,mv.imdb);
+          grid.appendChild(card);
+        });
+      }else{statusEl.textContent='No results found.';}
+    }catch(e){statusEl.textContent='Search Error!';document.getElementById('movieGrid').innerHTML='';}
+  }
+
+  async function openModal(title,img,refId,imdb){
+    const modal=document.getElementById('movieModal');
+    modal.classList.add('open');
+    document.getElementById('modalTitle').textContent=title;
+    document.getElementById('modalImg').src=img||'https://via.placeholder.com/400';
+    document.getElementById('qualityButtons').innerHTML='';
+    const modalStatus=document.getElementById('modalStatus');
+    modalStatus.textContent='Fetching episodes/links…';
+    currentDownloads=[];
+    try{
+      const isAnime=currentSource==='animeheaven';
+      const res=await fetch(isAnime?'/api/anime-episodes':'/api/links',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(isAnime?{id:refId}:{url:refId,source:currentSource})
+      });
+      const data=await res.json();
+      if(data.success){
+        modalStatus.textContent='Pick an option:';
+        currentMovieMeta={title,img,imdb,refId};
+        let arr=isAnime?data.episodes:data.downloads;
+        currentDownloads=arr;
+        let isSeries=arr.length>1&&(isAnime||currentSource==='slcartoons'||currentSource==='moviesublk'||currentSource==='kdrama'||arr[0].meta.toLowerCase().includes('episode')||arr[0].meta.toLowerCase().includes('part'));
+        if(isSeries){
+          const btnAll=document.createElement('button');
+          btnAll.className='qbtn all-btn';
+          btnAll.innerHTML=`🚀 Queue ALL Episodes Automatically (${arr.length})`;
+          btnAll.onclick=()=>isAnime?sendAllAnime(data):sendAllMovie(arr);
+          document.getElementById('qualityButtons').appendChild(btnAll);
+        }
+        arr.forEach(item=>{
+          const btn=document.createElement('button');
+          btn.className='qbtn';
+          btn.textContent=isAnime?`Ep ${item.num}`:item.meta;
+          btn.onclick=()=>isAnime?sendAnimeEpisode(data,item):sendMovie(item.resolvedUrl,item.meta);
+          document.getElementById('qualityButtons').appendChild(btn);
+        });
+      }else{modalStatus.textContent='No links found.';}
+    }catch(e){modalStatus.textContent='Error loading links.';}
+  }
+
+  function closeModal(){document.getElementById('movieModal').classList.remove('open')}
+
+  function getRequester(){
+    const reqName=document.getElementById('reqName').value.trim();
+    const reqNum =document.getElementById('reqNum').value.trim();
+    if(!reqName||!reqNum){document.getElementById('modalStatus').textContent='Please add requester name and number!';return null;}
+    return{reqName,reqNum};
+  }
+  
+  async function sendMovie(url,quality){
+    const req=getRequester();if(!req)return;
+    document.getElementById('modalStatus').textContent='Adding to Queue...';
+    await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+        title:currentMovieMeta.title, url, quality, reqName:req.reqName, reqNum:req.reqNum,
+        source:currentSource, img:currentMovieMeta.img, 
+        admin_id: ADMIN_CONFIG.admin_id 
+    })});
+    closeModal();startQueuePolling();
+  }
+
+  async function sendAnimeEpisode(apiData,ep){
+    const req=getRequester();if(!req)return;
+    await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+        id:currentMovieMeta.refId, hash:ep.hash, epNum:ep.num, videoname:apiData.videoname, 
+        thumbnail:apiData.thumbnail, reqName:req.reqName, reqNum:req.reqNum,
+        admin_id: ADMIN_CONFIG.admin_id 
+    })});
+    closeModal();startQueuePolling();
+  }
+
+  async function sendAllMovie(arr){
+    const req=getRequester();if(!req)return;
+    closeModal();
+    document.getElementById('uploadBanner').classList.add('show');
+    document.getElementById('ubTitle').textContent=`Adding ${arr.length} videos to Queue...`;
+    for(let i=0;i<arr.length;i++){
+      await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+          title:currentMovieMeta.title, url:arr[i].resolvedUrl, quality:arr[i].meta,
+          reqName:req.reqName, reqNum:req.reqNum, source:currentSource, img:currentMovieMeta.img,
+          batchIndex:i, batchTotal:arr.length, 
+          admin_id: ADMIN_CONFIG.admin_id 
+      })});
+    }
+    startQueuePolling();
+  }
+
+  async function sendAllAnime(apiData){
+    const req=getRequester();if(!req)return;
+    closeModal();
+    document.getElementById('uploadBanner').classList.add('show');
+    document.getElementById('ubTitle').textContent=`Adding ${apiData.episodes.length} episodes to Queue...`;
+    for(let i=0;i<apiData.episodes.length;i++){
+      await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+          id:currentMovieMeta.refId, hash:apiData.episodes[i].hash, epNum:apiData.episodes[i].num,
+          videoname:apiData.videoname, thumbnail:apiData.thumbnail, reqName:req.reqName, 
+          reqNum:req.reqNum, batchIndex:i,
+          admin_id: ADMIN_CONFIG.admin_id 
+      })});
+    }
+    startQueuePolling();
+  }
+</script>
+</body>
+</html>
