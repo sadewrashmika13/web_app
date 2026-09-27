@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const cheerio = require('cheerio');
 const qs = require('qs');
 const https = require('https');
+const Admin = require('../models/Admin'); // 🔥 Admin Database එක ඉම්පෝට් කළා
 
 const router = express.Router();
 
@@ -13,8 +14,10 @@ const CZ_API = "https://cz-dnuz.vercel.app";
 const ZANTA_API_BASE = "https://api.zanta-mini.store";
 const ZANTA_KEY = "zan_FIAO7Ayh_eo1vllkep6";
 const ANIME_BASE = "https://animeheaven.me";
-const GROUP_JID = '120363425721300928@g.us'; 
-const BOT_NUMBER = '94705236759'; 
+
+// 🔥 මේවා දැන් Fallbacks (DB එකෙන් ආවේ නැත්තම් විතරක් මේවා පාවිච්චි වෙනවා) 🔥
+const FALLBACK_GROUP_JID = '120363425721300928@g.us'; 
+const FALLBACK_BOT_NUMBER = '94705236759'; 
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
 const GEMINI_KEYS = [
@@ -44,10 +47,13 @@ async function getGeminiSummary(movieTitle) {
     return ""; 
 }
 
-function getActiveSocket() {
+// 🔥 Dynamic විදිහට අදාල නම්බර් එකේ Socket එක ගන්නවා 🔥
+function getActiveSocket(targetBotNumber) {
     const activeSockets = global.activeSockets;
     if (!activeSockets || activeSockets.size === 0) return null;
-    const sessionData = activeSockets.get(BOT_NUMBER) || Array.from(activeSockets.values())[0];
+    
+    const numberToUse = targetBotNumber || FALLBACK_BOT_NUMBER;
+    const sessionData = activeSockets.get(numberToUse) || Array.from(activeSockets.values())[0];
     return sessionData.socket || sessionData;
 }
 
@@ -222,16 +228,41 @@ router.post('/api/links', async (req, res) => {
     } catch (error) { res.json({ success: false }); }
 });
 
+// ── SEND TO GROUP (DIRECT STREAM + AI) ──
 router.post('/api/send-movie', async (req, res) => {
-    const { title, url, quality, reqName, reqNum, source, img, imdb, batchIndex } = req.body;
+    // 🔥 Frontend එකෙන් එන admin_id එක ගන්නවා
+    const { title, url, quality, reqName, reqNum, source, img, imdb, batchIndex, admin_id } = req.body;
     const taskId = crypto.randomBytes(4).toString('hex');
     
+    // ⚙️ මුලින්ම Fallbacks සෙට් කරනවා
+    let dynamicBotNumber = FALLBACK_BOT_NUMBER;
+    let dynamicGroupJid = FALLBACK_GROUP_JID;
+    let dynamicFooter = 'Sadew Web Sender';
+
+    try {
+        // 🔥 Admin_id එකක් ආවොත් Database එකෙන් අදාල කස්ටමර්ගේ Settings ගන්නවා
+        if (admin_id) {
+            const adminData = await Admin.findOne({ username: admin_id });
+            if (adminData) {
+                if (adminData.bot_number) dynamicBotNumber = adminData.bot_number;
+                if (adminData.group_jid) dynamicGroupJid = adminData.group_jid;
+                if (adminData.footer_text) dynamicFooter = adminData.footer_text;
+            }
+        }
+    } catch (dbErr) { 
+        console.error('DB fetch error for Sub-Admin:', dbErr.message); 
+    }
+
     taskQueue.add({
         id: taskId,
         info: { title, quality, reqName, userNum: reqNum },
         run: async () => {
-            const sock = getActiveSocket();
-            if (!sock) return;
+            // 🔥 Database එකෙන් ගත්ත නිවැරදි Bot Socket එක අරගන්නවා
+            const sock = getActiveSocket(dynamicBotNumber);
+            if (!sock) {
+                console.error(`Socket not found for bot number: ${dynamicBotNumber}`);
+                return;
+            }
 
             try {
                 const isBatch = typeof batchIndex !== 'undefined';
@@ -292,19 +323,20 @@ router.post('/api/send-movie', async (req, res) => {
                 }
 
                 if (isFirstInBatch) {
-                    await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
+                    await sendMediaSafely(sock, dynamicBotNumber + '@s.whatsapp.net', { text: `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
                     const aiSummary = await getGeminiSummary(title);
                     let cap = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n`;
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    cap += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+                    cap += `👤 *Required By:* ${reqName}\n\n> *${dynamicFooter}*`;
 
-                    if (img) await sendMediaSafely(sock, GROUP_JID, { image: { url: img }, caption: cap }, 60000);
-                    else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
+                    // 🔥 Database එකෙන් ගත්ත Group JID එකට යවනවා
+                    if (img) await sendMediaSafely(sock, dynamicGroupJid, { image: { url: img }, caption: cap }, 60000);
+                    else await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 30000);
                 }
 
                 if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
-                    const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${title}\n✨ *Quality:* ${quality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
-                    await sendMediaSafely(sock, GROUP_JID, { text: teleText }, 30000);
+                    const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${title}\n✨ *Quality:* ${quality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${reqName}\n\n> *${dynamicFooter}*`;
+                    await sendMediaSafely(sock, dynamicGroupJid, { text: teleText }, 30000);
                     return; 
                 }
 
@@ -312,20 +344,20 @@ router.post('/api/send-movie', async (req, res) => {
                 
                 if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
                     try{ streamRes.data.destroy(); }catch(e){}
-                    await sendMediaSafely(sock, GROUP_JID, { text: `⚠️ *File Too Large (>2GB)*\n🔗 ${url}` });
+                    await sendMediaSafely(sock, dynamicGroupJid, { text: `⚠️ *File Too Large (>2GB)*\n🔗 ${url}` });
                     return;
                 }
 
                 const mimeType = (finalVidUrl.includes('.mkv') || (streamRes.headers['content-type'] && streamRes.headers['content-type'].includes('matroska'))) ? 'video/x-matroska' : 'video/mp4';
                 const fileExt = mimeType === 'video/x-matroska' ? 'mkv' : 'mp4';
                 let fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.${fileExt}`;
-                let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${quality}*\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*` : `🎬 *${title}*\n> *Sadew Web Sender*`;
+                let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${quality}*\n👤 *Required By:* ${reqName}\n> *${dynamicFooter}*` : `🎬 *${title}*\n> *${dynamicFooter}*`;
 
-                await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption });
+                await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption });
                 
             } catch (err) {
                 const errMsg = err.response ? `HTTP ${err.response.status}` : err.message;
-                try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${title} - ${quality}\n_Error: ${errMsg}_` }, 30000); } catch(e){}
+                try { await sendMediaSafely(sock, dynamicGroupJid, { text: `❌ *Failed:* ${title} - ${quality}\n_Error: ${errMsg}_` }, 30000); } catch(e){}
             }
         }
     });
@@ -366,14 +398,33 @@ router.post('/api/anime-episodes', async (req, res) => {
 });
 
 router.post('/api/anime-send', async (req, res) => {
-    const { id, hash, epNum, videoname, thumbnail, reqName, reqNum, batchIndex } = req.body;
+    // 🔥 Frontend එකෙන් එන admin_id එක ගන්නවා
+    const { id, hash, epNum, videoname, thumbnail, reqName, reqNum, batchIndex, admin_id } = req.body;
     const taskId = crypto.randomBytes(4).toString('hex');
+
+    // ⚙️ මුලින්ම Fallbacks සෙට් කරනවා
+    let dynamicBotNumber = FALLBACK_BOT_NUMBER;
+    let dynamicGroupJid = FALLBACK_GROUP_JID;
+    let dynamicFooter = 'Sadew Web Sender';
+
+    try {
+        if (admin_id) {
+            const adminData = await Admin.findOne({ username: admin_id });
+            if (adminData) {
+                if (adminData.bot_number) dynamicBotNumber = adminData.bot_number;
+                if (adminData.group_jid) dynamicGroupJid = adminData.group_jid;
+                if (adminData.footer_text) dynamicFooter = adminData.footer_text;
+            }
+        }
+    } catch (dbErr) { 
+        console.error('DB fetch error for Anime Sub-Admin:', dbErr.message); 
+    }
 
     taskQueue.add({
         id: taskId,
         info: { title: videoname, quality: `Episode ${epNum}`, reqName, userNum: reqNum },
         run: async () => {
-            const sock = getActiveSocket();
+            const sock = getActiveSocket(dynamicBotNumber);
             if (!sock) return;
 
             try {
@@ -381,7 +432,7 @@ router.post('/api/anime-send', async (req, res) => {
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
 
                 if (isFirstInBatch) {
-                    await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${videoname} - Ep ${epNum}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
+                    await sendMediaSafely(sock, dynamicBotNumber + '@s.whatsapp.net', { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${videoname} - Ep ${epNum}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
                     const aiSummary = await getGeminiSummary(videoname);
                     const seriesHtml = (await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS })).data;
                     const descMatch = seriesHtml.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
@@ -390,10 +441,10 @@ router.post('/api/anime-send', async (req, res) => {
 
                     let cardText = `🎬 *${videoname}*\n\n`;
                     if (aiSummary) { cardText += `📖 *Summary:*\n${aiSummary}\n\n`; } else { cardText += `📝 *Description:*\n${origDesc}\n\n`; }
-                    cardText += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+                    cardText += `👤 *Required By:* ${reqName}\n\n> *${dynamicFooter}*`;
 
-                    if (thumbnail) await sendMediaSafely(sock, GROUP_JID, { image: { url: thumbnail }, caption: cardText }, 60000);
-                    else await sendMediaSafely(sock, GROUP_JID, { text: cardText }, 30000);
+                    if (thumbnail) await sendMediaSafely(sock, dynamicGroupJid, { image: { url: thumbnail }, caption: cardText }, 60000);
+                    else await sendMediaSafely(sock, dynamicGroupJid, { text: cardText }, 30000);
                 }
 
                 const gateHtml = (await axios.get(`${ANIME_BASE}/gate.php`, { headers: { ...HEADERS, 'Referer': `${ANIME_BASE}/anime.php?${id}`, 'Cookie': `key=${hash}` } })).data;
@@ -419,11 +470,11 @@ router.post('/api/anime-send', async (req, res) => {
                 if ((streamRes.headers['content-type'] || '').includes('text/html')) { try { streamRes.data.destroy(); } catch(e){} throw new Error("Blocked by AnimeHaven"); }
 
                 const fileName = `${videoname.replace(/[^a-zA-Z0-9 ]/g, '').trim()} - Ep ${epNum} [SADEW].mp4`;
-                let epCaption = `🎬 Episode ${epNum}\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*`;
+                let epCaption = `🎬 Episode ${epNum}\n👤 *Required By:* ${reqName}\n> *${dynamicFooter}*`;
 
-                await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption });
+                await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption });
             } catch (err) {
-                try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${videoname} - Ep ${epNum}\n_Network dropped or timeout._` }, 30000); } catch(e){}
+                try { await sendMediaSafely(sock, dynamicGroupJid, { text: `❌ *Failed:* ${videoname} - Ep ${epNum}\n_Network dropped or timeout._` }, 30000); } catch(e){}
             }
         }
     });
