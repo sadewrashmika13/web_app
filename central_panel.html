@@ -4,12 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SADEW-MINI | Central Panel</title>
-    <script>
-        // 🔥 Security Check: හරියට ලොග් වෙලාද ආවේ කියලා බලනවා
-        if (!sessionStorage.getItem('sadew_auth') || sessionStorage.getItem('sadew_user') !== 'sadew') {
-            window.location.href = '/portal'; // ලොග් වෙලා නැත්තම් ආයෙත් ලොගින් එකටම විසි කරනවා!
-        }
-    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -17,18 +11,11 @@
 
         :root {
             --bg:       #06000f;
-            --purple-1: #9333ea;
-            --purple-2: #7c3aed;
-            --purple-3: #a855f7;
-            --red-1:    #dc2626;
-            --red-2:    #ef4444;
             --glass-bg: rgba(139,92,246,0.05);
             --glass-border: rgba(139,92,246,0.18);
             --text:     #e9e0ff;
             --muted:    rgba(196,181,253,0.45);
         }
-
-        html, body { height: 100%; }
 
         body {
             font-family: 'Space Grotesk', sans-serif;
@@ -40,761 +27,265 @@
         }
 
         /* ─── BACKGROUND SCENE ─── */
-        #bg-scene {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            overflow: hidden;
-            pointer-events: none;
-        }
-
-        /* Deep gradient base */
+        #bg-scene { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
         #bg-scene::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background:
-                radial-gradient(ellipse 70% 55% at 15% 30%, rgba(120,40,220,0.18) 0%, transparent 65%),
-                radial-gradient(ellipse 55% 45% at 85% 75%, rgba(80,10,160,0.14) 0%, transparent 65%),
-                radial-gradient(ellipse 40% 35% at 50% 95%, rgba(180,20,20,0.1) 0%, transparent 60%),
-                var(--bg);
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(ellipse 70% 55% at 15% 30%, rgba(120,40,220,0.18) 0%, transparent 65%),
+                        radial-gradient(ellipse 55% 45% at 85% 75%, rgba(80,10,160,0.14) 0%, transparent 65%),
+                        var(--bg);
             animation: bgBreath 10s ease-in-out infinite alternate;
         }
-        @keyframes bgBreath {
-            from { opacity: 0.75; }
-            to   { opacity: 1; }
-        }
+        @keyframes bgBreath { from { opacity: 0.75; } to { opacity: 1; } }
 
-        /* Moving dot-grid */
         .grid-overlay {
-            position: absolute;
-            inset: -50px;
-            background-image:
-                radial-gradient(circle, rgba(139,92,246,0.12) 1px, transparent 1px);
-            background-size: 40px 40px;
-            animation: gridDrift 25s linear infinite;
+            position: absolute; inset: -50px;
+            background-image: radial-gradient(circle, rgba(139,92,246,0.12) 1px, transparent 1px);
+            background-size: 40px 40px; animation: gridDrift 25s linear infinite;
         }
-        @keyframes gridDrift {
-            from { transform: translate(0,0); }
-            to   { transform: translate(40px, 40px); }
-        }
+        @keyframes gridDrift { from { transform: translate(0,0); } to { transform: translate(40px, 40px); } }
 
-        /* Scan-line sweep */
-        .scan-line {
-            position: absolute;
-            left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg,
-                transparent 0%,
-                rgba(147,51,234,0.3) 20%,
-                rgba(220,38,38,0.4) 50%,
-                rgba(147,51,234,0.3) 80%,
-                transparent 100%);
-            animation: scanSweep 6s ease-in-out infinite;
-            opacity: 0;
-        }
-        @keyframes scanSweep {
-            0%   { top: -2px; opacity: 0; }
-            5%   { opacity: 1; }
-            95%  { opacity: 1; }
-            100% { top: 100vh; opacity: 0; }
-        }
+        .content { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 36px 24px 60px; }
 
-        /* Floating orbs */
-        .orb {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(70px);
-            animation: orbFloat ease-in-out infinite alternate;
-        }
-        @keyframes orbFloat {
-            from { transform: translate(0,0) scale(1); }
-            to   { transform: translate(var(--tx,40px), var(--ty,40px)) scale(1.08); }
-        }
-
-        .orb-a {
-            width: 520px; height: 520px;
-            background: radial-gradient(circle, rgba(147,51,234,0.35), transparent 70%);
-            top: -160px; left: -160px;
-            animation-duration: 8s;
-            --tx: 60px; --ty: 90px;
-        }
-        .orb-b {
-            width: 420px; height: 420px;
-            background: radial-gradient(circle, rgba(109,40,217,0.3), transparent 70%);
-            bottom: -80px; right: -100px;
-            animation-duration: 10s;
-            animation-delay: -4s;
-            --tx: -50px; --ty: -60px;
-        }
-        .orb-c {
-            width: 300px; height: 300px;
-            background: radial-gradient(circle, rgba(220,38,38,0.22), transparent 70%);
-            top: 35%; right: 18%;
-            animation-duration: 12s;
-            animation-delay: -6s;
-            --tx: 35px; --ty: -70px;
-        }
-        .orb-d {
-            width: 240px; height: 240px;
-            background: radial-gradient(circle, rgba(167,85,247,0.25), transparent 70%);
-            bottom: 25%; left: 12%;
-            animation-duration: 9s;
-            animation-delay: -2s;
-            --tx: -45px; --ty: 55px;
-        }
-        .orb-e {
-            width: 180px; height: 180px;
-            background: radial-gradient(circle, rgba(239,68,68,0.18), transparent 70%);
-            top: 60%; left: 40%;
-            animation-duration: 14s;
-            animation-delay: -8s;
-            --tx: 50px; --ty: 30px;
-        }
-
-        /* ─── LAYOUT ─── */
-        .content {
-            position: relative;
-            z-index: 1;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 36px 24px 60px;
-        }
-
-        /* ─── HEADER ─── */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .logo-wrap { display: flex; flex-direction: column; gap: 4px; }
-
-        .logo {
-            font-size: clamp(1.4rem, 3vw, 2rem);
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            line-height: 1;
-        }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .logo { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 700; line-height: 1; }
         .logo .l-white { color: #ede9ff; }
-        .logo .l-purple {
-            background: linear-gradient(120deg, #c084fc, #9333ea);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .logo .l-red {
-            background: linear-gradient(120deg, #ef4444, #dc2626);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
+        .logo .l-purple { background: linear-gradient(120deg, #c084fc, #9333ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo-sub { font-size: 0.72rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-top: 4px;}
+        .dot-live { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.8); animation: livePulse 2s infinite; }
+        @keyframes livePulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
 
-        .logo-sub {
-            font-size: 0.72rem;
-            font-weight: 500;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: var(--muted);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .dot-live {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: #22c55e;
-            box-shadow: 0 0 8px rgba(34,197,94,0.8);
-            animation: livePulse 2s ease-in-out infinite;
-        }
-        @keyframes livePulse {
-            0%,100% { opacity:1; transform:scale(1); }
-            50%      { opacity:0.5; transform:scale(0.75); }
-        }
-
-        /* ─── PRIMARY BUTTON ─── */
         .btn-primary {
-            background: linear-gradient(135deg, #9333ea 0%, #dc2626 100%);
-            border: none;
-            color: #fff;
-            font-family: 'Space Grotesk', sans-serif;
-            font-weight: 700;
-            font-size: 0.88rem;
-            letter-spacing: 0.02em;
-            padding: 11px 26px;
-            border-radius: 100px;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.25s, box-shadow 0.25s;
-            box-shadow: 0 0 20px rgba(147,51,234,0.45), 0 0 40px rgba(220,38,38,0.2);
-            white-space: nowrap;
+            background: linear-gradient(135deg, #9333ea 0%, #dc2626 100%); border: none; color: #fff;
+            font-family: 'Space Grotesk', sans-serif; font-weight: 700; padding: 11px 26px;
+            border-radius: 100px; cursor: pointer; transition: transform 0.25s, box-shadow 0.25s;
+            box-shadow: 0 0 20px rgba(147,51,234,0.45);
         }
-        .btn-primary::after {
-            content: '';
-            position: absolute;
-            top: 0; left: -120%;
-            width: 80%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
-            animation: shimmer 3s ease-in-out infinite;
-        }
-        @keyframes shimmer {
-            0%   { left: -120%; }
-            50%,100% { left: 140%; }
-        }
-        .btn-primary:hover {
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 0 35px rgba(147,51,234,0.65), 0 0 70px rgba(220,38,38,0.3);
-        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 35px rgba(147,51,234,0.65); }
 
-        /* ─── DIVIDER ─── */
-        .divider {
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(139,92,246,0.25) 30%, rgba(220,38,38,0.2) 70%, transparent);
-            margin: 24px 0 40px;
-        }
+        .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(139,92,246,0.25) 30%, rgba(220,38,38,0.2) 70%, transparent); margin: 24px 0 40px; }
 
-        /* ─── CARDS GRID ─── */
-        .cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-            gap: 22px;
-            animation: fadeUp 0.45s cubic-bezier(.22,.8,.37,1) both;
-        }
-        @keyframes fadeUp {
-            from { opacity:0; transform:translateY(24px); }
-            to   { opacity:1; transform:translateY(0); }
-        }
+        .stat-bar { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+        .stat-chip { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 100px; padding: 7px 16px; font-size: 0.75rem; font-weight: 600; color: var(--muted); display: flex; gap: 6px; }
+        .stat-chip .val { color: #c084fc; }
 
-        /* Admin card */
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 22px; }
+        
         .admin-card {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 22px;
-            padding: 30px 22px 22px;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            transition: transform 0.3s cubic-bezier(.22,.8,.37,1),
-                        border-color 0.3s,
-                        box-shadow 0.3s;
+            background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 22px;
+            padding: 30px 22px 22px; cursor: pointer; position: relative; transition: all 0.3s;
         }
-        .admin-card::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(147,51,234,0.15), transparent 70%);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        /* top accent line */
-        .admin-card::after {
-            content: '';
-            position: absolute;
-            top: 0; left: 20%; right: 20%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, rgba(147,51,234,0.6), transparent);
-            border-radius: 0 0 4px 4px;
-            transition: left 0.3s, right 0.3s, background 0.3s;
-        }
-        .admin-card:hover {
-            transform: translateY(-8px);
-            border-color: rgba(220,38,38,0.35);
-            box-shadow:
-                0 24px 48px rgba(0,0,0,0.5),
-                0 0 30px rgba(220,38,38,0.12),
-                0 0 60px rgba(147,51,234,0.1),
-                inset 0 1px 0 rgba(255,255,255,0.04);
-        }
-        .admin-card:hover::before { opacity: 1; }
-        .admin-card:hover::after {
-            left: 0; right: 0;
-            background: linear-gradient(90deg, transparent, rgba(220,38,38,0.7), transparent);
-        }
+        .admin-card:hover { transform: translateY(-8px); border-color: rgba(220,38,38,0.35); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .card-avatar { width: 54px; height: 54px; border-radius: 16px; background: linear-gradient(135deg, rgba(147,51,234,0.2), rgba(220,38,38,0.15)); border: 1px solid rgba(139,92,246,0.25); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 18px; }
+        .card-id { font-size: 0.95rem; font-weight: 700; text-align: center; text-transform: uppercase; color: #ede9ff; margin-bottom: 18px; }
+        .card-info-row { display: flex; align-items: center; gap: 8px; background: rgba(139,92,246,0.06); border: 1px solid rgba(139,92,246,0.1); border-radius: 8px; padding: 7px 10px; margin-bottom: 8px; font-size: 0.75rem; color: var(--muted); }
 
-        .card-avatar {
-            width: 54px; height: 54px;
-            border-radius: 16px;
-            background: linear-gradient(135deg, rgba(147,51,234,0.25), rgba(220,38,38,0.15));
-            border: 1px solid rgba(139,92,246,0.25);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.6rem;
-            margin: 0 auto 18px;
-            position: relative;
-            transition: box-shadow 0.3s;
-        }
-        .admin-card:hover .card-avatar {
-            box-shadow: 0 0 20px rgba(147,51,234,0.4), 0 0 40px rgba(220,38,38,0.2);
-        }
+        .new-card { background: rgba(139,92,246,0.025); border: 2px dashed rgba(139,92,246,0.2); border-radius: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; cursor: pointer; transition: all 0.3s; }
+        .new-card:hover { border-color: rgba(220,38,38,0.45); background: rgba(220,38,38,0.04); transform: translateY(-4px); }
+        .new-card-plus { font-size: 2rem; color: rgba(139,92,246,0.4); margin-bottom: 10px; }
 
-        .card-id {
-            font-size: 0.95rem;
-            font-weight: 700;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: #ede9ff;
-            margin-bottom: 18px;
-        }
-
-        .card-info-wrap { display: flex; flex-direction: column; gap: 8px; }
-        .card-info-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(139,92,246,0.06);
-            border: 1px solid rgba(139,92,246,0.1);
-            border-radius: 8px;
-            padding: 7px 10px;
-        }
-        .card-info-icon { font-size: 0.75rem; flex-shrink: 0; }
-        .card-info-text {
-            font-size: 0.75rem;
-            color: var(--muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* New admin card */
-        .new-card {
-            background: rgba(139,92,246,0.025);
-            border: 2px dashed rgba(139,92,246,0.2);
-            border-radius: 22px;
-            padding: 30px 22px;
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 200px;
-            gap: 12px;
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            transition: all 0.3s ease;
-        }
-        .new-card:hover {
-            border-color: rgba(220,38,38,0.45);
-            background: rgba(220,38,38,0.04);
-            transform: translateY(-4px);
-            box-shadow: 0 0 30px rgba(220,38,38,0.08);
-        }
-        .new-card-plus {
-            width: 48px; height: 48px;
-            border-radius: 50%;
-            border: 2px dashed rgba(139,92,246,0.3);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.5rem;
-            color: rgba(139,92,246,0.4);
-            transition: all 0.3s;
-        }
-        .new-card:hover .new-card-plus {
-            border-color: rgba(220,38,38,0.5);
-            color: rgba(220,38,38,0.6);
-            box-shadow: 0 0 20px rgba(220,38,38,0.15);
-            transform: scale(1.1) rotate(90deg);
-        }
-        .new-card-label {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: rgba(139,92,246,0.4);
-            letter-spacing: 0.05em;
-            transition: color 0.3s;
-        }
-        .new-card:hover .new-card-label { color: rgba(220,38,38,0.6); }
-
-        /* ─── SETTINGS PANEL ─── */
-        .settings-panel {
-            max-width: 480px;
-            margin: 0 auto;
-            background: rgba(139,92,246,0.04);
-            border: 1px solid rgba(139,92,246,0.15);
-            border-radius: 26px;
-            padding: 44px 40px;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            animation: fadeUp 0.35s cubic-bezier(.22,.8,.37,1) both;
-            box-shadow:
-                0 0 80px rgba(147,51,234,0.1),
-                inset 0 1px 0 rgba(255,255,255,0.04);
-        }
-
-        .settings-icon {
-            width: 60px; height: 60px;
-            border-radius: 18px;
-            background: linear-gradient(135deg, rgba(147,51,234,0.2), rgba(220,38,38,0.15));
-            border: 1px solid rgba(139,92,246,0.25);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.8rem;
-            margin: 0 auto 20px;
-            box-shadow: 0 0 30px rgba(147,51,234,0.2);
-        }
-
-        .settings-title {
-            font-size: 1.25rem;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 6px;
-            background: linear-gradient(120deg, #c084fc, #a855f7, #e879f9);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .settings-subtitle {
-            font-size: 0.78rem;
-            color: var(--muted);
-            text-align: center;
-            margin-bottom: 34px;
-            letter-spacing: 0.06em;
-        }
-
+        /* SETTINGS PANEL */
+        .settings-panel { max-width: 480px; margin: 0 auto; background: rgba(139,92,246,0.04); border: 1px solid rgba(139,92,246,0.15); border-radius: 26px; padding: 44px 40px; backdrop-filter: blur(20px); }
+        .settings-title { font-size: 1.25rem; font-weight: 700; text-align: center; margin-bottom: 30px; background: linear-gradient(120deg, #c084fc, #e879f9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
         .field-group { margin-bottom: 18px; }
+        .field-label { display: block; font-size: 0.72rem; font-weight: 600; color: rgba(196,181,253,0.6); text-transform: uppercase; margin-bottom: 8px; }
+        .field-input { width: 100%; background: rgba(10,2,25,0.8); border: 1px solid rgba(139,92,246,0.18); border-radius: 12px; padding: 13px 16px; color: #ede9ff; font-family: 'Space Grotesk', sans-serif; font-size: 0.9rem; outline: none; }
+        .field-input:focus { border-color: rgba(220,38,38,0.45); box-shadow: 0 0 15px rgba(220,38,38,0.1); }
 
-        .field-label {
-            display: block;
-            font-size: 0.72rem;
-            font-weight: 600;
-            color: rgba(196,181,253,0.6);
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-
-        .field-input {
-            width: 100%;
-            background: rgba(10,2,25,0.8);
-            border: 1px solid rgba(139,92,246,0.18);
-            border-radius: 12px;
-            padding: 13px 16px;
-            color: #ede9ff;
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 0.9rem;
-            outline: none;
-            transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
-        }
-        .field-input::placeholder { color: rgba(139,92,246,0.28); }
-        .field-input:focus {
-            border-color: rgba(220,38,38,0.45);
-            box-shadow: 0 0 0 3px rgba(220,38,38,0.08), 0 0 30px rgba(147,51,234,0.1);
-            background: rgba(15,4,35,0.9);
-        }
-
-        /* Buttons row */
         .btn-row { display: flex; gap: 14px; margin-top: 30px; }
+        .btn-cancel { flex: 1; background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.18); color: rgba(196,181,253,0.65); padding: 13px; border-radius: 12px; cursor: pointer; }
+        .btn-save { flex: 1.4; background: linear-gradient(135deg, #7c3aed, #dc2626); border: none; color: #fff; padding: 13px; border-radius: 12px; font-weight: 700; cursor: pointer; }
 
-        .btn-cancel {
-            flex: 1;
-            background: rgba(139,92,246,0.07);
-            border: 1px solid rgba(139,92,246,0.18);
-            color: rgba(196,181,253,0.65);
-            font-family: 'Space Grotesk', sans-serif;
-            font-weight: 600;
-            font-size: 0.9rem;
-            padding: 13px;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.25s;
-        }
-        .btn-cancel:hover {
-            background: rgba(139,92,246,0.14);
-            border-color: rgba(139,92,246,0.35);
-            color: #c084fc;
-        }
-
-        .btn-save {
-            flex: 1.4;
-            background: linear-gradient(135deg, #7c3aed 0%, #9333ea 40%, #dc2626 100%);
-            border: none;
-            color: #fff;
-            font-family: 'Space Grotesk', sans-serif;
-            font-weight: 700;
-            font-size: 0.9rem;
-            padding: 13px;
-            border-radius: 12px;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.25s, box-shadow 0.25s;
-            box-shadow: 0 0 25px rgba(147,51,234,0.35), 0 0 50px rgba(220,38,38,0.15);
-        }
-        .btn-save::after {
-            content: '';
-            position: absolute;
-            top: 0; left: -120%;
-            width: 80%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-            animation: shimmer 2.5s ease-in-out infinite;
-        }
-        .btn-save:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 40px rgba(147,51,234,0.55), 0 0 80px rgba(220,38,38,0.25);
-        }
-
-        /* ─── STAT BAR (top of dashboard) ─── */
-        .stat-bar {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 32px;
-            flex-wrap: wrap;
-        }
-        .stat-chip {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 100px;
-            padding: 7px 16px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--muted);
-            letter-spacing: 0.04em;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            backdrop-filter: blur(10px);
-        }
-        .stat-chip .val {
-            color: #c084fc;
-            font-weight: 700;
-        }
-        .stat-chip .val-red {
-            color: #f87171;
-            font-weight: 700;
-        }
-
-        /* Utility */
         .hidden { display: none !important; }
-
-        /* Responsive */
-        @media (max-width: 600px) {
-            .content { padding: 24px 16px 48px; }
-            header { flex-direction: column; align-items: flex-start; gap: 16px; }
-            .settings-panel { padding: 32px 22px; }
-        }
     </style>
+    
+    <!-- 🔥 Security Check 🔥 -->
+    <script>
+        if (!sessionStorage.getItem('sadew_auth') || sessionStorage.getItem('sadew_user') !== 'sadew') {
+            window.location.href = '/portal'; 
+        }
+    </script>
 </head>
 <body>
 
-    <!-- ─── BACKGROUND ─── -->
-    <div id="bg-scene" aria-hidden="true">
+    <div id="bg-scene">
         <div class="grid-overlay"></div>
-        <div class="scan-line"></div>
-        <div class="orb orb-a"></div>
-        <div class="orb orb-b"></div>
-        <div class="orb orb-c"></div>
-        <div class="orb orb-d"></div>
-        <div class="orb orb-e"></div>
     </div>
 
-    <!-- ─── CONTENT ─── -->
     <main class="content">
-
-        <!-- Header -->
         <header>
             <div class="logo-wrap">
-                <div class="logo">
-                    <span class="l-white">SADEW</span><span class="l-purple">·MINI</span>
-                    <span class="l-red"> ✦</span>
-                </div>
-                <div class="logo-sub">
-                    <span class="dot-live"></span>
-                    Central Panel &nbsp;·&nbsp; Live System
-                </div>
+                <div class="logo"><span class="l-white">SADEW</span><span class="l-purple">·MINI</span> <span class="l-red">✦</span></div>
+                <div class="logo-sub"><span class="dot-live"></span> Central Panel · Live System</div>
             </div>
             <button id="addNewBtn" onclick="prepareNewAdmin()" class="btn-primary">+ Add New Admin</button>
         </header>
 
         <div class="divider"></div>
 
-        <!-- ─── VIEW 1 : DASHBOARD ─── -->
+        <!-- DASHBOARD VIEW -->
         <section id="dashboardView">
-            <!-- stat chips injected by JS -->
             <div class="stat-bar" id="statBar"></div>
-            <!-- cards injected by JS -->
             <div class="cards-grid" id="cardsGrid"></div>
         </section>
 
-        <!-- ─── VIEW 2 : SETTINGS ─── -->
+        <!-- SETTINGS VIEW -->
         <section id="settingsView" class="hidden">
             <div class="settings-panel">
-                <div class="settings-icon">⚙️</div>
-                <h2 class="settings-title" id="settingsTitle">Configure Admin</h2>
-                <p class="settings-subtitle" id="settingsSubtitle">EDIT SLOT</p>
-
-                <input type="hidden" id="adminIdInput">
+                <h2 class="settings-title" id="settingsTitle">Create New Admin</h2>
 
                 <div class="field-group">
-                    <label class="field-label" for="botNumberInput">📞 Bot WhatsApp Number</label>
+                    <label class="field-label">👤 Admin ID (Username)</label>
+                    <input type="text" id="adminIdInput" class="field-input" placeholder="e.g. admin_03">
+                </div>
+
+                <div class="field-group">
+                    <label class="field-label">🔑 Password</label>
+                    <input type="text" id="passwordInput" class="field-input" placeholder="e.g. nimal123">
+                </div>
+
+                <div class="field-group">
+                    <label class="field-label">📞 Bot WhatsApp Number (Optional)</label>
                     <input type="text" id="botNumberInput" class="field-input" placeholder="e.g. 9470523...">
                 </div>
 
                 <div class="field-group">
-                    <label class="field-label" for="groupJidInput">🔗 Group JID</label>
+                    <label class="field-label">🔗 Group JID (Optional)</label>
                     <input type="text" id="groupJidInput" class="field-input" placeholder="e.g. 12036...@g.us">
-                </div>
-
-                <div class="field-group">
-                    <label class="field-label" for="footerTextInput">📝 Custom Footer Text</label>
-                    <input type="text" id="footerTextInput" class="field-input" placeholder="e.g. Nimal Web Sender">
                 </div>
 
                 <div class="btn-row">
                     <button class="btn-cancel" onclick="showDashboard()">Cancel</button>
-                    <button class="btn-save" onclick="saveSettings()">💾 Save Settings</button>
+                    <button class="btn-save" onclick="saveAdmin()">💾 Save to Database</button>
                 </div>
             </div>
         </section>
-
     </main>
 
-    <!-- ─── JS ─── -->
     <script>
-        /* ── DATA ── */
-        let adminsData = [
-            { admin_id: 'admin_01', bot_number: '94705236759', group_jid: '120363425721@g.us', footer_text: 'Sadew Web Sender' },
-            { admin_id: 'admin_02', bot_number: '94711223344', group_jid: '120361111111@g.us', footer_text: 'Nimal Movies' }
-        ];
+        let adminsData = [];
 
-        /* ── RENDER DASHBOARD ── */
+        // 1. Database එකෙන් ඇඩ්මින්ලාව ගන්නවා
+        async function fetchAdmins() {
+            try {
+                const res = await fetch('/api/admins');
+                const data = await res.json();
+                if (data.success) {
+                    adminsData = data.admins;
+                    renderDashboard();
+                }
+            } catch (err) {
+                console.error("Error fetching admins", err);
+            }
+        }
+
         function renderDashboard() {
-            const grid  = document.getElementById('cardsGrid');
+            const grid = document.getElementById('cardsGrid');
             const stats = document.getElementById('statBar');
             grid.innerHTML = '';
 
-            /* stat chips */
             stats.innerHTML = `
-                <div class="stat-chip">Admins Active <span class="val">${adminsData.length}</span></div>
-                <div class="stat-chip">Bot Slots <span class="val-red">${adminsData.length} / 10</span></div>
-                <div class="stat-chip">System <span class="val">Online</span></div>
+                <div class="stat-chip">Total Admins <span class="val">${adminsData.length}</span></div>
+                <div class="stat-chip">Database <span class="val">Connected ✅</span></div>
             `;
 
-            /* admin cards */
             adminsData.forEach(admin => {
                 const card = document.createElement('div');
                 card.className = 'admin-card';
-                card.onclick = () => editAdmin(admin.admin_id);
+                card.onclick = () => editAdmin(admin);
                 card.innerHTML = `
                     <div class="card-avatar">👤</div>
-                    <div class="card-id">${admin.admin_id.toUpperCase()}</div>
-                    <div class="card-info-wrap">
-                        <div class="card-info-row">
-                            <span class="card-info-icon">📞</span>
-                            <span class="card-info-text">${admin.bot_number || 'No Number'}</span>
-                        </div>
-                        <div class="card-info-row">
-                            <span class="card-info-icon">🔗</span>
-                            <span class="card-info-text">${admin.group_jid || 'No JID'}</span>
-                        </div>
-                        <div class="card-info-row">
-                            <span class="card-info-icon">📝</span>
-                            <span class="card-info-text">${admin.footer_text || 'No Footer'}</span>
-                        </div>
-                    </div>
+                    <div class="card-id">${admin.username.toUpperCase()}</div>
+                    <div class="card-info-row">📞 ${admin.bot_number || 'Not Set'}</div>
+                    <div class="card-info-row">🔗 ${admin.group_jid ? 'Group Added' : 'No Group'}</div>
+                    <div class="card-info-row">🔑 Pass: ${admin.password}</div>
                 `;
                 grid.appendChild(card);
             });
 
-            /* new admin card */
             const newCard = document.createElement('div');
             newCard.className = 'new-card';
             newCard.onclick = prepareNewAdmin;
-            newCard.innerHTML = `
-                <div class="new-card-plus">+</div>
-                <div class="new-card-label">New Admin</div>
-            `;
+            newCard.innerHTML = `<div class="new-card-plus">+</div><div>Create New Admin</div>`;
             grid.appendChild(newCard);
         }
 
-        /* ── PREPARE NEW ── */
         function prepareNewAdmin() {
             const nextId = 'admin_' + String(adminsData.length + 1).padStart(2, '0');
-            document.getElementById('adminIdInput').value   = nextId;
+            document.getElementById('adminIdInput').value = nextId;
+            document.getElementById('passwordInput').value = '';
             document.getElementById('botNumberInput').value = '';
-            document.getElementById('groupJidInput').value  = '';
-            document.getElementById('footerTextInput').value = '';
-            document.getElementById('settingsTitle').textContent   = 'New Admin Slot';
-            document.getElementById('settingsSubtitle').textContent = nextId.toUpperCase();
+            document.getElementById('groupJidInput').value = '';
+            document.getElementById('settingsTitle').textContent = 'Create New Admin';
             showSettingsView();
         }
 
-        /* ── EDIT EXISTING ── */
-        function editAdmin(adminId) {
-            const admin = adminsData.find(a => a.admin_id === adminId);
-            if (!admin) return;
-            document.getElementById('adminIdInput').value    = admin.admin_id;
-            document.getElementById('botNumberInput').value  = admin.bot_number;
-            document.getElementById('groupJidInput').value   = admin.group_jid;
-            document.getElementById('footerTextInput').value = admin.footer_text;
-            document.getElementById('settingsTitle').textContent   = 'Configure Admin';
-            document.getElementById('settingsSubtitle').textContent = admin.admin_id.toUpperCase();
+        function editAdmin(admin) {
+            document.getElementById('adminIdInput').value = admin.username;
+            document.getElementById('passwordInput').value = admin.password;
+            document.getElementById('botNumberInput').value = admin.bot_number;
+            document.getElementById('groupJidInput').value = admin.group_jid;
+            document.getElementById('settingsTitle').textContent = 'Edit Admin Details';
             showSettingsView();
         }
 
-        /* ── SAVE ── */
-        function saveSettings() {
-            const adminId   = document.getElementById('adminIdInput').value;
+        // 2. අලුත් ඇඩ්මින්ව Database එකට සේව් කරනවා
+        async function saveAdmin() {
+            const adminId = document.getElementById('adminIdInput').value.trim();
+            const password = document.getElementById('passwordInput').value.trim();
             const botNumber = document.getElementById('botNumberInput').value.trim();
-            const groupJid  = document.getElementById('groupJidInput').value.trim();
-            const footerText= document.getElementById('footerTextInput').value.trim();
+            const groupJid = document.getElementById('groupJidInput').value.trim();
+            const btn = document.querySelector('.btn-save');
 
-            if (!botNumber || !groupJid) {
-                flashError('⚠️  Bot Number and Group JID are required.');
+            if (!adminId || !password) {
+                alert('⚠️ Username and Password are required!');
                 return;
             }
 
-            const idx = adminsData.findIndex(a => a.admin_id === adminId);
-            const entry = { admin_id: adminId, bot_number: botNumber, group_jid: groupJid, footer_text: footerText };
-            idx >= 0 ? adminsData[idx] = entry : adminsData.push(entry);
+            btn.innerHTML = '⏳ Saving...';
+            btn.disabled = true;
 
-            renderDashboard();
-            showDashboard();
+            try {
+                const res = await fetch('/api/admin/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: adminId,
+                        password: password,
+                        bot_number: botNumber,
+                        group_jid: groupJid
+                    })
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    await fetchAdmins(); // Database එකෙන් ආයෙත් අලුත් ලිස්ට් එක ගන්නවා
+                    showDashboard();
+                } else {
+                    alert('❌ Error: ' + data.message);
+                }
+            } catch (err) {
+                alert('⚠️ Network Error!');
+            } finally {
+                btn.innerHTML = '💾 Save to Database';
+                btn.disabled = false;
+            }
         }
 
-        /* ── ERROR FLASH ── */
-        function flashError(msg) {
-            const el = document.createElement('div');
-            Object.assign(el.style, {
-                position:'fixed', bottom:'28px', left:'50%',
-                transform:'translateX(-50%) translateY(20px)',
-                background:'linear-gradient(135deg,rgba(220,38,38,0.15),rgba(120,10,30,0.2))',
-                border:'1px solid rgba(220,38,38,0.4)',
-                borderRadius:'12px', padding:'12px 24px',
-                color:'#fca5a5', fontFamily:"'Space Grotesk',sans-serif",
-                fontSize:'0.88rem', fontWeight:600,
-                backdropFilter:'blur(12px)',
-                boxShadow:'0 0 30px rgba(220,38,38,0.2)',
-                zIndex:9999,
-                transition:'all 0.3s',
-                opacity:0,
-            });
-            el.textContent = msg;
-            document.body.appendChild(el);
-            requestAnimationFrame(() => {
-                el.style.opacity = '1';
-                el.style.transform = 'translateX(-50%) translateY(0)';
-            });
-            setTimeout(() => {
-                el.style.opacity = '0';
-                el.style.transform = 'translateX(-50%) translateY(20px)';
-                setTimeout(() => el.remove(), 350);
-            }, 2600);
-        }
-
-        /* ── VIEW SWITCHES ── */
         function showSettingsView() {
             document.getElementById('dashboardView').classList.add('hidden');
             document.getElementById('addNewBtn').classList.add('hidden');
             document.getElementById('settingsView').classList.remove('hidden');
         }
+
         function showDashboard() {
             document.getElementById('settingsView').classList.add('hidden');
             document.getElementById('dashboardView').classList.remove('hidden');
             document.getElementById('addNewBtn').classList.remove('hidden');
         }
 
-        /* ── INIT ── */
-        window.addEventListener('DOMContentLoaded', renderDashboard);
+        window.addEventListener('DOMContentLoaded', fetchAdmins);
     </script>
 </body>
 </html>
