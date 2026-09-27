@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>SADEW-MINI | WhatsApp Movie Bot Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg:       #06000f;
+            --purple-1: #9333ea;
+            --purple-2: #7c3aed;
+            --purple-3: #a855f7;
+            --red-1:    #dc2626;
+            --red-2:    #ef4444;
+            --text:     #e9e0ff;
+            --muted:    rgba(196,181,253,0.6);
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* ─── BACKGROUND SCENE ─── */
+        #bg-scene { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+        #bg-scene::before {
+            content: ''; position: absolute; inset: 0;
+            background:
+                radial-gradient(ellipse 70% 55% at 15% 30%, rgba(120,40,220,0.18) 0%, transparent 65%),
+                radial-gradient(ellipse 55% 45% at 85% 75%, rgba(80,10,160,0.14) 0%, transparent 65%),
+                var(--bg);
+            animation: bgBreath 10s ease-in-out infinite alternate;
+        }
+        @keyframes bgBreath { from { opacity: 0.75; } to { opacity: 1; } }
+
+        .grid-overlay {
+            position: absolute; inset: -50px;
+            background-image: radial-gradient(circle, rgba(139,92,246,0.12) 1px, transparent 1px);
+            background-size: 40px 40px; animation: gridDrift 25s linear infinite;
+        }
+        @keyframes gridDrift { from { transform: translate(0,0); } to { transform: translate(40px, 40px); } }
+
+        /* Floating orbs */
+        .orb { position: absolute; border-radius: 50%; filter: blur(70px); animation: orbFloat ease-in-out infinite alternate; }
+        @keyframes orbFloat { from { transform: translate(0,0) scale(1); } to { transform: translate(var(--tx,40px), var(--ty,40px)) scale(1.08); } }
+        .orb-a { width: 400px; height: 400px; background: radial-gradient(circle, rgba(147,51,234,0.3), transparent 70%); top: -100px; left: -100px; animation-duration: 8s; --tx: 50px; --ty: 80px; }
+        .orb-b { width: 350px; height: 350px; background: radial-gradient(circle, rgba(220,38,38,0.2), transparent 70%); bottom: -50px; right: -50px; animation-duration: 10s; --tx: -40px; --ty: -50px; }
+
+        /* ─── NAVBAR ─── */
+        nav {
+            padding: 24px 5%;
+            display: flex; justify-content: space-between; align-items: center;
+            position: relative; z-index: 10;
+        }
+        .logo { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; }
+        .logo .l-white { color: #ede9ff; }
+        .logo .l-purple { background: linear-gradient(120deg, #c084fc, #9333ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .nav-btn {
+            background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.3);
+            color: #ede9ff; padding: 10px 24px; border-radius: 100px;
+            font-family: 'Space Grotesk', sans-serif; font-weight: 600; cursor: pointer;
+            transition: all 0.3s;
+        }
+        .nav-btn:hover { background: rgba(139,92,246,0.2); transform: translateY(-2px); box-shadow: 0 5px 20px rgba(147,51,234,0.3); }
+
+        /* ─── HERO SECTION ─── */
+        .hero {
+            min-height: 80vh; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; text-align: center;
+            padding: 0 20px; position: relative; z-index: 5;
+        }
+        .hero-badge {
+            background: rgba(220,38,38,0.1); border: 1px solid rgba(220,38,38,0.3);
+            color: #fca5a5; padding: 6px 16px; border-radius: 100px;
+            font-size: 0.85rem; font-weight: 700; letter-spacing: 0.1em;
+            margin-bottom: 24px; text-transform: uppercase; animation: fadeUp 0.5s ease;
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem); font-weight: 800;
+            line-height: 1.1; margin-bottom: 20px;
+            text-shadow: 0 0 40px rgba(147,51,234,0.4); animation: fadeUp 0.7s ease;
+        }
+        .hero h1 span {
+            background: linear-gradient(135deg, #a855f7, #ef4444);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .hero p {
+            font-size: clamp(1rem, 2vw, 1.2rem); color: var(--muted);
+            max-width: 600px; margin-bottom: 40px; animation: fadeUp 0.9s ease;
+        }
+        
+        .cta-group { display: flex; gap: 16px; animation: fadeUp 1.1s ease; flex-wrap: wrap; justify-content: center; }
+        .btn-primary {
+            background: linear-gradient(135deg, #9333ea 0%, #dc2626 100%);
+            border: none; color: #fff; font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700; font-size: 1rem; padding: 16px 36px; border-radius: 100px;
+            cursor: pointer; transition: all 0.3s; box-shadow: 0 10px 30px rgba(147,51,234,0.4);
+        }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 15px 40px rgba(220,38,38,0.5); }
+
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ─── LOGIN MODAL ─── */
+        .modal {
+            position: fixed; inset: 0; background: rgba(6,0,15,0.85);
+            backdrop-filter: blur(15px); z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s;
+        }
+        .modal.open { opacity: 1; pointer-events: auto; }
+        
+        .login-box {
+            background: rgba(13,0,24,0.8); border: 1px solid rgba(139,92,246,0.2);
+            padding: 40px; border-radius: 24px; width: 100%; max-width: 400px;
+            transform: scale(0.9); transition: transform 0.4s cubic-bezier(.22,.8,.37,1);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 50px rgba(147,51,234,0.15);
+            position: relative;
+        }
+        .login-box::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, transparent, rgba(147,51,234,0.8), rgba(220,38,38,0.8), transparent);
+            border-radius: 24px 24px 0 0;
+        }
+        .modal.open .login-box { transform: scale(1); }
+
+        .close-modal {
+            position: absolute; top: 16px; right: 16px; background: none; border: none;
+            color: var(--muted); font-size: 24px; cursor: pointer; transition: color 0.3s;
+        }
+        .close-modal:hover { color: #ef4444; }
+
+        .login-box h2 { text-align: center; margin-bottom: 8px; font-size: 1.6rem; color: #fff; }
+        .login-box p { text-align: center; color: var(--muted); font-size: 0.9rem; margin-bottom: 30px; }
+
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; font-size: 0.8rem; font-weight: 600; color: rgba(196,181,253,0.8); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .input-group input {
+            width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(139,92,246,0.3);
+            padding: 14px 16px; border-radius: 12px; color: #fff; font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem; outline: none; transition: all 0.3s;
+        }
+        .input-group input:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,0.15), inset 0 0 10px rgba(147,51,234,0.1); }
+
+        .login-btn {
+            width: 100%; background: linear-gradient(135deg, #7c3aed, #dc2626);
+            border: none; color: #fff; padding: 14px; border-radius: 12px;
+            font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1rem;
+            cursor: pointer; transition: all 0.3s; margin-top: 10px;
+        }
+        .login-btn:hover { box-shadow: 0 5px 25px rgba(220,38,38,0.4); transform: translateY(-2px); }
+
+        #loginError { color: #fca5a5; font-size: 0.85rem; text-align: center; margin-top: 15px; display: none; }
+
+    </style>
+</head>
+<body>
+
+    <div id="bg-scene">
+        <div class="grid-overlay"></div>
+        <div class="orb orb-a"></div>
+        <div class="orb orb-b"></div>
+    </div>
+
+    <!-- NAVBAR -->
+    <nav>
+        <div class="logo">
+            <span class="l-white">SADEW</span><span class="l-purple">·MINI</span>
+        </div>
+        <button class="nav-btn" onclick="openModal()">Client Login</button>
+    </nav>
+
+    <!-- HERO -->
+    <div class="hero">
+        <div class="hero-badge">SaaS Movie Portal V2.0</div>
+        <h1>The Ultimate <span>WhatsApp</span><br>Movie Bot Manager</h1>
+        <p>Start your own automated WhatsApp movie downloading empire. Gemini AI summaries, multi-server bypasses, and auto-upload right to your groups.</p>
+        
+        <div class="cta-group">
+            <button class="btn-primary" onclick="openModal()">Access Dashboard</button>
+            <a href="https://wa.me/94705236759?text=I+need+to+buy+a+Movie+Bot" style="text-decoration: none;">
+                <button class="nav-btn" style="padding: 16px 36px; border-radius: 100px;">Buy Your Own Bot</button>
+            </a>
+        </div>
+    </div>
+
+    <!-- LOGIN MODAL -->
+    <div class="modal" id="loginModal">
+        <div class="login-box">
+            <button class="close-modal" onclick="closeModal()">×</button>
+            <h2>Welcome Back</h2>
+            <p>Enter your credentials to access the panel</p>
+
+            <div class="input-group">
+                <label>Username (Admin ID)</label>
+                <input type="text" id="username" placeholder="e.g. admin_01">
+            </div>
+            
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="••••••••">
+            </div>
+
+            <button class="login-btn" onclick="handleLogin()">Login Securely</button>
+            <div id="loginError">Incorrect Username or Password!</div>
+        </div>
+    </div>
+
+    <script>
+        const modal = document.getElementById('loginModal');
+        
+        function openModal() {
+            modal.classList.add('open');
+            document.getElementById('loginError').style.display = 'none';
+        }
+        
+        function closeModal() {
+            modal.classList.remove('open');
+        }
+
+        // Fake Login Logic (දැනට Front-end එකෙන් Redirect කරන්න හදලා තියෙන්නේ. පස්සේ ඔයාට Backend API එකට ගහන්න පුළුවන්)
+        function handleLogin() {
+            const user = document.getElementById('username').value.trim().toLowerCase();
+            const pass = document.getElementById('password').value.trim();
+            const errBox = document.getElementById('loginError');
+
+            if(user === '' || pass === '') {
+                errBox.textContent = "Please fill all fields!";
+                errBox.style.display = 'block';
+                return;
+            }
+
+            // ඔයාගේ Main Admin (Central Panel එකට යන්න)
+            if(user === 'sadew' && pass === 'sadew123') {
+                window.location.href = '/central_panel.html'; // ඔයාගේ Central Panel file එකේ නම දෙන්න
+            } 
+            // අනිත් කස්ටමර්ලා ලොග් වෙනකොට (Sub Admin Panel එකට යන්න)
+            else if(user.startsWith('admin_') && pass === '1234') {
+                // URL එකේ Query parameter එකක් විදිහට admin ID එක යවනවා (sub_admin එකේ ලෝඩ් වෙන්න)
+                window.location.href = `/sub_admin.html?admin=${user}`; // ඔයාගේ Sub Admin file එකේ නම දෙන්න
+            } 
+            else {
+                errBox.textContent = "Invalid Username or Password!";
+                errBox.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
