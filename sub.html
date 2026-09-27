@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sadew Movie Desk</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+  /* ─── ROOT TOKENS ─── */
+  :root{
+    --void:#06000f; --void-2:#0d0018;
+    --crimson:#dc2626; --crimson-dim:rgba(220,38,38,.35);
+    --amber:#F5A623;  --amber-dim:rgba(245,166,35,.35);
+    --orange:#e57b16; --orange-dim:rgba(229,123,22,.35);
+    --teal:#0ea5e9;   --teal-dim:rgba(14,165,233,.35);
+    --blue:#3b82f6;   --blue-dim:rgba(59,130,246,.35);
+    --violet:#9333ea; --violet-dim:rgba(147,51,234,.35);
+    --pink:#E81CFF;   --red-dark:#E50914; --green:#00A859;
+    --stub:rgba(139,92,246,0.04); --stub-ink:#0d0018;
+    --text:#e9e0ff; --mute:rgba(196,181,253,0.5);
+    --glass:rgba(139,92,246,0.06); --glass-brd:rgba(139,92,246,0.18);
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; min-height:100vh;
+    background:var(--void);
+    color:var(--text);
+    font-family:'Space Grotesk','Inter',sans-serif;
+    overflow-x:hidden;
+    position:relative;
+  }
+
+  /* ─────────────────────────────────────────
+     BACKGROUND SCENE  (CSS orbs + grid)
+  ───────────────────────────────────────── */
+  #bg-scene{
+    position:fixed; inset:0; z-index:-3;
+    overflow:hidden; pointer-events:none;
+  }
+  #bg-scene::before{
+    content:''; position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse 70% 55% at 15% 30%, rgba(120,40,220,0.18) 0%, transparent 65%),
+      radial-gradient(ellipse 55% 45% at 85% 75%, rgba(80,10,160,0.14) 0%, transparent 65%),
+      radial-gradient(ellipse 40% 35% at 50% 95%, rgba(180,20,20,0.10) 0%, transparent 60%),
+      var(--void);
+    animation:bgBreath 10s ease-in-out infinite alternate;
+  }
+  @keyframes bgBreath{ from{opacity:.75} to{opacity:1} }
+
+  .grid-overlay{
+    position:absolute; inset:-50px;
+    background-image:radial-gradient(circle,rgba(139,92,246,0.10) 1px,transparent 1px);
+    background-size:40px 40px;
+    animation:gridDrift 25s linear infinite;
+  }
+  @keyframes gridDrift{ from{transform:translate(0,0)} to{transform:translate(40px,40px)} }
+
+  .scan-line{
+    position:absolute; left:0; right:0; height:2px;
+    background:linear-gradient(90deg,transparent 0%,rgba(147,51,234,.3) 20%,rgba(220,38,38,.4) 50%,rgba(147,51,234,.3) 80%,transparent 100%);
+    animation:scanSweep 6s ease-in-out infinite; opacity:0;
+  }
+  @keyframes scanSweep{
+    0%  {top:-2px;  opacity:0}
+    5%  {opacity:1}
+    95% {opacity:1}
+    100%{top:100vh; opacity:0}
+  }
+
+  .orb{
+    position:absolute; border-radius:50%;
+    filter:blur(70px);
+    animation:orbFloat ease-in-out infinite alternate;
+  }
+  @keyframes orbFloat{
+    from{transform:translate(0,0) scale(1)}
+    to  {transform:translate(var(--tx,40px),var(--ty,40px)) scale(1.08)}
+  }
+  .orb-a{width:520px;height:520px;background:radial-gradient(circle,rgba(147,51,234,.32),transparent 70%);top:-160px;left:-160px;animation-duration:8s;--tx:60px;--ty:90px}
+  .orb-b{width:420px;height:420px;background:radial-gradient(circle,rgba(109,40,217,.28),transparent 70%);bottom:-80px;right:-100px;animation-duration:10s;animation-delay:-4s;--tx:-50px;--ty:-60px}
+  .orb-c{width:300px;height:300px;background:radial-gradient(circle,rgba(220,38,38,.20),transparent 70%);top:35%;right:18%;animation-duration:12s;animation-delay:-6s;--tx:35px;--ty:-70px}
+  .orb-d{width:240px;height:240px;background:radial-gradient(circle,rgba(167,85,247,.22),transparent 70%);bottom:25%;left:12%;animation-duration:9s;animation-delay:-2s;--tx:-45px;--ty:55px}
+  .orb-e{width:180px;height:180px;background:radial-gradient(circle,rgba(239,68,68,.15),transparent 70%);top:60%;left:40%;animation-duration:14s;animation-delay:-8s;--tx:50px;--ty:30px}
+
+  /* ─── CANVAS PARTICLES ─── */
+  #starCanvas{
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    z-index:-2; pointer-events:none; opacity:0.65;
+  }
+
+  /* ─── POPCORN ─── */
+  .popcorn{
+    position:absolute; top:-50px; font-size:20px;
+    user-select:none; pointer-events:none;
+    animation:fall linear infinite; z-index:-1; opacity:0.45;
+  }
+  @keyframes fall{
+    0%  {transform:translateY(-50px) rotate(0deg); opacity:0}
+    10% {opacity:0.7}
+    90% {opacity:0.7}
+    100%{transform:translateY(100vh) rotate(360deg); opacity:0}
+  }
+
+  /* ─── UPLOAD BANNER ─── */
+  .upload-banner{
+    position:fixed; top:0; left:0; right:0;
+    background:rgba(10,2,22,0.88);
+    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    border-bottom:1px solid rgba(139,92,246,0.25);
+    padding:14px 20px; z-index:1000;
+    transform:translateY(-100%); transition:transform 0.4s ease;
+    display:flex; flex-direction:column; gap:10px;
+    box-shadow:0 10px 40px rgba(0,0,0,0.6), 0 0 60px rgba(147,51,234,0.08);
+  }
+  .upload-banner.show{transform:translateY(0)}
+  .ub-info{display:flex;align-items:center;gap:14px}
+  .ub-icon{width:24px;height:24px;color:var(--crimson);animation:spin 1s linear infinite}
+  .ub-text{display:flex;flex-direction:column;flex:1}
+  .ub-title{font-weight:700;font-size:14px;color:#ede9ff}
+  .ub-sub{font-size:12px;color:var(--mute);margin-top:2px}
+  .ub-progress{width:100%;height:3px;background:rgba(139,92,246,0.15);border-radius:4px;overflow:hidden;position:relative}
+  .ub-bar{position:absolute;left:0;top:0;bottom:0;width:30%;background:linear-gradient(90deg,var(--violet),var(--crimson));border-radius:4px;animation:slide 1.5s ease-in-out infinite alternate}
+  @keyframes spin{100%{transform:rotate(360deg)}}
+  @keyframes slide{0%{left:0;width:30%}100%{left:70%;width:30%}}
+
+  /* ─── HEADER ─── */
+  header{
+    padding:64px 24px 28px; text-align:center;
+    position:relative; z-index:5;
+  }
+
+  h1{
+    font-family:'Fraunces',serif; font-weight:600;
+    font-size:clamp(2rem,5vw,3.5rem); margin:10px 0 6px;
+    color:#ede9ff;
+    text-shadow:0 0 50px rgba(147,51,234,0.35), 0 0 100px rgba(147,51,234,0.12);
+  }
+  h1 em{
+    font-style:italic; color:var(--crimson);
+    text-shadow:0 0 30px rgba(220,38,38,0.4);
+  }
+
+  /* ─── SOURCE TOGGLE ─── */
+  .source-toggle{
+    display:flex; gap:8px; overflow-x:auto; padding:10px; margin:0 auto;
+    width:min(1000px,95vw); scrollbar-width:none;
+    background:rgba(139,92,246,0.04);
+    border-radius:14px; border:1px solid rgba(139,92,246,0.18);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    -ms-overflow-style:none; scroll-behavior:smooth;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .source-toggle::-webkit-scrollbar{display:none}
+
+  .src-btn{
+    white-space:nowrap; padding:11px 20px; border-radius:9px;
+    font-weight:600; font-size:13px; letter-spacing:0.02em;
+    background:rgba(139,92,246,0.06); color:var(--mute);
+    border:1px solid transparent; cursor:pointer; transition:all 0.3s; flex-shrink:0;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .src-btn:hover{background:rgba(139,92,246,0.12);color:#ede9ff;border-color:rgba(139,92,246,0.25)}
+
+  /* Active colors — brand-specific, kept exact */
+  .src-btn[data-source="cinesubz"].active   {background:var(--crimson);color:#fff;box-shadow:0 4px 15px var(--crimson-dim);border-color:var(--crimson)}
+  .src-btn[data-source="sinhalasub2"].active {background:var(--orange);color:#fff;box-shadow:0 4px 15px var(--orange-dim);border-color:var(--orange)}
+  .src-btn[data-source="slcartoons"].active  {background:var(--amber);color:#fff;box-shadow:0 4px 15px var(--amber-dim);border-color:var(--amber)}
+  .src-btn[data-source="moviesublk"].active  {background:var(--teal);color:#fff;box-shadow:0 4px 15px var(--teal-dim);border-color:var(--teal)}
+  .src-btn[data-source="1tamilmv"].active    {background:var(--blue);color:#fff;box-shadow:0 4px 15px var(--blue-dim);border-color:var(--blue)}
+  .src-btn[data-source="animeheaven"].active {background:var(--violet);color:#fff;box-shadow:0 4px 15px var(--violet-dim);border-color:var(--violet)}
+  .src-btn[data-source="kdrama"].active      {background:var(--pink);color:#fff;box-shadow:0 4px 15px rgba(232,28,255,.35);border-color:var(--pink)}
+  .src-btn[data-source="baiscopes"].active   {background:var(--red-dark);color:#fff;box-shadow:0 4px 15px rgba(229,9,20,.4);border-color:var(--red-dark)}
+  .src-btn[data-source="sublk"].active       {background:var(--green);color:#fff;box-shadow:0 4px 15px rgba(0,168,89,.4);border-color:var(--green)}
+
+  /* ─── SEARCH ─── */
+  .search-wrap{
+    max-width:600px; margin:24px auto 0; padding:0 15px;
+    display:flex; gap:10px; position:relative; z-index:5;
+  }
+  .search-box{
+    flex:1; padding:14px 20px; font-size:15px; font-family:'Space Grotesk',sans-serif;
+    border-radius:14px; border:1px solid rgba(139,92,246,0.2);
+    background:rgba(139,92,246,0.05); color:var(--text); outline:none;
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    transition:border 0.3s, box-shadow 0.3s;
+    box-shadow:0 4px 20px rgba(0,0,0,0.3);
+  }
+  .search-box::placeholder{color:rgba(196,181,253,0.3)}
+  .search-box:focus{
+    border-color:rgba(220,38,38,0.45);
+    box-shadow:0 0 0 3px rgba(220,38,38,0.08), 0 0 30px rgba(147,51,234,0.12);
+    background:rgba(15,4,35,0.9);
+  }
+
+  .search-btn{
+    padding:0 26px; border-radius:14px; border:none; cursor:pointer;
+    background:linear-gradient(135deg,var(--violet),var(--crimson));
+    color:#fff; font-weight:700; font-size:15px;
+    font-family:'Space Grotesk',sans-serif; letter-spacing:0.02em;
+    animation:btnPulse 2s ease-in-out infinite alternate; transition:transform 0.2s;
+    position:relative; overflow:hidden;
+  }
+  .search-btn::after{
+    content:''; position:absolute; top:0; left:-120%;
+    width:80%; height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent);
+    animation:shimmer 3s ease-in-out infinite;
+  }
+  @keyframes shimmer{0%{left:-120%}50%,100%{left:140%}}
+  .search-btn:hover{transform:translateY(-2px)}
+  @keyframes btnPulse{
+    0%  {box-shadow:0 0 8px rgba(147,51,234,.4),0 0 16px rgba(220,38,38,.2)}
+    100%{box-shadow:0 0 16px rgba(147,51,234,.7),0 0 32px rgba(220,38,38,.4)}
+  }
+
+  .status{text-align:center;margin:20px 0 0;font-size:13px;color:var(--mute);min-height:20px;letter-spacing:0.03em}
+
+  /* ─── CONTAINER ─── */
+  .container{
+    max-width:1080px; margin:0 auto; padding:20px 22px 90px;
+    display:flex; flex-direction:column; min-height:50vh;
+  }
+  .movie-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    gap:22px; margin-bottom:40px;
+  }
+
+  /* ─── SKELETON ─── */
+  .skeleton-card{
+    border-radius:18px; overflow:hidden;
+    background:rgba(139,92,246,0.04);
+    border:1px solid rgba(139,92,246,0.12);
+    aspect-ratio:2/3; position:relative;
+  }
+  .skeleton-card::after{
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(90deg,transparent,rgba(147,51,234,0.10),transparent);
+    animation:shimmerCard 1.5s infinite;
+  }
+  @keyframes shimmerCard{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+
+  /* ─── MOVIE CARDS ─── */
+  .ticket{
+    cursor:pointer; border-radius:18px; overflow:hidden;
+    background:rgba(139,92,246,0.05);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(139,92,246,0.15);
+    transition:transform .3s ease, box-shadow .3s ease, border-color .3s;
+    box-shadow:0 4px 20px rgba(0,0,0,0.3);
+    display:flex; flex-direction:column;
+    position:relative;
+  }
+  /* top accent line */
+  .ticket::after{
+    content:''; position:absolute; top:0; left:20%; right:20%; height:2px;
+    background:linear-gradient(90deg,transparent,rgba(147,51,234,0.5),transparent);
+    border-radius:0 0 4px 4px; transition:left .3s,right .3s,background .3s;
+  }
+  .ticket:hover{
+    transform:translateY(-8px);
+    border-color:rgba(220,38,38,0.35);
+    box-shadow:
+      0 20px 40px rgba(0,0,0,0.5),
+      0 0 30px rgba(220,38,38,0.10),
+      0 0 60px rgba(147,51,234,0.08),
+      inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .ticket:hover::after{
+    left:0;right:0;
+    background:linear-gradient(90deg,transparent,rgba(220,38,38,0.6),transparent);
+  }
+  .ticket .poster{position:relative;aspect-ratio:2/3;overflow:hidden}
+  .ticket .poster img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease}
+  .ticket:hover .poster img{transform:scale(1.06)}
+  .ticket .badge{
+    position:absolute;top:10px;left:10px;font-size:10px;font-weight:700;
+    padding:4px 10px; border-radius:999px;
+    background:rgba(6,0,15,.75);
+    border:1px solid rgba(139,92,246,0.3); color:#c4b5fd;
+    backdrop-filter:blur(6px); text-transform:uppercase; z-index:2;
+    letter-spacing:0.06em;
+  }
+
+  .stub{
+    background:rgba(139,92,246,0.03); color:var(--text);
+    padding:12px 14px 15px;
+    border-top:1px solid rgba(139,92,246,0.1); flex:1;
+  }
+  .stub h4{
+    margin:0 0 4px; font-family:'Fraunces',serif;
+    font-weight:600; font-size:14px; line-height:1.35; color:#ede9ff;
+  }
+
+  /* ─── WA BANNER ─── */
+  .wa-banner-container{
+    width:100%; max-width:600px; margin:20px auto 0; text-align:center;
+    background:linear-gradient(135deg,rgba(37,211,102,0.08) 0%,rgba(18,140,126,0.14) 100%);
+    border:1px solid rgba(37,211,102,0.22);
+    border-radius:22px; padding:32px 22px;
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    box-shadow:0 10px 40px rgba(0,0,0,0.3), 0 0 60px rgba(37,211,102,0.04);
+    transition:all 0.5s ease;
+  }
+  .wa-banner-container h3{
+    font-family:'Space Grotesk',sans-serif; font-weight:800;
+    font-size:26px; margin:0 0 14px 0; color:#000;
+    text-shadow:
+      -1px -1px 0 #FFEA00,1px -1px 0 #FFEA00,-1px 1px 0 #FFEA00,1px 1px 0 #FFEA00,
+      0 0 10px #FFEA00,0 0 22px #FFEA00,0 0 35px #FFEA00;
+    text-transform:uppercase; letter-spacing:1px;
+  }
+  .wa-banner-container h2{margin:0 0 10px 0;font-family:'Fraunces',serif;color:#25D366;font-size:20px}
+  .wa-banner-container p{color:rgba(196,181,253,0.65);font-size:14px;margin:0 0 20px 0;line-height:1.6}
+  .wa-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    background:#25D366;color:#fff;text-decoration:none;
+    font-weight:700;font-size:15px;font-family:'Space Grotesk',sans-serif;
+    padding:13px 30px;border-radius:999px;
+    box-shadow:0 4px 20px rgba(37,211,102,0.4);
+    transition:transform 0.2s,box-shadow 0.2s;
+  }
+  .wa-btn:hover{transform:translateY(-3px);box-shadow:0 8px 30px rgba(37,211,102,0.6)}
+
+  /* ─── MODAL ─── */
+  .modal{
+    display:none;position:fixed;inset:0;z-index:999;
+    background:rgba(6,0,15,.8);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    align-items:center;justify-content:center;padding:20px;
+    opacity:0;transition:opacity 0.3s ease;
+  }
+  .modal.open{display:flex;opacity:1}
+  .modal-card{
+    width:100%;max-width:420px;max-height:88vh;overflow-y:auto;
+    border-radius:22px;
+    background:rgba(13,0,24,0.92);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border:1px solid rgba(139,92,246,0.2);
+    box-shadow:0 30px 60px rgba(0,0,0,0.6),0 0 80px rgba(147,51,234,0.08);
+    transform:scale(0.95);
+    transition:transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+    position:relative;
+  }
+  /* modal top accent */
+  .modal-card::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,transparent,rgba(147,51,234,0.7) 35%,rgba(220,38,38,0.7) 65%,transparent);
+    border-radius:22px 22px 0 0; z-index:20;
+  }
+  .modal.open .modal-card{transform:scale(1)}
+
+  .modal-head{position:relative}
+  .modal-head img{
+    width:100%;height:210px;object-fit:cover;display:block;
+    mask-image:linear-gradient(to bottom,black 50%,transparent 100%);
+    -webkit-mask-image:linear-gradient(to bottom,black 50%,transparent 100%);
+  }
+  .close-btn{
+    position:absolute;top:14px;right:14px;width:34px;height:34px;
+    border-radius:50%;
+    background:rgba(6,0,15,.7);
+    border:1px solid rgba(139,92,246,0.3);
+    color:#c4b5fd;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    font-size:18px;backdrop-filter:blur(6px);z-index:10;
+    transition:background 0.2s,border-color 0.2s;
+  }
+  .close-btn:hover{background:rgba(220,38,38,.8);border-color:rgba(220,38,38,.6);color:#fff}
+  .modal-title{
+    position:absolute;bottom:14px;left:18px;right:18px;
+    font-family:'Fraunces',serif;font-weight:600;font-size:21px;
+    color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.95);z-index:10;
+  }
+  .modal-body{padding:12px 20px 26px}
+
+  .field{
+    width:100%;padding:13px 16px;margin-bottom:12px;border-radius:12px;
+    border:1px solid rgba(139,92,246,0.18);
+    background:rgba(10,2,25,0.8);
+    color:#e9e0ff;outline:none;
+    font-family:'Space Grotesk',sans-serif;font-size:14px;
+    transition:border 0.3s,box-shadow 0.3s;
+  }
+  .field::placeholder{color:rgba(139,92,246,0.3)}
+  .field:focus{
+    border-color:rgba(220,38,38,0.45);
+    box-shadow:0 0 0 3px rgba(220,38,38,0.08),0 0 25px rgba(147,51,234,0.1);
+    background:rgba(15,4,35,0.9);
+  }
+  .modal-status{font-size:13px;color:#c4b5fd;margin:4px 0 14px;text-align:center;letter-spacing:0.02em}
+
+  /* ─── QUALITY BUTTONS ─── */
+  .quality-row{
+    display:flex;flex-wrap:wrap;gap:9px;
+    max-height:260px;overflow-y:auto;padding-right:4px;
+  }
+  .quality-row::-webkit-scrollbar{width:5px}
+  .quality-row::-webkit-scrollbar-thumb{background:rgba(139,92,246,0.25);border-radius:4px}
+
+  .qbtn{
+    padding:11px 16px;border-radius:12px;
+    border:1px solid rgba(139,92,246,0.15);
+    background:rgba(139,92,246,0.06);
+    color:var(--text);cursor:pointer;
+    transition:all 0.25s;flex:1;min-width:120px;text-align:center;
+    font-weight:600;font-size:13px;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .qbtn:hover{
+    background:rgba(139,92,246,0.15);
+    border-color:rgba(220,38,38,0.35);
+    color:#ede9ff;transform:translateY(-2px);
+    box-shadow:0 6px 20px rgba(147,51,234,0.15);
+  }
+  .qbtn.all-btn{
+    width:100%;flex:100%;
+    background:linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.36));
+    border-color:#10b981;color:#fff;justify-content:center;
+    box-shadow:0 4px 15px rgba(16,185,129,0.25);
+  }
+  .qbtn.all-btn:hover{
+    background:linear-gradient(135deg,rgba(16,185,129,0.35),rgba(16,185,129,0.55));
+    box-shadow:0 6px 22px rgba(16,185,129,0.45);
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── BACKGROUND SCENE (CSS orbs + grid + scan-line) ─── -->
+<div id="bg-scene" aria-hidden="true">
+  <div class="grid-overlay"></div>
+  <div class="scan-line"></div>
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+  <div class="orb orb-d"></div>
+  <div class="orb orb-e"></div>
+</div>
+
+<!-- ─── CANVAS PARTICLES (floating colored dots) ─── -->
+<canvas id="starCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('starCanvas');
+  const ctx = canvas.getContext('2d');
+  function resizeCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  const particles = [];
+  const colors = ['#dc2626','#F5A623','#0ea5e9','#9333ea','#10b981','#E81CFF','#c4b5fd','#FFEA00'];
+  for(let i=0;i<150;i++){
+    particles.push({
+      x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+      radius:Math.random()*2+0.4,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      speed:Math.random()*0.35+0.1, drift:(Math.random()-0.5)*0.18
+    });
+  }
+  function drawParticles(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      ctx.beginPath();ctx.arc(p.x,p.y,p.radius,0,Math.PI*2);
+      ctx.fillStyle=p.color;ctx.fill();
+      p.y+=p.speed;p.x+=p.drift;
+      if(p.y>canvas.height){p.y=-10;p.x=Math.random()*canvas.width;}
+      if(p.x>canvas.width)p.x=0;
+      if(p.x<0)p.x=canvas.width;
+    });
+    requestAnimationFrame(drawParticles);
+  }
+  drawParticles();
+</script>
+
+<!-- ─── POPCORN ─── -->
+<script>
+  function createPopcorn(){
+    const p=document.createElement('div');
+    p.classList.add('popcorn'); p.textContent='🍿';
+    p.style.left=Math.random()*100+'vw';
+    p.style.animationDuration=Math.random()*3+6+'s';
+    p.style.fontSize=Math.random()*10+12+'px';
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(),9000);
+  }
+  setInterval(createPopcorn,2000);
+</script>
+
+<!-- ─── UPLOAD BANNER ─── -->
+<div id="uploadBanner" class="upload-banner">
+  <div class="ub-info">
+    <svg class="ub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+    <div class="ub-text">
+      <div class="ub-title" id="ubTitle">Checking server queue...</div>
+      <div class="ub-sub" id="ubSub">Please wait</div>
+    </div>
+    <button onclick="document.getElementById('uploadBanner').classList.remove('show')" style="background:none;border:none;color:#c4b5fd;font-size:24px;cursor:pointer;padding:0 5px;opacity:0.7">×</button>
+  </div>
+  <div class="ub-progress"><div class="ub-bar"></div></div>
+</div>
+
+<!-- ─── HEADER ─── -->
+<header>
+  <h1 id="pageHeading">Search movie and upload group <em>and enjoy</em></h1>
+  <div class="source-toggle" id="sourceToggle">
+    <button class="src-btn active" data-source="cinesubz"    onclick="setSource('cinesubz',this)">CineSubz</button>
+    <button class="src-btn"        data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">SinhalaSub</button>
+    <button class="src-btn"        data-source="slcartoons"  onclick="setSource('slcartoons',this)">SL Cartoons</button>
+    <button class="src-btn"        data-source="moviesublk"  onclick="setSource('moviesublk',this)">MovieSubLK</button>
+    <button class="src-btn"        data-source="1tamilmv"    onclick="setSource('1tamilmv',this)">1TamilMV</button>
+    <button class="src-btn"        data-source="animeheaven" onclick="setSource('animeheaven',this)">AnimeHaven</button>
+    <button class="src-btn"        data-source="kdrama"      onclick="setSource('kdrama',this)">KDrama</button>
+    <button class="src-btn"        data-source="baiscopes"   onclick="setSource('baiscopes',this)">Baiscopes</button>
+    <button class="src-btn"        data-source="sublk"       onclick="setSource('sublk',this)">Sub.lk</button>
+  </div>
+  <div class="search-wrap">
+    <input type="text" id="movieName" class="search-box" placeholder="Search a movie, cartoon or anime…" onkeydown="if(event.key==='Enter')searchMovie()">
+    <button class="search-btn" onclick="searchMovie()">Search</button>
+  </div>
+  <p class="status" id="statusMsg"></p>
+</header>
+
+<!-- ─── MAIN CONTAINER ─── -->
+<div class="container">
+  <div class="movie-grid" id="movieGrid"></div>
+
+  <!-- WhatsApp Banner -->
+  <div class="wa-banner-container" id="waBanner">
+    <h3 id="waBannerTopTitle">Sadew x Mini Movie Sender</h3>
+    <h2 id="waBannerMainTitle">🍿 Join Our Movie Group!</h2>
+    <p id="waBannerDesc">Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!</p>
+    <a id="waGroupLink" href="https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E" target="_blank" class="wa-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+      Join WhatsApp Group
+    </a>
+  </div>
+</div>
+
+<!-- ─── MODAL ─── -->
+<div class="modal" id="movieModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <button class="close-btn" onclick="closeModal()">×</button>
+      <img id="modalImg" src="">
+      <div class="modal-title" id="modalTitle"></div>
+    </div>
+    <div class="modal-body">
+      <input type="text" id="reqName" class="field" placeholder="Requester Name (E.g. Sadew)">
+      <input type="text" id="reqNum"  class="field" placeholder="Phone Number (e.g. 0771234567)">
+      <p class="modal-status" id="modalStatus"></p>
+      <div class="quality-row" id="qualityButtons"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── JAVASCRIPT ─── -->
+<script>
+  /* ================================================================
+   *
+   *  ✏️  EDIT YOUR DETAILS HERE — ADMIN CONFIG
+   *
+   *  This is the ONLY section you need to change when setting up
+   *  this portal for a new buyer. Update the values below and
+   *  the entire page rebrands automatically.
+   *
+   *  ⚠️  Do NOT touch anything below the "END OF CONFIG" line.
+   *
+   * ================================================================ */
+  const ADMIN_CONFIG = {
+    pageTitle:         "Sadew Movie Desk",
+    headerTitle:       "Search movie and upload group",
+    headerTitleEm:     "and enjoy",
+    waBannerTopTitle:  "Sadew x Mini Movie Sender",
+    waBannerMainTitle: "🍿 Join Our Movie Group!",
+    waBannerDesc:      "Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!",
+    waGroupLink:       "https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E",
+  };
+  /* ================================================================
+   *  END OF CONFIG — Do not edit below this line
+   * ================================================================ */
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.title = ADMIN_CONFIG.pageTitle;
+    document.getElementById('pageHeading').innerHTML    = `${ADMIN_CONFIG.headerTitle} <em>${ADMIN_CONFIG.headerTitleEm}</em>`;
+    document.getElementById('waBannerTopTitle').textContent  = ADMIN_CONFIG.waBannerTopTitle;
+    document.getElementById('waBannerMainTitle').textContent = ADMIN_CONFIG.waBannerMainTitle;
+    document.getElementById('waBannerDesc').textContent      = ADMIN_CONFIG.waBannerDesc;
+    document.getElementById('waGroupLink').href              = ADMIN_CONFIG.waGroupLink;
+  });
+
+  /* ================================================================
+   *  APP LOGIC — unchanged
+   * ================================================================ */
+  let currentSource   = 'cinesubz';
+  let currentMovieMeta = {};
+  let currentDownloads = [];
+
+  let pollInterval = null;
+  function startQueuePolling(){
+    if(pollInterval) clearInterval(pollInterval);
+    document.getElementById('uploadBanner').classList.add('show');
+    pollInterval = setInterval(async ()=>{
+      try{
+        const res  = await fetch('/api/queue');
+        const data = await res.json();
+        const titleEl = document.getElementById('ubTitle');
+        const subEl   = document.getElementById('ubSub');
+        if(!data.active && data.queue.length===0){
+          titleEl.textContent="✅ All Tasks Completed!";
+          subEl.textContent="Your videos have been sent to the group.";
+          setTimeout(()=>document.getElementById('uploadBanner').classList.remove('show'),4000);
+          clearInterval(pollInterval); return;
+        }
+        if(data.active){
+          const myNum  = document.getElementById('reqNum').value.trim();
+          const isMine = data.active.userNum===myNum;
+          if(isMine){
+            titleEl.textContent=`🚀 Sending Your Request: ${data.active.title} (${data.active.quality})`;
+            subEl.textContent="Server is actively uploading this to WhatsApp...";
+          }else{
+            titleEl.textContent=`⏳ Waiting in Queue... (Position: ${data.queue.length+1})`;
+            subEl.textContent=`Currently processing someone else's request: ${data.active.title}`;
+          }
+        }
+      }catch(e){}
+    },3000);
+  }
+
+  function setSource(src,btnElement){
+    currentSource=src;
+    document.querySelectorAll('.src-btn').forEach(b=>b.classList.remove('active'));
+    btnElement.classList.add('active');
+    btnElement.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  }
+
+  function showSkeleton(){
+    const grid=document.getElementById('movieGrid');
+    grid.innerHTML='';
+    for(let i=0;i<8;i++){
+      const s=document.createElement('div'); s.className='skeleton-card'; grid.appendChild(s);
+    }
+  }
+
+  async function searchMovie(){
+    const query=document.getElementById('movieName').value.trim();
+    if(!query) return;
+    const statusEl=document.getElementById('statusMsg');
+    statusEl.textContent='Searching…';
+    showSkeleton();
+    try{
+      const endpoint=currentSource==='animeheaven'?'/api/anime-search':'/api/search';
+      const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,source:currentSource})});
+      const data=await res.json();
+      const grid=document.getElementById('movieGrid');
+      grid.innerHTML='';
+      if(data.success && data.results?.length){
+        statusEl.textContent=`${data.results.length} results found`;
+        data.results.forEach(mv=>{
+          const card=document.createElement('div');
+          card.className='ticket';
+          let cap=mv.source?mv.source.charAt(0).toUpperCase()+mv.source.slice(1):'CineSubz';
+          card.innerHTML=`<div class="poster"><img src="${mv.img||'https://via.placeholder.com/400'}"><span class="badge">${cap}</span></div><div class="stub"><h4>${mv.title}</h4></div>`;
+          card.onclick=()=>openModal(mv.title,mv.img,mv.url||mv.id,mv.imdb);
+          grid.appendChild(card);
+        });
+      }else{statusEl.textContent='No results found.';}
+    }catch(e){statusEl.textContent='Search Error!';document.getElementById('movieGrid').innerHTML='';}
+  }
+
+  async function openModal(title,img,refId,imdb){
+    const modal=document.getElementById('movieModal');
+    modal.classList.add('open');
+    document.getElementById('modalTitle').textContent=title;
+    document.getElementById('modalImg').src=img||'https://via.placeholder.com/400';
+    document.getElementById('qualityButtons').innerHTML='';
+    const modalStatus=document.getElementById('modalStatus');
+    modalStatus.textContent='Fetching episodes/links…';
+    currentDownloads=[];
+    try{
+      const isAnime=currentSource==='animeheaven';
+      const res=await fetch(isAnime?'/api/anime-episodes':'/api/links',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(isAnime?{id:refId}:{url:refId,source:currentSource})
+      });
+      const data=await res.json();
+      if(data.success){
+        modalStatus.textContent='Pick an option:';
+        currentMovieMeta={title,img,imdb,refId};
+        let arr=isAnime?data.episodes:data.downloads;
+        currentDownloads=arr;
+        let isSeries=arr.length>1&&(isAnime||currentSource==='slcartoons'||currentSource==='moviesublk'||currentSource==='kdrama'||arr[0].meta.toLowerCase().includes('episode')||arr[0].meta.toLowerCase().includes('part'));
+        if(isSeries){
+          const btnAll=document.createElement('button');
+          btnAll.className='qbtn all-btn';
+          btnAll.innerHTML=`🚀 Queue ALL Episodes Automatically (${arr.length})`;
+          btnAll.onclick=()=>isAnime?sendAllAnime(data):sendAllMovie(arr);
+          document.getElementById('qualityButtons').appendChild(btnAll);
+        }
+        arr.forEach(item=>{
+          const btn=document.createElement('button');
+          btn.className='qbtn';
+          btn.textContent=isAnime?`Ep ${item.num}`:item.meta;
+          btn.onclick=()=>isAnime?sendAnimeEpisode(data,item):sendMovie(item.resolvedUrl,item.meta);
+          document.getElementById('qualityButtons').appendChild(btn);
+        });
+      }else{modalStatus.textContent='No links found.';}
+    }catch(e){modalStatus.textContent='Error loading links.';}
+  }
+
+  function closeModal(){document.getElementById('movieModal').classList.remove('open')}
+
+  function getRequester(){
+    const reqName=document.getElementById('reqName').value.trim();
+    const reqNum =document.getElementById('reqNum').value.trim();
+    if(!reqName||!reqNum){document.getElementById('modalStatus').textContent='Please add requester name and number!';return null;}
+    return{reqName,reqNum};
+  }
+
+  async function sendMovie(url,quality){
+    const req=getRequester();if(!req)return;
+    document.getElementById('modalStatus').textContent='Adding to Queue...';
+    await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:currentMovieMeta.title,url,quality,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img})});
+    closeModal();startQueuePolling();
+  }
+
+  async function sendAnimeEpisode(apiData,ep){
+    const req=getRequester();if(!req)return;
+    await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentMovieMeta.refId,hash:ep.hash,epNum:ep.num,videoname:apiData.videoname,thumbnail:apiData.thumbnail,reqName:req.reqName,reqNum:req.reqNum})});
+    closeModal();startQueuePolling();
+  }
+
+  async function sendAllMovie(arr){
+    const req=getRequester();if(!req)return;
+    closeModal();
+    document.getElementById('uploadBanner').classList.add('show');
+    document.getElementById('ubTitle').textContent=`Adding ${arr.length} videos to Queue...`;
+    for(let i=0;i<arr.length;i++){
+      await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:currentMovieMeta.title,url:arr[i].resolvedUrl,quality:arr[i].meta,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img,batchIndex:i,batchTotal:arr.length})});
+    }
+    startQueuePolling();
+  }
+
+  async function sendAllAnime(apiData){
+    const req=getRequester();if(!req)return;
+    closeModal();
+    document.getElementById('uploadBanner').classList.add('show');
+    document.getElementById('ubTitle').textContent=`Adding ${apiData.episodes.length} episodes to Queue...`;
+    for(let i=0;i<apiData.episodes.length;i++){
+      await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentMovieMeta.refId,hash:apiData.episodes[i].hash,epNum:apiData.episodes[i].num,videoname:apiData.videoname,thumbnail:apiData.thumbnail,reqName:req.reqName,reqNum:req.reqNum,batchIndex:i})});
+    }
+    startQueuePolling();
+  }
+</script>
+</body>
+</html>
