@@ -57,10 +57,19 @@ function getActiveSocket(targetBotNumber) {
     return sessionData.socket || sessionData;
 }
 
-async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 1800000) {
-    const sendPromise = sock.sendMessage(jid, msgParams);
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
-    return Promise.race([sendPromise, timeoutPromise]);
+async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 1800000, retries = 1) {
+    for (let i = 0; i <= retries; i++) {
+        try {
+            const sendPromise = sock.sendMessage(jid, msgParams);
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
+            return await Promise.race([sendPromise, timeoutPromise]);
+        } catch (error) {
+            // පළවෙනි පාර Timeout වුණොත්, තත්පර 5ක් ඉඳලා ආයෙත් ට්‍රයි කරනවා
+            if (i === retries) throw error;
+            console.log(`[RETRY] Upload failed (${error.message}), retrying in 5 seconds...`);
+            await new Promise(r => setTimeout(r, 5000)); 
+        }
+    }
 }
 
 const taskQueue = {
