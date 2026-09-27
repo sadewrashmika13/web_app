@@ -240,38 +240,36 @@ app.use('/', movieRoutes);
 
 // ════════════ FRONTEND ROUTES ════════════
 
-// 1. Pairing Site (Base URL & /pair)
-// ════════════ FRONTEND ROUTES ════════════
-
 app.use('/code', code); // Pairing API එක
 
-// 1. Movie Search Page (කස්ටමර්ස්ලට ෆිල්ම් හොයන්න)
+// 1. Movie Search Page 
 app.use('/movie', async (req, res) => { 
     res.sendFile(path.join(__path, 'movie.html')); 
 });
 
-// 2. Login Portal (ඇඩ්මින්ලට ලොග් වෙන්න)
+// 2. Login Portal 
 app.use('/portal', async (req, res) => { 
     res.sendFile(path.join(__path, 'main.html')); 
 });
 
-// 3. Sub Admin Panel (කස්ටමර්ගේ Settings හදන්න)
+// 3. Sub Admin Panel 
 app.use('/sub_admin.html', async (req, res) => { 
     res.sendFile(path.join(__path, 'sub_admin.html')); 
 });
 
-// 4. Central Panel (ඔයාගේ ප්‍රධාන පැනල් එක)
+// 4. Central Panel 
 app.use('/central_panel.html', async (req, res) => { 
     res.sendFile(path.join(__path, 'central_panel.html')); 
 });
 
-// 5. Pairing Page (Base URL - වෙන මුකුත් ගැහුවෙ නැත්තම් මේක එනවා)
-app.use('/', async (req, res) => { 
-    res.sendFile(path.join(__path, 'pair.html')); 
-});
-//nimal web
+// 5. Nimal's Web (අලුත් කස්ටමර්ස්ලගේ ලින්ක්ස් ඔක්කොම දාන්නේ මෙතනට)
 app.use('/nimal', async (req, res) => { 
    res.sendFile(path.join(__path, 'nimal.html')); 
+});
+
+// 6. Pairing Page (Base URL - මේක අනිවාර්යයෙන්ම අන්තිමටම තියෙන්න ඕනේ!)
+app.use('/', async (req, res) => { 
+    res.sendFile(path.join(__path, 'pair.html')); 
 });
 
 // ════════════ START SERVER ════════════
