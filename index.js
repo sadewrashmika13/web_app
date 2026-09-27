@@ -6,6 +6,9 @@ const crypto = require('crypto');
 const cheerio = require('cheerio');
 const qs = require('qs');
 const https = require('https');
+const mongoose = require('mongoose'); // 🔥 Mongoose එකතු කළා
+const Admin = require('./models/Admin'); // 🔥 Admin Database මොඩල් එක
+
 const app = express();
 const __path = process.cwd();
 const PORT = process.env.PORT || 8000;
@@ -16,6 +19,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
+// 🔥 MongoDB Connection for Server.js
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://sadewrashmika577_db_user:bKyIDz8UNMtkRRic@cluster0.sxlaxuj.mongodb.net/?appName=Cluster0';
+mongoose.connect(MONGO_URI)
+    .then(() => console.log('✅ Connected to MongoDB (Server.js)'))
+    .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 app.get('/livestats', (req, res) => { res.json({ success: true }); });
 app.get('/react', async (req, res) => { res.json({ success: true }); });
@@ -30,17 +39,12 @@ const BOT_NUMBER = '94705236759';
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
 const GEMINI_KEYS = [
-    process.env.GEMINI_KEY_1,
-    process.env.GEMINI_KEY_2,
-    process.env.GEMINI_KEY_3,
-    process.env.GEMINI_KEY_4,
-    process.env.GEMINI_KEY_5,
-    process.env.GEMINI_KEY_6
+    process.env.GEMINI_KEY_1, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3,
+    process.env.GEMINI_KEY_4, process.env.GEMINI_KEY_5, process.env.GEMINI_KEY_6
 ].filter(Boolean);
 
 async function getGeminiSummary(movieTitle) {
     const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
-    
     for (let key of GEMINI_KEYS) {
         try {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`;
@@ -53,7 +57,6 @@ async function getGeminiSummary(movieTitle) {
                     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
                 ]
             }, { timeout: 15000 });
-            
             if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
                 return response.data.candidates[0].content.parts[0].text.trim();
             }
@@ -69,7 +72,6 @@ function getActiveSocket() {
     return sessionData.socket || sessionData;
 }
 
-// 🔥 Timeout එක විනාඩි 30ක් දක්වා වැඩි කළා 🔥
 async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 1800000) {
     const sendPromise = sock.sendMessage(jid, msgParams);
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
@@ -77,21 +79,15 @@ async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 1800000) {
 }
 
 const taskQueue = {
-    queue: [],
-    active: null,
-    add: function(task) { 
-        this.queue.push(task); 
-        this.processNext(); 
-    },
+    queue: [], active: null,
+    add: function(task) { this.queue.push(task); this.processNext(); },
     processNext: async function() {
         if (this.active || this.queue.length === 0) return;
         this.active = this.queue.shift();
         try {
             console.log(`[QUEUE] Starting Task: ${this.active.info.title}`);
             await this.active.run();
-        } catch (e) { 
-            console.error(`[QUEUE] Error:`, e.message); 
-        }
+        } catch (e) { console.error(`[QUEUE] Error:`, e.message); }
         this.active = null;
         this.processNext();
     }
@@ -107,37 +103,31 @@ app.post('/api/search', async (req, res) => {
             if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
             return res.json({ success: false });
         }
-
         if (source === 'slcartoons') {
             const searchRes = await axios.get(`${ZANTA_API_BASE}/api/slcartoons/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
             if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
             return res.json({ success: false });
         }
-
         if (source === 'moviesublk') {
             const searchRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
             if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
             return res.json({ success: false });
         }
-
         if (source === 'baiscopes') {
             const searchRes = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/search?q=${encodeURIComponent(query)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`, { headers: HEADERS });
             if (searchRes.data?.status && searchRes.data.data?.length > 0) return res.json({ success: true, results: searchRes.data.data.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.image, source })) });
             return res.json({ success: false });
         }
-
         if (source === 'sublk') {
             const searchRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/movie/sublk/search?q=${encodeURIComponent(query)}&apitoken=4ehG6P`, { headers: HEADERS });
             if (searchRes.data?.status && searchRes.data.result?.length > 0) return res.json({ success: true, results: searchRes.data.result.slice(0, 8).map(mv => ({ title: mv.title, url: mv.link, img: mv.image, source })) });
             return res.json({ success: false });
         }
-
         if (source === 'kdrama') {
             const searchRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
             if (searchRes.data?.success && searchRes.data.results?.length > 0) return res.json({ success: true, results: searchRes.data.results.slice(0, 8).map(mv => ({ title: mv.title, url: mv.url, img: mv.thumbnail, source })) });
             return res.json({ success: false });
         }
-
         if (source === '1tamilmv') {
             const searchUrl = `https://www.1tamilmv.rocks/index.php?/search/&q=${encodeURIComponent(query)}`;
             const searchRes = await axios.get(searchUrl, { headers: HEADERS, timeout: 20000 });
@@ -169,14 +159,9 @@ app.post('/api/links', async (req, res) => {
             if (!dlRes.data?.success) return res.json({ success: false });
             const links = dlRes.data.results.links || [];
             if (!links.length) return res.json({ success: false });
-            const downloads = links.map(l => ({ 
-                meta: `${l.quality || 'Download'} - ${l.size || ''}`, 
-                resolvedUrl: l.direct_link || l.link, 
-                direct: true 
-            })).filter(l => l.resolvedUrl);
+            const downloads = links.map(l => ({ meta: `${l.quality || 'Download'} - ${l.size || ''}`, resolvedUrl: l.direct_link || l.link, direct: true })).filter(l => l.resolvedUrl);
             return res.json({ success: true, downloads, thumbnail: dlRes.data.results.thumbnail, rating: dlRes.data.results.rating });
         }
-
         if (source === 'slcartoons') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/slcartoons/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.results) return res.json({ success: false });
@@ -187,18 +172,13 @@ app.post('/api/links', async (req, res) => {
             if (downloads.length > 0) return res.json({ success: true, downloads, thumbnail: details.thumbnail });
             return res.json({ success: false });
         }
-
         if (source === 'moviesublk') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/moviesub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
             const data = dlRes.data;
             let downloads = [];
             if (data.download_links && Array.isArray(data.download_links) && data.download_links.length > 0) {
-                data.download_links.forEach((dl, idx) => {
-                    if (dl.final_link || dl.url || dl.link) {
-                        downloads.push({ meta: dl.info || dl.quality || `Link ${idx+1}`, resolvedUrl: dl.final_link || dl.url || dl.link, direct: true });
-                    }
-                });
+                data.download_links.forEach((dl, idx) => { if (dl.final_link || dl.url || dl.link) { downloads.push({ meta: dl.info || dl.quality || `Link ${idx+1}`, resolvedUrl: dl.final_link || dl.url || dl.link, direct: true }); } });
             } else if (data.direct_download_url) {
                 let btnName = data.is_series ? "📥 Download Full Series (ZIP)" : "📥 Download Movie";
                 downloads.push({ meta: btnName, resolvedUrl: data.direct_download_url, direct: true });
@@ -206,49 +186,33 @@ app.post('/api/links', async (req, res) => {
             if (downloads.length > 0) return res.json({ success: true, downloads, thumbnail: data.image });
             return res.json({ success: false });
         }
-
         if (source === 'baiscopes') {
             try {
                 const resData = await axios.get(`https://mizuki-md-api.netlify.app/api/movie/baiscopes/movie?q=${encodeURIComponent(url)}&apiKey=slk_feb4c1b4888e42998f43b746336ca25e`, { headers: HEADERS });
                 if (resData.data?.status && resData.data.data?.dl_links) {
-                    let downloads = resData.data.data.dl_links.map(l => ({ 
-                        meta: l.size ? `${l.size}` : (l.quality || 'Download'), 
-                        resolvedUrl: l.direct || l.link || l.url, 
-                        direct: true 
-                    })).filter(l => l.resolvedUrl); 
+                    let downloads = resData.data.data.dl_links.map(l => ({ meta: l.size ? `${l.size}` : (l.quality || 'Download'), resolvedUrl: l.direct || l.link || l.url, direct: true })).filter(l => l.resolvedUrl); 
                     return res.json({ success: true, downloads, thumbnail: resData.data.data.poster });
                 }
             } catch (err) {}
             return res.json({ success: false });
         }
-
         if (source === 'sublk') {
             try {
                 const resData = await axios.get(`https://whiteshadow-x-api.onrender.com/api/movie/sublk?url=${encodeURIComponent(url)}&apitoken=4ehG6P`, { headers: HEADERS });
                 if (resData.data?.result?.downloadLinks) {
-                    let downloads = resData.data.result.downloadLinks.map(l => ({ 
-                        meta: `${l.quality} - ${l.size}`, 
-                        resolvedUrl: l.downloadUrl || l.link, 
-                        direct: false 
-                    }));
+                    let downloads = resData.data.result.downloadLinks.map(l => ({ meta: `${l.quality} - ${l.size}`, resolvedUrl: l.downloadUrl || l.link, direct: false }));
                     return res.json({ success: true, downloads, thumbnail: resData.data.result.image });
                 }
             } catch (err) {}
             return res.json({ success: false });
         }
-
         if (source === 'kdrama') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/kdrama/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success || !dlRes.data.results?.episodes_list?.length) return res.json({ success: false });
             const episodes = dlRes.data.results.episodes_list;
-            let downloads = episodes.map(ep => ({
-                meta: ep.title || 'Episode',
-                resolvedUrl: ep.download_link,
-                direct: false
-            }));
+            let downloads = episodes.map(ep => ({ meta: ep.title || 'Episode', resolvedUrl: ep.download_link, direct: false }));
             return res.json({ success: true, downloads, thumbnail: dlRes.data.results.thumbnail });
         }
-
         if (source === '1tamilmv') {
             const dlRes = await axios.get(url, { headers: HEADERS, timeout: 20000 });
             const $ = cheerio.load(dlRes.data);
@@ -304,9 +268,7 @@ app.post('/api/send-movie', async (req, res) => {
                         const fileId = match[1];
                         try {
                             const wsRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/download/gdrive?url=${encodeURIComponent(`https://drive.google.com/file/d/${fileId}/view`)}&apitoken=4ehG6P`);
-                            if (wsRes.data?.success && wsRes.data.downloadUrl) {
-                                finalVidUrl = wsRes.data.downloadUrl;
-                            }
+                            if (wsRes.data?.success && wsRes.data.downloadUrl) { finalVidUrl = wsRes.data.downloadUrl; }
                         } catch(e) {}
                     }
                 }
@@ -315,25 +277,14 @@ app.post('/api/send-movie', async (req, res) => {
                     const page1 = await axios.get(url, { httpsAgent });
                     const $1 = cheerio.load(page1.data);
                     const formData = {};
-                    $1('form').first().find('input[type="hidden"]').each((i, el) => {
-                        formData[$1(el).attr('name')] = $1(el).attr('value');
-                    });
+                    $1('form').first().find('input[type="hidden"]').each((i, el) => { formData[$1(el).attr('name')] = $1(el).attr('value'); });
                     const page2 = await axios.post(url, qs.stringify(formData), {
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'Referer': url,
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        },
-                        httpsAgent
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': url, 'User-Agent': 'Mozilla/5.0' }, httpsAgent
                     });
                     const $2 = cheerio.load(page2.data);
                     let directLink = $2('a').filter((i, el) => $2(el).text().trim() === 'Start download').attr('href');
                     if (!directLink) directLink = $2('.btn-success').attr('href') || $2('a[href*=".mkv"]').attr('href') || $2('a[href*=".mp4"]').attr('href');
-                    if (directLink) {
-                        finalVidUrl = directLink;
-                    } else {
-                        throw new Error("KDrama Direct Link Bypass Failed");
-                    }
+                    if (directLink) { finalVidUrl = directLink; } else { throw new Error("KDrama Direct Link Bypass Failed"); }
                 }
 
                 // 🔥 CINESUBZ WEB SERVER BYPASS (SERVER 1-20 FIX + TELEGRAM BLOCK) 🔥
@@ -343,12 +294,7 @@ app.post('/api/send-movie', async (req, res) => {
                             const dlApiUrl = `${CZ_API}/download?url=${encodeURIComponent(urlToTry)}`;
                             const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
                             if (dlRes.data?.success && dlRes.data?.result?.downloadUrls) {
-                                const httpUrl = dlRes.data.result.downloadUrls.find(u => 
-                                    u.url && u.url.startsWith('http') && 
-                                    !u.url.includes('t.me') && 
-                                    !u.url.includes('telegram.me') && 
-                                    !u.url.includes('telegram.dog')
-                                );
+                                const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.includes('t.me') && !u.url.includes('telegram.me') && !u.url.includes('telegram.dog'));
                                 if (httpUrl) return httpUrl.url;
                             }
                         } catch (e) { return null; }
@@ -356,7 +302,6 @@ app.post('/api/send-movie', async (req, res) => {
                     };
 
                     let resolvedStreamUrl = await tryDownloadUrl(finalVidUrl);
-
                     if (!resolvedStreamUrl && finalVidUrl.includes('/server')) {
                         console.log("[WEB CZ] Original server failed. Trying alternate servers 1-20...");
                         const altServers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'];
@@ -364,25 +309,15 @@ app.post('/api/send-movie', async (req, res) => {
                             const altUrl = finalVidUrl.replace(/\/server\d+\//, `/server${s}/`);
                             if (altUrl === finalVidUrl) continue;
                             resolvedStreamUrl = await tryDownloadUrl(altUrl);
-                            if (resolvedStreamUrl) {
-                                console.log(`[WEB CZ] Bypassed successfully using server${s} !`);
-                                break;
-                            }
+                            if (resolvedStreamUrl) break;
                         }
                     }
-
-                    if (resolvedStreamUrl) {
-                        finalVidUrl = resolvedStreamUrl;
-                    } else {
-                        throw new Error("DanuZz API Cinesubz bypass failed on Web Server.");
-                    }
+                    if (resolvedStreamUrl) { finalVidUrl = resolvedStreamUrl; } else { throw new Error("DanuZz API Cinesubz bypass failed on Web Server."); }
                 }
 
                 if (isFirstInBatch) {
                     await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
-                    
                     const aiSummary = await getGeminiSummary(title);
-                    
                     let cap = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n`;
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
                     cap += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
@@ -408,7 +343,6 @@ app.post('/api/send-movie', async (req, res) => {
                 const mimeType = (finalVidUrl.includes('.mkv') || (streamRes.headers['content-type'] && streamRes.headers['content-type'].includes('matroska'))) ? 'video/x-matroska' : 'video/mp4';
                 const fileExt = mimeType === 'video/x-matroska' ? 'mkv' : 'mp4';
                 let fileName = `${title.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${quality}.${fileExt}`;
-                
                 let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${quality}*\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*` : `🎬 *${title}*\n> *Sadew Web Sender*`;
 
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption });
@@ -474,20 +408,14 @@ app.post('/api/anime-send', async (req, res) => {
 
                 if (isFirstInBatch) {
                     await sendMediaSafely(sock, BOT_NUMBER + '@s.whatsapp.net', { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${videoname} - Ep ${epNum}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
-                    
                     const aiSummary = await getGeminiSummary(videoname);
-                    
                     const seriesHtml = (await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS })).data;
                     const descMatch = seriesHtml.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
                     let origDesc = descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '') : videoname;
                     if (origDesc.length > 300) origDesc = origDesc.substring(0, 300) + '...';
 
                     let cardText = `🎬 *${videoname}*\n\n`;
-                    if (aiSummary) {
-                        cardText += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    } else {
-                        cardText += `📝 *Description:*\n${origDesc}\n\n`;
-                    }
+                    if (aiSummary) { cardText += `📖 *Summary:*\n${aiSummary}\n\n`; } else { cardText += `📝 *Description:*\n${origDesc}\n\n`; }
                     cardText += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
 
                     if (thumbnail) await sendMediaSafely(sock, GROUP_JID, { image: { url: thumbnail }, caption: cardText }, 60000);
@@ -495,14 +423,11 @@ app.post('/api/anime-send', async (req, res) => {
                 }
 
                 const gateHtml = (await axios.get(`${ANIME_BASE}/gate.php`, { headers: { ...HEADERS, 'Referer': `${ANIME_BASE}/anime.php?${id}`, 'Cookie': `key=${hash}` } })).data;
-                
                 let finalDlLink = '';
                 const downloadRegex = /<a\s+href=['"](https?:\/\/[a-z0-9]+\.animeheaven\.me\/video\.mp4\?[^'"]+)['"]/gi;
                 let dlMatch = downloadRegex.exec(gateHtml);
 
-                if (dlMatch) {
-                    finalDlLink = dlMatch[1];
-                } else {
+                if (dlMatch) { finalDlLink = dlMatch[1]; } else {
                     const sourceRegex = /<source\s+src=['"]([^'"]+)['"]/gi;
                     let srcMatch;
                     while ((srcMatch = sourceRegex.exec(gateHtml)) !== null) {
@@ -516,30 +441,39 @@ app.post('/api/anime-send', async (req, res) => {
 
                 if (!finalDlLink) throw new Error("Anime DL link not found");
 
-                const streamRes = await axios({ 
-                    url: finalDlLink, 
-                    method: 'GET', 
-                    responseType: 'stream', 
-                    timeout: 0,
-                    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' }
-                });
-
-                if ((streamRes.headers['content-type'] || '').includes('text/html')) {
-                    try { streamRes.data.destroy(); } catch(e){}
-                    throw new Error("Blocked by AnimeHaven");
-                }
+                const streamRes = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream', timeout: 0, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' }});
+                if ((streamRes.headers['content-type'] || '').includes('text/html')) { try { streamRes.data.destroy(); } catch(e){} throw new Error("Blocked by AnimeHaven"); }
 
                 const fileName = `${videoname.replace(/[^a-zA-Z0-9 ]/g, '').trim()} - Ep ${epNum} [SADEW].mp4`;
                 let epCaption = `🎬 Episode ${epNum}\n👤 *Required By:* ${reqName}\n> *Sadew Web Sender*`;
 
                 await sendMediaSafely(sock, GROUP_JID, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption });
-                
             } catch (err) {
                 try { await sendMediaSafely(sock, GROUP_JID, { text: `❌ *Failed:* ${videoname} - Ep ${epNum}\n_Network dropped or timeout._` }, 30000); } catch(e){}
             }
         }
     });
     res.json({ success: true, taskId });
+});
+
+// ════════════ LOGIN API ROUTE ════════════
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+    try {
+        if (username === 'sadew' && password === 'sadew123') {
+            return res.json({ success: true, redirect: '/central_panel.html' });
+        }
+        if (username && username.startsWith('admin_')) {
+            const user = await Admin.findOne({ username: username, password: password });
+            if (user) {
+                return res.json({ success: true, redirect: '/sub_admin.html?admin=' + user.username });
+            }
+        }
+        return res.json({ success: false, message: 'Invalid Username or Password!' });
+    } catch (error) {
+        console.error('Login API Error:', error);
+        return res.json({ success: false, message: 'Server error during login!' });
+    }
 });
 
 app.use('/code', code);
@@ -550,3 +484,7 @@ app.use('/', async (req, res, next) => { res.sendFile(__path + '/main.html'); })
 
 app.listen(PORT, '0.0.0.0', () => { console.log(`Akira Bot — ONLINE  Port: ${PORT}`); });
 module.exports = app;
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-27T08:52:13+05:30.
+</ADDITIONAL_METADATA>
