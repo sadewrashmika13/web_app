@@ -177,6 +177,53 @@ app.post('/api/admin/save', async (req, res) => {
         return res.json({ success: false, message: '⚠️ Server error while saving settings!' });
     }
 });
+
+// ════════════ CENTRAL PANEL APIS (AUTO DATABASE) ════════════
+
+// 1. Database එකේ ඉන්න ඔක්කොම ඇඩ්මින්ලාව Panel එකට ගන්න API එක
+app.get('/api/admins', async (req, res) => {
+    try {
+        const admins = await Admin.find({});
+        res.json({ success: true, admins: admins });
+    } catch (error) {
+        res.json({ success: false, message: 'Failed to fetch admins' });
+    }
+});
+
+// 2. Central Panel එකෙන් අලුත් ඇඩ්මින් කෙනෙක් හදන API එක
+app.post('/api/admin/create', async (req, res) => {
+    const { username, password, bot_number, group_jid, footer_text } = req.body;
+    try {
+        if (!username || !password) {
+            return res.json({ success: false, message: 'Username and Password are required!' });
+        }
+
+        // ඇඩ්මින් කලින් ඉන්නවද බලනවා (හිටියොත් අප්ඩේට් කරනවා, නැත්තම් අලුතින් හදනවා)
+        let existingAdmin = await Admin.findOne({ username: username });
+        
+        if (existingAdmin) {
+            existingAdmin.password = password;
+            existingAdmin.bot_number = bot_number || existingAdmin.bot_number;
+            existingAdmin.group_jid = group_jid || existingAdmin.group_jid;
+            existingAdmin.footer_text = footer_text || existingAdmin.footer_text;
+            await existingAdmin.save();
+            return res.json({ success: true, message: 'Admin updated successfully!' });
+        } else {
+            const newAdmin = new Admin({
+                username: username,
+                password: password,
+                bot_number: bot_number || '',
+                group_jid: group_jid || '',
+                footer_text: footer_text || ''
+            });
+            await newAdmin.save();
+            return res.json({ success: true, message: 'New Admin created successfully!' });
+        }
+    } catch (error) {
+        console.error('Create Admin Error:', error);
+        res.json({ success: false, message: 'Server error while creating admin!' });
+    }
+});
 // 🔥 IMPORT AND USE MOVIE ROUTES 🔥
 const movieRoutes = require('./routes/movieRoutes');
 app.use('/', movieRoutes);
@@ -211,6 +258,10 @@ app.use('/central_panel.html', async (req, res) => {
 // 5. Pairing Page (Base URL - වෙන මුකුත් ගැහුවෙ නැත්තම් මේක එනවා)
 app.use('/', async (req, res) => { 
     res.sendFile(path.join(__path, 'pair.html')); 
+});
+//nimal web
+app.use('/nimal', async (req, res) => { 
+   res.sendFile(path.join(__path, 'nimal.html')); 
 });
 
 // ════════════ START SERVER ════════════
