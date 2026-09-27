@@ -323,24 +323,27 @@ router.post('/api/send-movie', async (req, res) => {
                 }
 
 if (isFirstInBatch) {
-                    // 🔥 1. කනෙක්ට් වෙලා ඉන්න බොට්ගේ තමන්ගේම නම්බර් එක (Yourself) ඔටෝ හොයාගන්නවා
-                   const botOwnNumber = dynamicBotNumber.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-                    
-                    // 🔥 2. Admin ගේ ඉන්බොක්ස් එකට (Yourself) යවන මැසේජ් එක
+                    // 🔥 1. ඒ වෙලාවේ ඇත්තටම කනෙක්ට් වෙලා වැඩ කරන බොට්ගේ ID එකම ගන්නවා (වරදින්නේ නෑ)
+                    const exactBotJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}`;
-                    await sendMediaSafely(sock, botOwnNumber, { text: adminInboxText }, 30000);
+                    
+                    // 🔥 2. Admin ගේ ඉන්බොක්ස් එකට (Yourself) යවනවා (Error ආවොත් සර්වර් එක කඩන් වැටෙන්නේ නැති වෙන්න Try-Catch එකක් දැම්මා)
+                    try {
+                        await sock.sendMessage(exactBotJid, { text: adminInboxText });
+                    } catch (e) {
+                        console.log("Inbox Notification Error:", e.message);
+                    }
                     
                     // 3. (මෙතනින් යටට තියෙන්නේ ගෲප් එකට යවන සාමාන්‍ය කෑල්ල)
                     const aiSummary = await getGeminiSummary(title);
                     
                     let cap = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n`;
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    cap += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
+                    cap += `👤 *Required By:* ${reqName}\n\n> *${dynamicFooter}*`;
 
                     if (img) await sendMediaSafely(sock, dynamicGroupJid, { image: { url: img }, caption: cap }, 60000);
                     else await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 30000);
                 }
-
                 if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
                     const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${title}\n✨ *Quality:* ${quality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${reqName}\n\n> *${dynamicFooter}*`;
                     await sendMediaSafely(sock, dynamicGroupJid, { text: teleText }, 30000);
