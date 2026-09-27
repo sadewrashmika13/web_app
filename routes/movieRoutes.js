@@ -324,7 +324,7 @@ router.post('/api/send-movie', async (req, res) => {
 
 if (isFirstInBatch) {
                     // 🔥 1. කනෙක්ට් වෙලා ඉන්න බොට්ගේ තමන්ගේම නම්බර් එක (Yourself) ඔටෝ හොයාගන්නවා
-                    const botOwnNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                   const botOwnNumber = dynamicBotNumber.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
                     
                     // 🔥 2. Admin ගේ ඉන්බොක්ස් එකට (Yourself) යවන මැසේජ් එක
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}`;
