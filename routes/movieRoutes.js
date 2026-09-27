@@ -337,8 +337,8 @@ if (isFirstInBatch) {
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
                     cap += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
 
-                    if (img) await sendMediaSafely(sock, GROUP_JID, { image: { url: img }, caption: cap }, 60000);
-                    else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
+                    if (img) await sendMediaSafely(sock, dynamicGroupJid, { image: { url: img }, caption: cap }, 60000);
+                    else await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 30000);
                 }
 
                 if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
