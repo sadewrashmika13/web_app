@@ -322,16 +322,23 @@ router.post('/api/send-movie', async (req, res) => {
                     if (resolvedStreamUrl) { finalVidUrl = resolvedStreamUrl; } else { throw new Error("DanuZz API Cinesubz bypass failed on Web Server."); }
                 }
 
-                if (isFirstInBatch) {
-                    await sendMediaSafely(sock, dynamicBotNumber + '@s.whatsapp.net', { text: `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}` }, 30000);
+if (isFirstInBatch) {
+                    // 🔥 1. කනෙක්ට් වෙලා ඉන්න බොට්ගේ තමන්ගේම නම්බර් එක (Yourself) ඔටෝ හොයාගන්නවා
+                    const botOwnNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                    
+                    // 🔥 2. Admin ගේ ඉන්බොක්ස් එකට (Yourself) යවන මැසේජ් එක
+                    const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${title}\n👤 *By:* ${reqName}\n📞 *Number:* ${reqNum}`;
+                    await sendMediaSafely(sock, botOwnNumber, { text: adminInboxText }, 30000);
+                    
+                    // 3. (මෙතනින් යටට තියෙන්නේ ගෲප් එකට යවන සාමාන්‍ය කෑල්ල)
                     const aiSummary = await getGeminiSummary(title);
+                    
                     let cap = `🎬 *${title}*\n✨ *Quality:* ${quality}\n\n`;
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    cap += `👤 *Required By:* ${reqName}\n\n> *${dynamicFooter}*`;
+                    cap += `👤 *Required By:* ${reqName}\n\n> *Sadew Web Sender*`;
 
-                    // 🔥 Database එකෙන් ගත්ත Group JID එකට යවනවා
-                    if (img) await sendMediaSafely(sock, dynamicGroupJid, { image: { url: img }, caption: cap }, 60000);
-                    else await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 30000);
+                    if (img) await sendMediaSafely(sock, GROUP_JID, { image: { url: img }, caption: cap }, 60000);
+                    else await sendMediaSafely(sock, GROUP_JID, { text: cap }, 30000);
                 }
 
                 if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
