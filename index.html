@@ -225,11 +225,12 @@
             modal.classList.remove('open');
         }
 
-        // Fake Login Logic (දැනට Front-end එකෙන් Redirect කරන්න හදලා තියෙන්නේ. පස්සේ ඔයාට Backend API එකට ගහන්න පුළුවන්)
-        function handleLogin() {
+        // 🔥 Backend Security එක්ක කනෙක්ට් කරපු අලුත් Login එක 🔥
+        async function handleLogin() {
             const user = document.getElementById('username').value.trim().toLowerCase();
             const pass = document.getElementById('password').value.trim();
             const errBox = document.getElementById('loginError');
+            const loginBtn = document.querySelector('.login-btn');
 
             if(user === '' || pass === '') {
                 errBox.textContent = "Please fill all fields!";
@@ -237,18 +238,37 @@
                 return;
             }
 
-            // ඔයාගේ Main Admin (Central Panel එකට යන්න)
-            if(user === 'sadew' && pass === 'sadew123') {
-                window.location.href = '/central_panel.html'; // ඔයාගේ Central Panel file එකේ නම දෙන්න
-            } 
-            // අනිත් කස්ටමර්ලා ලොග් වෙනකොට (Sub Admin Panel එකට යන්න)
-            else if(user.startsWith('admin_') && pass === '1234') {
-                // URL එකේ Query parameter එකක් විදිහට admin ID එක යවනවා (sub_admin එකේ ලෝඩ් වෙන්න)
-                window.location.href = `/sub_admin.html?admin=${user}`; // ඔයාගේ Sub Admin file එකේ නම දෙන්න
-            } 
-            else {
-                errBox.textContent = "Invalid Username or Password!";
+            // Button එක Loading වෙනවා වගේ පෙන්වන්න
+            loginBtn.textContent = 'Verifying...';
+            loginBtn.style.opacity = '0.7';
+            loginBtn.disabled = true;
+
+            try {
+                // Backend /api/login එකට Username, Password යවනවා
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Password හරි නම්, Backend එකෙන් දෙන ලින්ක් එකට (Panel එකට) යවනවා
+                    window.location.href = data.redirect;
+                } else {
+                    // Password වැරදි නම්, Error එක පෙන්වනවා
+                    errBox.textContent = data.message;
+                    errBox.style.display = 'block';
+                }
+            } catch (err) {
+                errBox.textContent = "Network Error! Please try again.";
                 errBox.style.display = 'block';
+            } finally {
+                // Button එක ආයෙත් සාමාන්‍ය තත්වෙට පත් කරනවා
+                loginBtn.textContent = 'Login Securely';
+                loginBtn.style.opacity = '1';
+                loginBtn.disabled = false;
             }
         }
     </script>
