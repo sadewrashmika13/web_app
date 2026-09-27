@@ -181,12 +181,29 @@ app.post('/api/admin/save', async (req, res) => {
 const movieRoutes = require('./routes/movieRoutes');
 app.use('/', movieRoutes);
 
-// HTML & Bot Pair Routes
+// ════════════ FRONTEND ROUTES ════════════
+
+// 1. Pairing Site (Base URL & /pair)
 app.use('/code', code);
 app.use('/pair', async (req, res, next) => { res.sendFile(__path + '/pair.html'); });
-app.use('/settings', async (req, res, next) => { res.sendFile(__path + '/settings.html'); });
-app.use('/movie', async (req, res, next) => { res.sendFile(__path + '/movie.html'); });
-app.use('/', async (req, res, next) => { res.sendFile(__path + '/main.html'); });
+app.use('/', async (req, res, next) => { 
+    // මෙතන '/' (Base URL) ආවම, අර පරණ 'main.html' වෙනුවට 'pair.html' එකම ලෝඩ් කරනවා.
+    res.sendFile(__path + '/pair.html'); 
+});
 
+// 2. Movie Search Sites (ඔයාගේ සහ කස්ටමර්ලගේ)
+app.use('/movie', async (req, res, next) => { res.sendFile(__path + '/movie.html'); }); // ඔයාගේ සයිට් එක
+app.use('/kamal', async (req, res, next) => { res.sendFile(__path + '/kamal.html'); }); // කමල්ගේ සයිට් එක
+app.use('/nimal', async (req, res, next) => { res.sendFile(__path + '/nimal.html'); }); // නිමල්ගේ සයිට් එක (ඕනේ නම්)
+
+// 3. Web Panels (Admin & SaaS Controls)
+// ලොග් වෙන තැනට වෙනම ලින්ක් එකක් දෙනවා (උදා: /portal)
+app.use('/portal', async (req, res, next) => { res.sendFile(__path + '/main.html'); }); // මේක තමයි Login Page එක
+
+// කස්ටමර්ගේ Settings Panel එක (Sub Admin)
+app.use('/sub_admin.html', async (req, res, next) => { res.sendFile(__path + '/sub_admin.html'); }); 
+
+// ඔයාගේ ප්‍රධාන පැනල් එක
+app.use('/central_panel.html', async (req, res, next) => { res.sendFile(__path + '/central_panel.html'); });
 app.listen(PORT, '0.0.0.0', () => { console.log(`Akira Bot — ONLINE  Port: ${PORT}`); });
 module.exports = app;
