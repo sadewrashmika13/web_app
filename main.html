@@ -253,7 +253,11 @@
 
                 const data = await response.json();
 
-                if (data.success) {
+if (data.success) {
+                    // 🔥 ආයෙත් කෙලින්ම URL එකෙන් එන උන්ව අල්ලන්න Secret එකක් සේව් කරනවා
+                    sessionStorage.setItem('sadew_auth', 'secure_logged_in');
+                    sessionStorage.setItem('sadew_user', user);
+                    
                     // Password හරි නම්, Backend එකෙන් දෙන ලින්ක් එකට (Panel එකට) යවනවා
                     window.location.href = data.redirect;
                 } else {
