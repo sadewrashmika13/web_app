@@ -587,7 +587,50 @@
             // Final fallback
             return 'admin_01';
         }
+// 🔥 Save Settings to Database 🔥
+async function saveSettings() {
+    // URL එකෙන් admin_id එක ගන්නවා (උදා: ?admin=admin_01)
+    const currentAdmin = new URLSearchParams(window.location.search).get('admin');
 
+    // Input fields වලින් ඩේටා ගන්නවා (ඔයාගේ HTML එකේ තියෙන IDs වලට මේ නම් වෙනස් කරගන්න)
+    const botNum = document.getElementById('botNumber').value.trim();
+    const groupJid = document.getElementById('groupLink').value.trim(); 
+    const footerTxt = document.getElementById('footerText').value.trim();
+
+    if (!currentAdmin) {
+        alert("⚠️ Admin ID not found in URL!");
+        return;
+    }
+
+    // Save බටන් එකේ text එක 'Saving...' කියලා වෙනස් කරන්න පුළුවන් (Optional)
+    const saveBtn = document.getElementById('saveButton');
+    if(saveBtn) saveBtn.textContent = 'Saving...';
+
+    try {
+        const response = await fetch('/api/admin/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                admin_id: currentAdmin,
+                bot_number: botNum,
+                group_jid: groupJid,
+                footer_text: footerTxt
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(data.message); // ✅ Settings saved successfully!
+        } else {
+            alert("Error: " + data.message);
+        }
+    } catch (error) {
+        alert("Network Error! Please try again.");
+    } finally {
+        if(saveBtn) saveBtn.textContent = 'Save Settings';
+    }
+}
         /* ────────────────────────────────────────
            INIT — populate admin ID on load
         ──────────────────────────────────────── */
@@ -634,14 +677,15 @@
             }, type === 'success' ? 3000 : 2800);
         }
 
-        /* ────────────────────────────────────────
-           SAVE SETTINGS  (dummy — wire to API)
+/* ────────────────────────────────────────
+           SAVE SETTINGS  (Real API Connection)
         ──────────────────────────────────────── */
-        function saveSettings() {
+        async function saveSettings() {
             const adminId    = document.getElementById('adminIdInput').value.trim();
             const botNumber  = document.getElementById('botNumberInput').value.trim();
             const groupJid   = document.getElementById('groupJidInput').value.trim();
             const footerText = document.getElementById('footerTextInput').value.trim();
+            const saveBtn    = document.querySelector('.btn-save');
 
             // Validation
             if (!botNumber) {
@@ -655,19 +699,37 @@
                 return;
             }
 
-            // ── Dummy save logic ──
-            // Replace this block with your actual API call (fetch / axios)
-            const payload = {
-                admin_id:    adminId,
-                bot_number:  botNumber,
-                group_jid:   groupJid,
-                footer_text: footerText || ''
-            };
+            // බටන් එක 'Saving...' කියලා වෙනස් කරනවා
+            saveBtn.innerHTML = '⏳ &nbsp;Saving...';
+            saveBtn.disabled = true;
 
-            console.log('[SADEW-MINI] Saving sub-admin config:', payload);
-            // e.g. await fetch('/api/admin/save', { method:'POST', body: JSON.stringify(payload) });
+            try {
+                // Backend එකට ඩේටා යවනවා
+                const response = await fetch('/api/admin/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_id: adminId,
+                        bot_number: botNumber,
+                        group_jid: groupJid,
+                        footer_text: footerText
+                    })
+                });
 
-            showFlash('success', `Settings saved for ${adminId.toUpperCase()} ✦`);
+                const data = await response.json();
+
+                if (data.success) {
+                    showFlash('success', `Settings saved for ${adminId.toUpperCase()} ✦`);
+                } else {
+                    showFlash('error', 'Error: ' + data.message);
+                }
+            } catch (error) {
+                showFlash('error', 'Network Error! Please try again.');
+            } finally {
+                // වැඩේ ඉවර වුණාම ආයෙත් බටන් එක පරණ විදිහට හදනවා
+                saveBtn.innerHTML = '💾 &nbsp;Save Settings';
+                saveBtn.disabled = false;
+            }
         }
 
         /* ────────────────────────────────────────
