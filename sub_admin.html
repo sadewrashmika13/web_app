@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="si">
 <head>
+    <script>
+        // 🔥 Security Check: Sub Admin පැනල් එකත් ලොක් කරනවා
+        if (!sessionStorage.getItem('sadew_auth')) {
+            window.location.href = '/portal'; // ලොග් වෙලා නැත්තම් එලියට දානවා
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SADEW-MINI | Sub Admin Panel</title>
