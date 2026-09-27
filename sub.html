@@ -557,17 +557,10 @@
 <!-- ─── JAVASCRIPT ─── -->
 <script>
   /* ================================================================
-   *
    *  ✏️  EDIT YOUR DETAILS HERE — ADMIN CONFIG
-   *
-   *  This is the ONLY section you need to change when setting up
-   *  this portal for a new buyer. Update the values below and
-   *  the entire page rebrands automatically.
-   *
-   *  ⚠️  Do NOT touch anything below the "END OF CONFIG" line.
-   *
    * ================================================================ */
   const ADMIN_CONFIG = {
+    admin_id:          "admin_01", // 🔥 මෙතන admin_02, admin_03 විදිහට ෆයිල් එකෙන් ෆයිල් එකට වෙනස් කරන්න
     pageTitle:         "Sadew Movie Desk",
     headerTitle:       "Search movie and upload group",
     headerTitleEm:     "and enjoy",
@@ -576,9 +569,6 @@
     waBannerDesc:      "Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!",
     waGroupLink:       "https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E",
   };
-  /* ================================================================
-   *  END OF CONFIG — Do not edit below this line
-   * ================================================================ */
 
   document.addEventListener('DOMContentLoaded', () => {
     document.title = ADMIN_CONFIG.pageTitle;
@@ -590,13 +580,13 @@
   });
 
   /* ================================================================
-   *  APP LOGIC — unchanged
+   *  APP LOGIC — WITH DYNAMIC ADMIN ID
    * ================================================================ */
   let currentSource   = 'cinesubz';
   let currentMovieMeta = {};
   let currentDownloads = [];
-
   let pollInterval = null;
+
   function startQueuePolling(){
     if(pollInterval) clearInterval(pollInterval);
     document.getElementById('uploadBanner').classList.add('show');
@@ -717,16 +707,28 @@
     return{reqName,reqNum};
   }
 
+  // 🔥 මෙතන ඉඳන් තමයි admin_id එක Backend එකට යවන අලුත් Functions 4 තියෙන්නේ 🔥
+  
   async function sendMovie(url,quality){
     const req=getRequester();if(!req)return;
     document.getElementById('modalStatus').textContent='Adding to Queue...';
-    await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:currentMovieMeta.title,url,quality,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img})});
+    await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+        title:currentMovieMeta.title, url, quality, reqName:req.reqName, reqNum:req.reqNum,
+        source:currentSource, img:currentMovieMeta.img, 
+        admin_id: ADMIN_CONFIG.admin_id // 🔥 Backend එකට admin_id එක යවනවා
+    })});
     closeModal();startQueuePolling();
   }
 
   async function sendAnimeEpisode(apiData,ep){
     const req=getRequester();if(!req)return;
-    await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentMovieMeta.refId,hash:ep.hash,epNum:ep.num,videoname:apiData.videoname,thumbnail:apiData.thumbnail,reqName:req.reqName,reqNum:req.reqNum})});
+    await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+        id:currentMovieMeta.refId, hash:ep.hash, epNum:ep.num, videoname:apiData.videoname, 
+        thumbnail:apiData.thumbnail, reqName:req.reqName, reqNum:req.reqNum,
+        admin_id: ADMIN_CONFIG.admin_id // 🔥 Backend එකට admin_id එක යවනවා
+    })});
     closeModal();startQueuePolling();
   }
 
@@ -736,7 +738,13 @@
     document.getElementById('uploadBanner').classList.add('show');
     document.getElementById('ubTitle').textContent=`Adding ${arr.length} videos to Queue...`;
     for(let i=0;i<arr.length;i++){
-      await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:currentMovieMeta.title,url:arr[i].resolvedUrl,quality:arr[i].meta,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img,batchIndex:i,batchTotal:arr.length})});
+      await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+          title:currentMovieMeta.title, url:arr[i].resolvedUrl, quality:arr[i].meta,
+          reqName:req.reqName, reqNum:req.reqNum, source:currentSource, img:currentMovieMeta.img,
+          batchIndex:i, batchTotal:arr.length, 
+          admin_id: ADMIN_CONFIG.admin_id // 🔥 Backend එකට admin_id එක යවනවා
+      })});
     }
     startQueuePolling();
   }
@@ -747,7 +755,13 @@
     document.getElementById('uploadBanner').classList.add('show');
     document.getElementById('ubTitle').textContent=`Adding ${apiData.episodes.length} episodes to Queue...`;
     for(let i=0;i<apiData.episodes.length;i++){
-      await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentMovieMeta.refId,hash:apiData.episodes[i].hash,epNum:apiData.episodes[i].num,videoname:apiData.videoname,thumbnail:apiData.thumbnail,reqName:req.reqName,reqNum:req.reqNum,batchIndex:i})});
+      await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+          id:currentMovieMeta.refId, hash:apiData.episodes[i].hash, epNum:apiData.episodes[i].num,
+          videoname:apiData.videoname, thumbnail:apiData.thumbnail, reqName:req.reqName, 
+          reqNum:req.reqNum, batchIndex:i,
+          admin_id: ADMIN_CONFIG.admin_id // 🔥 Backend එකට admin_id එක යවනවා
+      })});
     }
     startQueuePolling();
   }
