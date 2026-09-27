@@ -124,23 +124,33 @@ app.get('/react', async (req, res) => {
 // Follow කෑල්ලේ Backup එකක් විදිහට තියෙන එක
 app.get('/follow', async (req, res) => { res.json({ success: true }); });
 
-// ════════════ LOGIN API ROUTE ════════════
+// 3. Login API (Database එකෙන් පාස්වර්ඩ් චෙක් කරනවා)
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
+    
     try {
-        if (username === 'sadew' && password === 'sadew123') {
+        // 1. Master Admin Check (ඔයාට Central Panel එකට යන්න)
+        // 'sadew123' වෙනුවට ඔයාට ඕනේ ප්‍රධාන පාස්වර්ඩ් එක මෙතන දෙන්න
+        if (username === 'sadew' && password === 'sadew123') { 
             return res.json({ success: true, redirect: '/central_panel.html' });
         }
-        if (username && username.startsWith('admin_')) {
-            const user = await Admin.findOne({ username: username, password: password });
-            if (user) {
-                return res.json({ success: true, redirect: '/sub_admin.html?admin=' + user.username });
-            }
+
+        // 2. Customer Check (Database එකෙන් බලලා Sub Admin එකට යවන්න)
+        const admin = await Admin.findOne({ username: username });
+        
+        if (!admin) {
+            return res.json({ success: false, message: 'Username not found!' });
         }
-        return res.json({ success: false, message: 'Invalid Username or Password!' });
+        if (admin.password !== password) {
+            return res.json({ success: false, message: 'Incorrect Password!' });
+        }
+
+        // පාස්වර්ඩ් හරි නම් කස්ටමර්ගේ පැනල් එකට යවනවා
+        return res.json({ success: true, redirect: `/sub_admin.html?admin=${username}` });
+
     } catch (error) {
-        console.error('Login API Error:', error);
-        return res.json({ success: false, message: 'Server error during login!' });
+        console.error('Login Error:', error);
+        res.json({ success: false, message: 'Server error!' });
     }
 });
 // ════════════ SAVE ADMIN SETTINGS API ════════════
