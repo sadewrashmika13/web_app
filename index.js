@@ -143,7 +143,40 @@ app.post('/api/login', async (req, res) => {
         return res.json({ success: false, message: 'Server error during login!' });
     }
 });
+// ════════════ SAVE ADMIN SETTINGS API ════════════
+app.post('/api/admin/save', async (req, res) => {
+    const { admin_id, bot_number, group_jid, footer_text } = req.body;
 
+    try {
+        // Admin ID එක අනිවාර්යයි
+        if (!admin_id) {
+            return res.json({ success: false, message: 'Admin ID is required!' });
+        }
+
+        // Database එකේ අදාළ Admin ව හොයලා අලුත් ඩේටා ටික Update කරනවා
+        const updatedAdmin = await Admin.findOneAndUpdate(
+            { username: admin_id }, // හොයන්නේ මේ නමෙන් (උදා: admin_01)
+            { 
+                $set: { 
+                    bot_number: bot_number, 
+                    group_jid: group_jid, 
+                    footer_text: footer_text 
+                } 
+            },
+            { new: true } // Update කරපු අලුත් ඩේටා එකම රිටර්න් කරන්න
+        );
+
+        if (updatedAdmin) {
+            return res.json({ success: true, message: '✅ Settings saved successfully!' });
+        } else {
+            return res.json({ success: false, message: '❌ Admin account not found!' });
+        }
+
+    } catch (error) {
+        console.error('Save Settings Error:', error);
+        return res.json({ success: false, message: '⚠️ Server error while saving settings!' });
+    }
+});
 // 🔥 IMPORT AND USE MOVIE ROUTES 🔥
 const movieRoutes = require('./routes/movieRoutes');
 app.use('/', movieRoutes);
