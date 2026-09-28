@@ -9,9 +9,7 @@ on:
       - '**.md'
       - '.gitignore'
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Deploy & Integration Pipeline"]
-    types: [completed]
+
   schedule:
     - cron: "17 1 * * *"
     - cron: "43 6 * * *"
