@@ -138,7 +138,19 @@ router.post('/api/search', async (req, res) => {
             if(results.length > 0) return res.json({ success: true, results });
             return res.json({ success: false });
         }
-        
+     if (source === 'dinkamovies') {
+            const searchRes = await axios.get(`https://kavindu-download-web.vercel.app/api/dinkamovies/movie/search?q=${encodeURIComponent(query)}`);
+            if (searchRes.data?.status && searchRes.data.data?.length > 0) {
+                const results = searchRes.data.data.slice(0, 8).map(mv => ({
+                    title: mv.title || "Unknown",
+                    url: mv.link || mv.url,
+                    img: mv.poster || '', 
+                    source: 'dinkamovies'
+                }));
+                return res.json({ success: true, results });
+            }
+            return res.json({ success: false });
+        }   
         const searchRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`);
         if (searchRes.data.success && searchRes.data.result?.length > 0) return res.json({ success: true, results: searchRes.data.result.slice(0, 8).map(mv => ({ ...mv, source: 'cinesubz' })) });
         res.json({ success: false });
@@ -231,7 +243,19 @@ router.post('/api/links', async (req, res) => {
             if(downloads.length > 0) return res.json({ success: true, downloads, thumbnail: img });
             return res.json({ success: false });
         }
-
+if (source === 'dinkamovies') {
+            const dlRes = await axios.get(`https://kavindu-download-web.vercel.app/api/dinkamovies/movie/dl?url=${encodeURIComponent(url)}`);
+            if (dlRes.data?.status && dlRes.data.downloads) {
+                const downloads = dlRes.data.downloads.map(dl => ({
+                    meta: dl.quality || 'Download',
+                    resolvedUrl: dl.direct_link || dl.link || dl.gdrive_link || '',
+                    direct: true,
+                    size: dl.size || ''
+                })).filter(l => l.resolvedUrl);
+                return res.json({ success: true, downloads, thumbnail: dlRes.data.poster || '' });
+            }
+            return res.json({ success: false });
+        }
         const dlRes = await axios.get(`${CZ_API}/movidl?url=${encodeURIComponent(url)}`);
         res.json({ success: true, downloads: dlRes.data.result?.downloads || [] });
     } catch (error) { res.json({ success: false }); }
