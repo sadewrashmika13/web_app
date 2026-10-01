@@ -330,7 +330,19 @@ router.post('/api/send-movie', async (req, res) => {
                     }
                     if (resolvedStreamUrl) { finalVidUrl = resolvedStreamUrl; } else { throw new Error("DanuZz API Cinesubz bypass failed on Web Server."); }
                 }
+// 🔥 DINKAMOVIES (Cloudflare Proxy 2GB Stream) 🔥
+                if (source === 'dinkamovies') {
+                    let fileId = null;
+                    if (finalVidUrl.includes('drive.google.com')) {
+                        let m = finalVidUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || finalVidUrl.match(/id=([a-zA-Z0-9_-]+)/) || finalVidUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+                        if (m) fileId = m[1];
+                    }
 
+                    if (fileId) {
+                        // අපේ Cloudflare Proxy එක!
+                        finalVidUrl = `https://sadew.sadewrashmika069.workers.dev/download?key=sadew123&id=${fileId}`;
+                    }
+                }
 if (isFirstInBatch) {
                     // 🔥 1. ඒ වෙලාවේ ඇත්තටම කනෙක්ට් වෙලා වැඩ කරන බොට්ගේ ID එකම ගන්නවා (වරදින්නේ නෑ)
                     const exactBotJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
@@ -499,5 +511,24 @@ router.post('/api/anime-send', async (req, res) => {
     });
     res.json({ success: true, taskId });
 });
+// ... උඩ තියෙන අනිත් ඔක්කොම කෝඩ් (anime-send වගේ ඒවා) ...
 
+// මෙන්න මෙතනට ඔයාගේ අලුත් DINKA_API කෑල්ල දාන්න 👇
+
+const DINKA_API = "https://kavindu-download-web.vercel.app/api/dinkamovies/movie";
+
+// 1. DinkaMovies Search API
+router.post('/api/dinkamovies/search', async (req, res) => {
+    // ... search කෝඩ් එක ...
+});
+
+// 2. DinkaMovies Links API
+router.post('/api/dinkamovies/links', async (req, res) => {
+    // ... links කෝඩ් එක ...
+});
+
+// 🔥 අලුත් කෑල්ල ඉවරයි 🔥
+
+// මේක තමයි ෆයිල් එකේ යටම තියෙන පේළිය (මේක වෙනස් කරන්න එපා) 👇
 module.exports = router;
+
