@@ -174,7 +174,7 @@
   .src-btn[data-source="kdrama"].active      {background:var(--pink);color:#fff;box-shadow:0 4px 15px rgba(232,28,255,.35);border-color:var(--pink)}
   .src-btn[data-source="baiscopes"].active   {background:var(--red-dark);color:#fff;box-shadow:0 4px 15px rgba(229,9,20,.4);border-color:var(--red-dark)}
   .src-btn[data-source="sublk"].active       {background:var(--green);color:#fff;box-shadow:0 4px 15px rgba(0,168,89,.4);border-color:var(--green)}
-
+  .src-btn[data-source="dinkamovies"].active {background:#F5A623;color:#000;box-shadow:0 4px 15px rgba(245,166,35,0.4);border-color:#F5A623}
   /* ─── SEARCH ─── */
   .search-wrap{
     max-width:600px; margin:24px auto 0; padding:0 15px;
@@ -513,6 +513,7 @@
     <button class="src-btn"        data-source="kdrama"      onclick="setSource('kdrama',this)">KDrama</button>
     <button class="src-btn"        data-source="baiscopes"   onclick="setSource('baiscopes',this)">Baiscopes</button>
     <button class="src-btn"        data-source="sublk"       onclick="setSource('sublk',this)">Sub.lk</button>
+    <button class="src-btn"        data-source="dinkamovies" onclick="setSource('dinkamovies',this)">🎬 DinkaMovies</button>
   </div>
   <div class="search-wrap">
     <input type="text" id="movieName" class="search-box" placeholder="Search a movie, cartoon or anime…" onkeydown="if(event.key==='Enter')searchMovie()">
