@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="si">
 <head>
+    <script>
+        // 🔥 Security Guard: Central Panel requires master login
+        if (sessionStorage.getItem('sadew_auth') !== 'secure_logged_in' || sessionStorage.getItem('sadew_user') !== 'sadew') {
+            window.location.replace('/portal');
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>SADEW-MINI | Central Panel</title>
@@ -168,7 +174,9 @@
         // 1. Database එකෙන් ඇඩ්මින්ලාව ගන්නවා
         async function fetchAdmins() {
             try {
-                const res = await fetch('/api/admins');
+                const res = await fetch('/api/admins', {
+                    headers: { 'x-admin-key': 'sadew123' }
+                });
                 const data = await res.json();
                 if (data.success) {
                     adminsData = data.admins;
@@ -248,7 +256,7 @@
             try {
                 const res = await fetch('/api/admin/create', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'x-admin-key': 'sadew123' },
                     body: JSON.stringify({
                         username: adminId,
                         password: password,
