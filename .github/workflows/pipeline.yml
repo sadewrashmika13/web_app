@@ -195,6 +195,8 @@ jobs:
       - name: Deploy to production
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          NGROK_URL: ${{ secrets.NGROK_URL }}
           GEMINI_KEY_1: ${{ secrets.GEMINI_KEY_1 }}
           GEMINI_KEY_2: ${{ secrets.GEMINI_KEY_2 }}
           GEMINI_KEY_3: ${{ secrets.GEMINI_KEY_3 }}
@@ -205,11 +207,12 @@ jobs:
           npm install -g concurrently ngrok
           ngrok config add-authtoken $NGROK_AUTHTOKEN
           sleep $((RANDOM % 60 + 10))
+          NGROK_TARGET=${NGROK_URL:-undertone-stylishly-opponent.ngrok-free.dev}
           concurrently \
             --names "app,tunnel" \
             --prefix-colors "blue,green" \
             "npm start" \
-            "ngrok http --url=undertone-stylishly-opponent.ngrok-free.dev 8000"
+            "ngrok http --url=$NGROK_TARGET 8000"
 
       # ← Layer 2: job ඉවර වෙද්දි duplicate check කරලා restart
       - name: Schedule next cycle
