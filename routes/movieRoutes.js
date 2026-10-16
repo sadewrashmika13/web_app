@@ -495,7 +495,23 @@ router.post('/api/send-movie', async (req, res) => {
         return res.status(403).json({ success: false, message: '🚫 Your IP has been temporarily blocked due to suspicious activity.' });
     }
 
-    // 🛡️ 2. Rate Limiting Check (Spam Prevention)
+    // 🛡️ 2. Anti-Bot & Anti-CLI Check (Block curl, postman, python, automated scripts)
+    const userAgent = String(req.headers['user-agent'] || '').toLowerCase();
+    if (userAgent.includes('curl') || userAgent.includes('postman') || userAgent.includes('python') || userAgent.includes('httpclient') || userAgent.includes('insomnia') || userAgent.includes('node-fetch') || userAgent.includes('axios')) {
+        console.warn(`[SECURITY] 🚨 Blocked CLI/curl request from IP ${clientIp}`);
+        recordSuspiciousRequest(clientIp);
+        return res.status(403).json({ success: false, message: '🚫 Direct script access is blocked.' });
+    }
+
+    const origin = req.headers['origin'] || '';
+    const referer = req.headers['referer'] || '';
+    if (!origin && !referer) {
+        console.warn(`[SECURITY] 🚨 Blocked request without Origin/Referer from IP ${clientIp}`);
+        recordSuspiciousRequest(clientIp);
+        return res.status(403).json({ success: false, message: '🚫 Direct API access without web browser is forbidden.' });
+    }
+
+    // 🛡️ 3. Rate Limiting Check (Spam Prevention)
     const rateLimitKey = `${clientIp}_${reqNum || ''}`;
     if (isRateLimited(rateLimitKey, 15)) {
         return res.status(429).json({ success: false, message: '⚠️ කරුණාකර තත්පර 15ක් රැඳී සිට නැවත උත්සාහ කරන්න.' });
@@ -780,7 +796,23 @@ router.post('/api/anime-send', async (req, res) => {
         return res.status(403).json({ success: false, message: '🚫 Your IP has been temporarily blocked.' });
     }
 
-    // 🛡️ 2. Rate Limiting Check
+    // 🛡️ 2. Anti-Bot & Anti-CLI Check (Block curl, postman, python, automated scripts)
+    const userAgent = String(req.headers['user-agent'] || '').toLowerCase();
+    if (userAgent.includes('curl') || userAgent.includes('postman') || userAgent.includes('python') || userAgent.includes('httpclient') || userAgent.includes('insomnia') || userAgent.includes('node-fetch') || userAgent.includes('axios')) {
+        console.warn(`[SECURITY] 🚨 Blocked CLI/curl anime request from IP ${clientIp}`);
+        recordSuspiciousRequest(clientIp);
+        return res.status(403).json({ success: false, message: '🚫 Direct script access is blocked.' });
+    }
+
+    const origin = req.headers['origin'] || '';
+    const referer = req.headers['referer'] || '';
+    if (!origin && !referer) {
+        console.warn(`[SECURITY] 🚨 Blocked anime request without Origin/Referer from IP ${clientIp}`);
+        recordSuspiciousRequest(clientIp);
+        return res.status(403).json({ success: false, message: '🚫 Direct API access without web browser is forbidden.' });
+    }
+
+    // 🛡️ 3. Rate Limiting Check
     const rateLimitKey = `${clientIp}_${reqNum || ''}`;
     if (isRateLimited(rateLimitKey, 15)) {
         return res.status(429).json({ success: false, message: '⚠️ කරුණාකර තත්පර 15ක් රැඳී සිට නැවත උත්සාහ කරන්න.' });
