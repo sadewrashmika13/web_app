@@ -344,7 +344,10 @@ const Session = mongoose.model('SessionNew', SessionSchema);
 
 async function connectMongoDB() {
     try {
-        const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://sadewrashmika577_db_user:bKyIDz8UNMtkRRic@cluster0.sxlaxuj.mongodb.net/?appName=Cluster0';
+        const mongoUri = process.env.MONGODB_URI;
+        if (!mongoUri) {
+            console.error('❌ MONGODB_URI is not set in environment variables/secrets!');
+        }
         await mongoose.connect(mongoUri, {
             bufferCommands: true,
             serverSelectionTimeoutMS: 5000,
