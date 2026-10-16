@@ -13,8 +13,11 @@ require('events').EventEmitter.defaultMaxListeners = 500;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🔥 MongoDB Connection
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://sadewrashmika577_db_user:bKyIDz8UNMtkRRic@cluster0.sxlaxuj.mongodb.net/?appName=Cluster0';
+// 🔥 MongoDB Connection (Securely loaded from Environment Variables)
+const MONGO_URI = process.env.MONGODB_URI;
+if (!MONGO_URI) {
+    console.error('❌ MONGODB_URI is not set in environment variables/secrets!');
+}
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ Connected to MongoDB (Server.js)'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
@@ -192,6 +195,9 @@ app.post('/api/admin/save', async (req, res) => {
 
 // 1. Database එකේ ඉන්න ඔක්කොම ඇඩ්මින්ලාව Panel එකට ගන්න API එක
 app.get('/api/admins', async (req, res) => {
+    if (req.headers['x-admin-key'] !== 'sadew123') {
+        return res.status(403).json({ success: false, message: '🚫 Unauthorized: Admin access required.' });
+    }
     try {
         const admins = await Admin.find({});
         res.json({ success: true, admins: admins });
@@ -202,6 +208,9 @@ app.get('/api/admins', async (req, res) => {
 
 // 2. Central Panel එකෙන් අලුත් ඇඩ්මින් කෙනෙක් හදන API එක
 app.post('/api/admin/create', async (req, res) => {
+    if (req.headers['x-admin-key'] !== 'sadew123') {
+        return res.status(403).json({ success: false, message: '🚫 Unauthorized: Admin access required.' });
+    }
     const { username, password, bot_number, group_jid, footer_text } = req.body;
     try {
         if (!username || !password) {
