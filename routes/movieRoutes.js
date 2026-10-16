@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const cheerio = require('cheerio');
 const qs = require('qs');
 const https = require('https');
-const Admin = require('../models/Admin'); 
+const Admin = require('../models/Admin'); // 🔥 Admin Database එක ඉම්පෝට් කළා
 
 const router = express.Router();
 
@@ -15,7 +15,7 @@ const ZANTA_API_BASE = "https://api.zanta-mini.store";
 const ZANTA_KEY = "zan_FIAO7Ayh_eo1vllkep6";
 const ANIME_BASE = "https://animeheaven.me";
 
-// 🔥 මේවා දැන් Fallbacks
+// 🔥 මේවා දැන් Fallbacks (DB එකෙන් ආවේ නැත්තම් විතරක් මේවා පාවිච්චි වෙනවා) 🔥
 const FALLBACK_GROUP_JID = '120363425721300928@g.us'; 
 const FALLBACK_BOT_NUMBER = '94705236759'; 
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
@@ -115,6 +115,96 @@ function recordSuspiciousRequest(ip) {
     }
 }
 
+// 🛡️ Video Quality Sanitizer, Smart Normalizer & Exploit Blocker
+function sanitizeQuality(q, clientIp = '') {
+    if (!q || typeof q !== 'string') return 'HD';
+    
+    let trimmed = q.trim();
+    if (!trimmed) return 'HD';
+
+    // 1. Attack / exploit / shell / injection keywords check
+    const attackKeywords = /(?:root|anonymous|hack|pwn|\bcat\b|\/etc|\betc\/|\bbin\/|\busr\/|\bdev\/|\bsh\b|\bbash\b|\bcmd\b|powershell|curl|wget|http|https|www|shadow|passwd|chmod|chown|kill|sudo|exec|eval|select\b|insert\b|union\b|delete\b|drop\b|script|<|>|base64|localhost|127\.0\.0\.1)/i;
+    
+    // 2. Reject forbidden symbols commonly used in shell exploits (@, #, \, $, ;, `, ~, !, %, ^, &, *, +, =, ?, |, {, })
+    const dangerousSymbols = /[@#\\$;`~!%^&*+=|{}?]/;
+
+    if (attackKeywords.test(trimmed) || dangerousSymbols.test(trimmed)) {
+        console.warn(`[SECURITY] 🚨 Blocked forged/malicious quality payload: "${trimmed.substring(0, 50)}" from IP: ${clientIp}`);
+        if (clientIp) recordSuspiciousRequest(clientIp);
+        return 'HD';
+    }
+
+    // 3. Strip colons or slashes safely (e.g. "Quality: 720p" -> "Quality 720p")
+    trimmed = trimmed.replace(/[:\/]/g, ' ');
+
+    // 4. Smart Quality & Resolution Normalization (cleanly handles "gdriver", "pixeldrain", "web dl", "mkv", "av1", etc.)
+    let res = '';
+    if (/\b(2160p|4k|uhd)\b/i.test(trimmed)) res = '4K';
+    else if (/\b(1080p|fhd)\b/i.test(trimmed)) res = '1080p';
+    else if (/\b(720p)\b/i.test(trimmed)) res = '720p';
+    else if (/\b(480p)\b/i.test(trimmed)) res = '480p';
+    else if (/\b(360p)\b/i.test(trimmed)) res = '360p';
+    else if (/\b(hd|sd)\b/i.test(trimmed)) {
+        const m = trimmed.match(/\b(hd|sd)\b/i);
+        res = m[1].toUpperCase();
+    }
+
+    let ep = '';
+    const epMatch = trimmed.match(/\b(episode|ep)\s*(\d+)\b/i);
+    if (epMatch) {
+        ep = `Episode ${parseInt(epMatch[2])}`;
+    }
+
+    let size = '';
+    const sizeMatch = trimmed.match(/\b(\d+(?:\.\d+)?\s*(?:gb|mb))\b/i);
+    if (sizeMatch) {
+        size = sizeMatch[1].replace(/\s+/g, '').toUpperCase();
+    }
+
+    let tag = '';
+    if (/\b(bluray|bdrip)\b/i.test(trimmed)) tag = 'BluRay';
+    else if (/\b(web\s*dl|web-?dl|webrip)\b/i.test(trimmed)) tag = 'WEB-DL';
+    else if (/\b(av1)\b/i.test(trimmed)) tag = 'AV1';
+    else if (/\b(hevc|x265)\b/i.test(trimmed)) tag = 'HEVC';
+    else if (/\b(mkv)\b/i.test(trimmed)) tag = 'MKV';
+
+    if (ep && res) {
+        return size ? `${ep} - ${res} (${size})` : `${ep} - ${res}`;
+    }
+    if (ep) {
+        return size ? `${ep} (${size})` : ep;
+    }
+    if (res && size) {
+        return `${res} - ${size}`;
+    }
+    if (res && tag) {
+        return `${res} ${tag}`;
+    }
+    if (res) {
+        return res;
+    }
+    if (tag && size) {
+        return `HD (${tag} - ${size})`;
+    }
+    if (tag) {
+        return `HD (${tag})`;
+    }
+    if (size) {
+        return `HD (${size})`;
+    }
+
+    // Server names or download terms with no resolution fallback to 'HD'
+    if (/gdrive|driver|drive|pixeldrain|pixdrogon|download|direct|server|link|stream/i.test(trimmed)) {
+        return 'HD';
+    }
+
+    // 5. General safe text fallback
+    const clean = trimmed.replace(/[^a-zA-Z0-9\s\-_.()[\]]/g, '').replace(/\s+/g, ' ').substring(0, 25).trim();
+    if (!clean || clean.length < 2) return 'HD';
+
+    return clean;
+}
+
 const GEMINI_KEYS = [
     process.env.GEMINI_KEY_1, process.env.GEMINI_KEY_2, process.env.GEMINI_KEY_3,
     process.env.GEMINI_KEY_4, process.env.GEMINI_KEY_5, process.env.GEMINI_KEY_6
@@ -142,6 +232,7 @@ async function getGeminiSummary(movieTitle) {
     return ""; 
 }
 
+// 🔥 Dynamic විදිහට අදාල නම්බර් එකේ Socket එක ගන්නවා 🔥
 function getActiveSocket(targetBotNumber) {
     const activeSockets = global.activeSockets;
     if (!activeSockets || activeSockets.size === 0) return null;
@@ -158,6 +249,7 @@ async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 1800000, retrie
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
             return await Promise.race([sendPromise, timeoutPromise]);
         } catch (error) {
+            // පළවෙනි පාර Timeout වුණොත්, තත්පර 5ක් ඉඳලා ආයෙත් ට්‍රයි කරනවා
             if (i === retries) throw error;
             console.log(`[RETRY] Upload failed (${error.message}), retrying in 5 seconds...`);
             await new Promise(r => setTimeout(r, 5000)); 
@@ -368,7 +460,7 @@ router.post('/api/links', async (req, res) => {
             if(downloads.length > 0) return res.json({ success: true, downloads, thumbnail: img });
             return res.json({ success: false });
         }
-        if (source === 'dinkamovies') {
+if (source === 'dinkamovies') {
             const dlRes = await axios.get(`https://kavindu-download-web.vercel.app/api/dinkamovies/movie/dl?url=${encodeURIComponent(url)}`);
             if (dlRes.data?.status && dlRes.data.downloads) {
                 const downloads = dlRes.data.downloads.map(dl => ({
@@ -390,7 +482,13 @@ router.post('/api/links', async (req, res) => {
 router.post('/api/send-movie', async (req, res) => {
     // 🔥 Frontend එකෙන් එන දත්ත ලබාගැනීම
     const { title, url, quality, reqName, reqNum, source, img, imdb, batchIndex, admin_id } = req.body;
-    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    let clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    if (typeof clientIp === 'string' && clientIp.includes(',')) {
+        clientIp = clientIp.split(',')[0].trim();
+    }
+    if (typeof clientIp === 'string' && clientIp.startsWith('::ffff:')) {
+        clientIp = clientIp.replace('::ffff:', '');
+    }
 
     // 🛡️ 1. IP Ban Check
     if (isIpBanned(clientIp)) {
@@ -403,32 +501,28 @@ router.post('/api/send-movie', async (req, res) => {
         return res.status(429).json({ success: false, message: '⚠️ කරුණාකර තත්පර 15ක් රැඳී සිට නැවත උත්සාහ කරන්න.' });
     }
 
-    // 🛡️ 3. Requester Validation
+    // 🛡️ 3. Requester Validation (Flexible for all real phone numbers)
     const cleanReqName = sanitizeText(reqName, 30);
-    const cleanReqNum = String(reqNum || '').replace(/[^0-9+]/g, '').trim().substring(0, 15);
-    if (!cleanReqName || cleanReqName.length < 2) {
-        recordSuspiciousRequest(clientIp);
-        return res.status(400).json({ success: false, message: 'Requester name is required (min 2 chars).' });
+    if (!cleanReqName || cleanReqName.length < 1) {
+        return res.status(400).json({ success: false, message: 'කරුණාකර ඔබගේ නම ඇතුළත් කරන්න.' });
     }
-    if (!cleanReqNum || cleanReqNum.length < 9) {
-        recordSuspiciousRequest(clientIp);
-        return res.status(400).json({ success: false, message: 'Valid phone number is required (min 9 digits).' });
+
+    const rawPhone = String(reqNum || '').trim();
+    const digitsOnly = rawPhone.replace(/\D/g, ''); // Extract only digits
+    if (!digitsOnly || digitsOnly.length < 9 || digitsOnly.length > 13) {
+        return res.status(400).json({ success: false, message: 'කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 0771234567).' });
     }
+    const cleanReqNum = rawPhone.replace(/[\r\n\t]/g, '').trim().substring(0, 16);
 
     // 🛡️ 4. Title & Quality Validation
     const cleanTitle = sanitizeText(title, 80);
-    const cleanQuality = sanitizeText(quality || 'Standard', 30);
+    const cleanQuality = sanitizeQuality(quality, clientIp);
     if (!cleanTitle || cleanTitle.length < 2) {
-        recordSuspiciousRequest(clientIp);
         return res.status(400).json({ success: false, message: 'Invalid movie title.' });
     }
 
-    // 🛡️ 5. Image Security Check (MUST BE A VALID POSTER FROM TRUSTED SOURCES - NO TEXT FALLBACK!)
+    // 🛡️ 5. Image Security Check: If provided, verify against trusted sources (allow null if movie has no poster)
     const cleanImg = isValidMovieImage(img) ? img : null;
-    if (!cleanImg) {
-        recordSuspiciousRequest(clientIp);
-        return res.status(400).json({ success: false, message: '❌ Invalid or forged movie poster. Request rejected.' });
-    }
 
     // 🛡️ 6. Catalog Verification: Ensure the movie actually exists!
     const normKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -436,7 +530,7 @@ router.post('/api/send-movie', async (req, res) => {
 
     if (!verifiedMovie && (!source || source === 'cinesubz')) {
         try {
-            const verifyRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(cleanTitle)}`, { timeout: 6000 });
+            const verifyRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(cleanTitle.substring(0, 30))}`, { timeout: 6000 });
             if (verifyRes.data?.success && verifyRes.data.result?.length > 0) {
                 const found = verifyRes.data.result.find(m => {
                     const k = sanitizeText(m.title, 80).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -453,12 +547,12 @@ router.post('/api/send-movie', async (req, res) => {
 
     if (!verifiedMovie) {
         recordSuspiciousRequest(clientIp);
-        return res.status(400).json({ success: false, message: '❌ Movie not recognized in official catalog. Please search and select a movie.' });
+        return res.status(400).json({ success: false, message: '❌ Invalid movie title! Please search and select a movie.' });
     }
 
-    // 🔥 FORCE USE OF OFFICIAL VERIFIED TITLE & POSTER
+    // 🔥 FORCE USE OF OFFICIAL VERIFIED TITLE (Attacker cannot tamper)
     const verifiedTitle = verifiedMovie.title;
-    const finalPoster = isValidMovieImage(verifiedMovie.img) ? verifiedMovie.img : cleanImg;
+    const finalPoster = isValidMovieImage(verifiedMovie.img) ? verifiedMovie.img : (cleanImg || null);
 
     // 🛡️ 7. URL Security Check
     if (!url || typeof url !== 'string' || (!url.startsWith('http://') && !url.startsWith('https://'))) {
@@ -571,24 +665,35 @@ router.post('/api/send-movie', async (req, res) => {
                 }
 
                 if (isFirstInBatch) {
+                    // 🔥 1. ඒ වෙලාවේ ඇත්තටම කනෙක්ට් වෙලා වැඩ කරන බොට්ගේ ID එකම ගන්නවා (වරදින්නේ නෑ)
                     const exactBotJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-                    const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}`;
+                    const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}`;
                     
+                    // 🔥 2. Admin ගේ ඉන්බොක්ස් එකට (Yourself) යවනවා
                     try {
                         await sock.sendMessage(exactBotJid, { text: adminInboxText });
                     } catch (e) {
                         console.log("Inbox Notification Error:", e.message);
                     }
                     
+                    // 3. (ගෲප් එකට යවන කොටස)
                     const aiSummary = await getGeminiSummary(verifiedTitle);
                     
                     let cap = `🎬 *${verifiedTitle}*\n✨ *Quality:* ${cleanQuality}\n\n`;
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
                     cap += `👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
 
-                    // 🛡️ ONLY SEND IF POSTER IS VALID - NO TEXT-ONLY FALLBACK!
+                    // 🛡️ SEND SUMMARY: WITH POSTER IF AVAILABLE, OR AS TEXT IF NO POSTER!
                     if (finalPoster) {
-                        await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 60000);
+                        try {
+                            await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 60000);
+                        } catch (imgErr) {
+                            console.log("[SEND] Poster send failed, sending text message with AI summary instead:", imgErr.message);
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 30000);
+                        }
+                    } else {
+                        // Poster එකක් නැති චිත්‍රපට සඳහා AI Summary එක Text Message එකක් ලෙස යවන්න
+                        await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 30000);
                     }
                 }
 
@@ -608,7 +713,11 @@ router.post('/api/send-movie', async (req, res) => {
 
                 const mimeType = (finalVidUrl.includes('.mkv') || (streamRes.headers['content-type'] && streamRes.headers['content-type'].includes('matroska'))) ? 'video/x-matroska' : 'video/mp4';
                 const fileExt = mimeType === 'video/x-matroska' ? 'mkv' : 'mp4';
-                let fileName = `${verifiedTitle.substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${cleanQuality}.${fileExt}`;
+                
+                // 🛡️ Format Safe Document File Name (no rogue characters, no leading dashes)
+                const safeMovieTitle = verifiedTitle.substring(0, 35).replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Movie';
+                const safeQualityForFile = cleanQuality.replace(/[^a-zA-Z0-9\-.]/g, ' ').replace(/\s+/g, ' ').trim() || 'HD';
+                let fileName = `${safeMovieTitle} - ${safeQualityForFile}.${fileExt}`;
                 let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${cleanQuality}*\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*` : `🎬 *${verifiedTitle}*\n> *${dynamicFooter}*`;
 
                 await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption });
@@ -658,7 +767,13 @@ router.post('/api/anime-episodes', async (req, res) => {
 router.post('/api/anime-send', async (req, res) => {
     // 🔥 Frontend එකෙන් එන දත්ත
     const { id, hash, epNum, videoname, thumbnail, reqName, reqNum, batchIndex, admin_id } = req.body;
-    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    let clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    if (typeof clientIp === 'string' && clientIp.includes(',')) {
+        clientIp = clientIp.split(',')[0].trim();
+    }
+    if (typeof clientIp === 'string' && clientIp.startsWith('::ffff:')) {
+        clientIp = clientIp.replace('::ffff:', '');
+    }
 
     // 🛡️ 1. IP Ban Check
     if (isIpBanned(clientIp)) {
@@ -673,26 +788,24 @@ router.post('/api/anime-send', async (req, res) => {
 
     // 🛡️ 3. Validation & Sanitization
     const cleanReqName = sanitizeText(reqName, 30);
-    const cleanReqNum = String(reqNum || '').replace(/[^0-9+]/g, '').trim().substring(0, 15);
+    if (!cleanReqName || cleanReqName.length < 1) {
+        return res.status(400).json({ success: false, message: 'කරුණාකර ඔබගේ නම ඇතුළත් කරන්න.' });
+    }
+
+    const rawPhone = String(reqNum || '').trim();
+    const digitsOnly = rawPhone.replace(/\D/g, '');
+    if (!digitsOnly || digitsOnly.length < 9 || digitsOnly.length > 13) {
+        return res.status(400).json({ success: false, message: 'කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 0771234567).' });
+    }
+    const cleanReqNum = rawPhone.replace(/[\r\n\t]/g, '').trim().substring(0, 16);
+
     const cleanVideoname = sanitizeText(videoname, 80);
     const cleanThumbnail = isValidMovieImage(thumbnail) ? thumbnail : null;
     const cleanEpNum = parseInt(epNum) || 1;
 
-    if (!cleanReqName || cleanReqName.length < 2) {
-        recordSuspiciousRequest(clientIp);
-        return res.status(400).json({ success: false, message: 'Requester name is required.' });
-    }
-    if (!cleanReqNum || cleanReqNum.length < 9) {
-        recordSuspiciousRequest(clientIp);
-        return res.status(400).json({ success: false, message: 'Valid phone number is required.' });
-    }
     if (!id || typeof id !== 'string') {
         recordSuspiciousRequest(clientIp);
         return res.status(400).json({ success: false, message: 'Invalid anime ID.' });
-    }
-    if (!cleanThumbnail) {
-        recordSuspiciousRequest(clientIp);
-        return res.status(400).json({ success: false, message: '❌ Invalid or forged anime thumbnail. Request rejected.' });
     }
 
     const taskId = crypto.randomBytes(4).toString('hex');
@@ -727,7 +840,7 @@ router.post('/api/anime-send', async (req, res) => {
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
 
                 if (isFirstInBatch) {
-                    await sendMediaSafely(sock, dynamicBotNumber + '@s.whatsapp.net', { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${cleanVideoname} - Ep ${cleanEpNum}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}` }, 30000);
+                    await sendMediaSafely(sock, dynamicBotNumber + '@s.whatsapp.net', { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${cleanVideoname} - Ep ${cleanEpNum}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}` }, 30000);
                     const aiSummary = await getGeminiSummary(cleanVideoname);
                     const seriesHtml = (await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS })).data;
                     const descMatch = seriesHtml.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
@@ -739,7 +852,14 @@ router.post('/api/anime-send', async (req, res) => {
                     cardText += `👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
 
                     if (cleanThumbnail) {
-                        await sendMediaSafely(sock, dynamicGroupJid, { image: { url: cleanThumbnail }, caption: cardText }, 60000);
+                        try {
+                            await sendMediaSafely(sock, dynamicGroupJid, { image: { url: cleanThumbnail }, caption: cardText }, 60000);
+                        } catch (imgErr) {
+                            console.log("[SEND] Anime poster failed, sending text description:", imgErr.message);
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: cardText }, 30000);
+                        }
+                    } else {
+                        await sendMediaSafely(sock, dynamicGroupJid, { text: cardText }, 30000);
                     }
                 }
 
@@ -765,7 +885,8 @@ router.post('/api/anime-send', async (req, res) => {
                 const streamRes = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream', timeout: 0, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' }});
                 if ((streamRes.headers['content-type'] || '').includes('text/html')) { try { streamRes.data.destroy(); } catch(e){} throw new Error("Blocked by AnimeHaven"); }
 
-                const fileName = `${cleanVideoname.replace(/[^a-zA-Z0-9 ]/g, '').trim()} - Ep ${cleanEpNum} [SADEW].mp4`;
+                const safeAnimeTitle = cleanVideoname.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Anime';
+                const fileName = `${safeAnimeTitle} - Ep ${cleanEpNum} [SADEW].mp4`;
                 let epCaption = `🎬 Episode ${cleanEpNum}\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*`;
 
                 await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption });
@@ -776,8 +897,7 @@ router.post('/api/anime-send', async (req, res) => {
     });
     res.json({ success: true, taskId });
 });
-
-// 🔥 DINKAMOVIES API 🔥
+// 🔥 DINKAMOVIES API අලුත් කොටස 🔥
 const DINKA_API = "https://kavindu-download-web.vercel.app/api/dinkamovies/movie";
 
 router.post('/api/dinkamovies/search', async (req, res) => {
@@ -791,7 +911,6 @@ router.post('/api/dinkamovies/search', async (req, res) => {
                 img: mv.poster || '', 
                 source: 'dinkamovies'
             }));
-            cacheVerifiedMovies(results);
             return res.json({ success: true, results });
         }
         res.json({ success: false });
@@ -820,4 +939,5 @@ router.post('/api/dinkamovies/links', async (req, res) => {
     }
 });
 
+// මේක තමයි ෆයිල් එකේ යටම තියෙන පේළිය 👇
 module.exports = router;
