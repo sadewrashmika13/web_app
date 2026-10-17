@@ -109,10 +109,43 @@ function isIpBanned(ip) {
 function recordSuspiciousRequest(ip) {
     const attempts = (failedAttempts.get(ip) || 0) + 1;
     failedAttempts.set(ip, attempts);
-    if (attempts >= 3) {
-        bannedIps.set(ip, Date.now() + 30 * 60 * 1000); // 30 mins ban
-        console.warn(`[SECURITY] 🚨 IP ${ip} has been BANNED for 30 minutes due to repeated forged requests.`);
+    if (attempts >= 2) {
+        bannedIps.set(ip, Date.now() + 60 * 60 * 1000); // 1 hour ban
+        console.warn(`[SECURITY] 🚨 IP ${ip} has been BANNED for 1 hour due to repeated forged requests.`);
     }
+}
+
+// 🛡️ Request Payload Decryptor (Protects Network tab from revealing sensitive data & kills cURL)
+function decryptPayload(body) {
+    if (!body || !body._enc || !body._t) return null;
+    const ts = Number(body._t);
+    const now = Date.now();
+    // 5 minutes expiry window
+    if (!ts || Math.abs(now - ts) > 300000) {
+        throw new Error('Expired request session');
+    }
+    const salt = 'sAdEw_2026_x!';
+    const rawBinary = Buffer.from(body._enc, 'base64').toString('binary');
+    let decrypted = '';
+    for (let i = 0; i < rawBinary.length; i++) {
+        const charCode = rawBinary.charCodeAt(i) ^ salt.charCodeAt(i % salt.length) ^ ((ts >> (i % 8)) & 0xFF);
+        decrypted += String.fromCharCode(charCode);
+    }
+    const jsonStr = decodeURIComponent(escape(decrypted));
+    return JSON.parse(jsonStr);
+}
+
+// 🛡️ Strict Sri Lankan Mobile Phone Validator
+function validateSLPhone(phone) {
+    if (!phone || typeof phone !== 'string') return null;
+    let clean = phone.replace(/[\s\-\(\)\+]/g, '');
+    if (clean.startsWith('94')) clean = '0' + clean.slice(2);
+    else if (clean.length === 9 && clean.startsWith('7')) clean = '0' + clean;
+    if (!/^07[01245678]\d{7}$/.test(clean)) return null;
+    const last7 = clean.slice(3);
+    if (/^(\d)\1{6}$/.test(last7)) return null;
+    if (last7 === '1234567' || last7 === '7654321' || last7 === '0123456') return null;
+    return clean;
 }
 
 // 🛡️ Video Quality Sanitizer, Smart Normalizer & Exploit Blocker
@@ -211,23 +244,40 @@ const GEMINI_KEYS = [
 ].filter(Boolean);
 
 async function getGeminiSummary(movieTitle) {
-    const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${movieTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
-    for (let key of GEMINI_KEYS) {
-        try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${key}`;
-            const response = await axios.post(url, { 
-                contents: [{ parts: [{ text: prompt }] }],
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                ]
-            }, { timeout: 15000 });
-            if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-                return response.data.candidates[0].content.parts[0].text.trim();
+    if (!movieTitle) return "";
+    const cleanSearchTitle = movieTitle.split('|')[0]
+        .replace(/sinhala subtitles|සිංහල උපසිරැසි|sinhala sub|subtitles/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${cleanSearchTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
+    const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite'];
+
+    if (GEMINI_KEYS.length === 0) {
+        console.warn("[GEMINI] ⚠️ No GEMINI_KEY_1..6 found in environment!");
+        return "";
+    }
+
+    for (const key of GEMINI_KEYS) {
+        for (const model of models) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+                const response = await axios.post(url, { 
+                    contents: [{ parts: [{ text: prompt }] }],
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                    ]
+                }, { timeout: 8000 });
+                if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    console.log(`[GEMINI] ✅ AI Summary generated successfully with ${model}`);
+                    return response.data.candidates[0].content.parts[0].text.trim();
+                }
+            } catch (err) {
+                // Continue to next model/key
             }
-        } catch (err) { }
+        }
     }
     return ""; 
 }
@@ -242,37 +292,42 @@ function getActiveSocket(targetBotNumber) {
     return sessionData.socket || sessionData;
 }
 
-async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 1800000, retries = 1) {
-    for (let i = 0; i <= retries; i++) {
-        try {
-            const sendPromise = sock.sendMessage(jid, msgParams);
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
-            return await Promise.race([sendPromise, timeoutPromise]);
-        } catch (error) {
-            // පළවෙනි පාර Timeout වුණොත්, තත්පර 5ක් ඉඳලා ආයෙත් ට්‍රයි කරනවා
-            if (i === retries) throw error;
-            console.log(`[RETRY] Upload failed (${error.message}), retrying in 5 seconds...`);
-            await new Promise(r => setTimeout(r, 5000)); 
-        }
+async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 360000, retries = 0) {
+    try {
+        const sendPromise = sock.sendMessage(jid, msgParams);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
+        return await Promise.race([sendPromise, timeoutPromise]);
+    } catch (error) {
+        throw error;
     }
 }
 
+// 🔥 High-Speed Concurrent Task Queue (Up to 2 simultaneous movie streams)
 const taskQueue = {
-    queue: [], active: null,
+    queue: [], active: [], maxActive: 2,
     add: function(task) { this.queue.push(task); this.processNext(); },
     processNext: async function() {
-        if (this.active || this.queue.length === 0) return;
-        this.active = this.queue.shift();
-        try {
-            console.log(`[QUEUE] Starting Task: ${this.active.info.title}`);
-            await this.active.run();
-        } catch (e) { console.error(`[QUEUE] Error:`, e.message); }
-        this.active = null;
-        this.processNext();
+        if (this.active.length >= this.maxActive || this.queue.length === 0) return;
+        const task = this.queue.shift();
+        this.active.push(task);
+        (async () => {
+            try {
+                console.log(`[QUEUE] Starting Task: ${task.info.title}`);
+                await task.run();
+            } catch (e) {
+                console.error(`[QUEUE] Error:`, e.message);
+            } finally {
+                this.active = this.active.filter(t => t.id !== task.id);
+                this.processNext();
+            }
+        })();
+        if (this.queue.length > 0 && this.active.length < this.maxActive) {
+            this.processNext();
+        }
     }
 };
 
-router.get('/api/queue', (req, res) => { res.json({ active: taskQueue.active ? taskQueue.active.info : null, queue: taskQueue.queue.map(t => t.info) }); });
+router.get('/api/queue', (req, res) => { res.json({ active: taskQueue.active.length > 0 ? taskQueue.active[0].info : null, queue: taskQueue.queue.map(t => t.info) }); });
 
 router.post('/api/search', async (req, res) => {
     const { query, source } = req.body;
@@ -480,8 +535,6 @@ if (source === 'dinkamovies') {
 
 // ── SEND TO GROUP (DIRECT STREAM + AI) ──
 router.post('/api/send-movie', async (req, res) => {
-    // 🔥 Frontend එකෙන් එන දත්ත ලබාගැනීම
-    const { title, url, quality, reqName, reqNum, source, img, imdb, batchIndex, admin_id } = req.body;
     let clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     if (typeof clientIp === 'string' && clientIp.includes(',')) {
         clientIp = clientIp.split(',')[0].trim();
@@ -511,36 +564,61 @@ router.post('/api/send-movie', async (req, res) => {
         return res.status(403).json({ success: false, message: '🚫 Direct API access without web browser is forbidden.' });
     }
 
-    // 🛡️ 3. Rate Limiting Check (Spam Prevention)
+    // 🛡️ 3. Decrypt and verify payload (Blocks DevTools / Network tab inspection & direct curl)
+    let payload = null;
+    try {
+        payload = decryptPayload(req.body);
+    } catch (decErr) {
+        console.warn(`[SECURITY] 🚨 Failed to decrypt payload from IP ${clientIp}: ${decErr.message}`);
+        recordSuspiciousRequest(clientIp);
+        return res.status(403).json({ success: false, message: '🚫 Invalid or expired session.' });
+    }
+
+    if (!payload || typeof payload !== 'object') {
+        console.warn(`[SECURITY] 🚨 Unencrypted payload or direct curl attempt from IP ${clientIp}`);
+        recordSuspiciousRequest(clientIp);
+        return res.status(403).json({ success: false, message: '🚫 Access Denied.' });
+    }
+
+    const { title, url, quality, reqName, reqNum, source, img, imdb, batchIndex, admin_id } = payload;
+
+    // 🛡️ 4. Rate Limiting Check (Spam Prevention)
     const rateLimitKey = `${clientIp}_${reqNum || ''}`;
     if (isRateLimited(rateLimitKey, 15)) {
         return res.status(429).json({ success: false, message: '⚠️ කරුණාකර තත්පර 15ක් රැඳී සිට නැවත උත්සාහ කරන්න.' });
     }
 
-    // 🛡️ 3. Requester Validation (Flexible for all real phone numbers)
+    // 🛡️ 5. Requester Validation (Strict SL Mobile Phone)
     const cleanReqName = sanitizeText(reqName, 30);
     if (!cleanReqName || cleanReqName.length < 1) {
         return res.status(400).json({ success: false, message: 'කරුණාකර ඔබගේ නම ඇතුළත් කරන්න.' });
     }
 
-    const rawPhone = String(reqNum || '').trim();
-    const digitsOnly = rawPhone.replace(/\D/g, ''); // Extract only digits
-    if (!digitsOnly || digitsOnly.length < 9 || digitsOnly.length > 13) {
-        return res.status(400).json({ success: false, message: 'කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 0771234567).' });
+    const validPhone = validateSLPhone(reqNum);
+    if (!validPhone) {
+        return res.status(400).json({ success: false, message: 'කරුණාකර වලංගු ශ්‍රී ලංකා දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 0772345678).' });
     }
-    const cleanReqNum = rawPhone.replace(/[\r\n\t]/g, '').trim().substring(0, 16);
+    const cleanReqNum = validPhone;
 
-    // 🛡️ 4. Title & Quality Validation
+    // 🛡️ 6. Title & Quality Validation
     const cleanTitle = sanitizeText(title, 80);
     const cleanQuality = sanitizeQuality(quality, clientIp);
     if (!cleanTitle || cleanTitle.length < 2) {
         return res.status(400).json({ success: false, message: 'Invalid movie title.' });
     }
 
-    // 🛡️ 5. Image Security Check: If provided, verify against trusted sources (allow null if movie has no poster)
+    // Block defacement / hacker keywords in title
+    const suspiciousTitle = /(?:hacked|anonymous|pwned|defaced|root@|\/etc|\bcat\b|<script|curl)/i;
+    if (suspiciousTitle.test(cleanTitle)) {
+        console.warn(`[SECURITY] 🚨 Blocked suspicious title "${cleanTitle}" from IP ${clientIp}`);
+        recordSuspiciousRequest(clientIp);
+        return res.status(400).json({ success: false, message: '❌ Invalid movie title.' });
+    }
+
+    // 🛡️ 7. Image Security Check: If provided, verify against trusted sources (allow null if movie has no poster)
     const cleanImg = isValidMovieImage(img) ? img : null;
 
-    // 🛡️ 6. Catalog Verification: Ensure the movie actually exists!
+    // 🛡️ 8. Catalog Verification: Ensure the movie actually exists!
     const normKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
     let verifiedMovie = verifiedMoviesCache.get(normKey);
 
@@ -561,16 +639,16 @@ router.post('/api/send-movie', async (req, res) => {
         } catch (e) {}
     }
 
+    // For verified sources (or cache misses), safe title fallback
     if (!verifiedMovie) {
-        recordSuspiciousRequest(clientIp);
-        return res.status(400).json({ success: false, message: '❌ Invalid movie title! Please search and select a movie.' });
+        verifiedMovie = { title: cleanTitle, img: cleanImg || '' };
     }
 
-    // 🔥 FORCE USE OF OFFICIAL VERIFIED TITLE (Attacker cannot tamper)
+    // Official Title
     const verifiedTitle = verifiedMovie.title;
     const finalPoster = isValidMovieImage(verifiedMovie.img) ? verifiedMovie.img : (cleanImg || null);
 
-    // 🛡️ 7. URL Security Check
+    // 🛡️ 9. URL Security Check
     if (!url || typeof url !== 'string' || (!url.startsWith('http://') && !url.startsWith('https://'))) {
         recordSuspiciousRequest(clientIp);
         return res.status(400).json({ success: false, message: 'Invalid download URL format.' });
@@ -643,7 +721,7 @@ router.post('/api/send-movie', async (req, res) => {
                     const tryDownloadUrl = async (urlToTry) => {
                         try {
                             const dlApiUrl = `${CZ_API}/download?url=${encodeURIComponent(urlToTry)}`;
-                            const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
+                            const dlRes = await axios.get(dlApiUrl, { timeout: 8000 });
                             if (dlRes.data?.success && dlRes.data?.result?.downloadUrls) {
                                 const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.includes('t.me') && !u.url.includes('telegram.me') && !u.url.includes('telegram.dog'));
                                 if (httpUrl) return httpUrl.url;
@@ -654,8 +732,8 @@ router.post('/api/send-movie', async (req, res) => {
 
                     let resolvedStreamUrl = await tryDownloadUrl(finalVidUrl);
                     if (!resolvedStreamUrl && finalVidUrl.includes('/server')) {
-                        console.log("[WEB CZ] Original server failed. Trying alternate servers 1-20...");
-                        const altServers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'];
+                        console.log("[WEB CZ] Original server failed. Trying alternate servers...");
+                        const altServers = ['1', '2', '3', '6', '10'];
                         for (let s of altServers) {
                             const altUrl = finalVidUrl.replace(/\/server\d+\//, `/server${s}/`);
                             if (altUrl === finalVidUrl) continue;
@@ -719,7 +797,7 @@ router.post('/api/send-movie', async (req, res) => {
                     return; 
                 }
 
-                let streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 0, headers: HEADERS, httpsAgent });
+                let streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 30000, headers: HEADERS, httpsAgent });
                 
                 if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
                     try{ streamRes.data.destroy(); }catch(e){}
@@ -781,8 +859,6 @@ router.post('/api/anime-episodes', async (req, res) => {
 });
 
 router.post('/api/anime-send', async (req, res) => {
-    // 🔥 Frontend එකෙන් එන දත්ත
-    const { id, hash, epNum, videoname, thumbnail, reqName, reqNum, batchIndex, admin_id } = req.body;
     let clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     if (typeof clientIp === 'string' && clientIp.includes(',')) {
         clientIp = clientIp.split(',')[0].trim();
@@ -812,24 +888,39 @@ router.post('/api/anime-send', async (req, res) => {
         return res.status(403).json({ success: false, message: '🚫 Direct API access without web browser is forbidden.' });
     }
 
-    // 🛡️ 3. Rate Limiting Check
+    // 🛡️ 3. Decrypt Payload
+    let payload = null;
+    try {
+        payload = decryptPayload(req.body);
+    } catch (decErr) {
+        recordSuspiciousRequest(clientIp);
+        return res.status(403).json({ success: false, message: '🚫 Invalid or expired session.' });
+    }
+
+    if (!payload || typeof payload !== 'object') {
+        recordSuspiciousRequest(clientIp);
+        return res.status(403).json({ success: false, message: '🚫 Access Denied.' });
+    }
+
+    const { id, hash, epNum, videoname, thumbnail, reqName, reqNum, batchIndex, admin_id } = payload;
+
+    // 🛡️ 4. Rate Limiting Check
     const rateLimitKey = `${clientIp}_${reqNum || ''}`;
     if (isRateLimited(rateLimitKey, 15)) {
         return res.status(429).json({ success: false, message: '⚠️ කරුණාකර තත්පර 15ක් රැඳී සිට නැවත උත්සාහ කරන්න.' });
     }
 
-    // 🛡️ 3. Validation & Sanitization
+    // 🛡️ 5. Validation & Sanitization
     const cleanReqName = sanitizeText(reqName, 30);
     if (!cleanReqName || cleanReqName.length < 1) {
         return res.status(400).json({ success: false, message: 'කරුණාකර ඔබගේ නම ඇතුළත් කරන්න.' });
     }
 
-    const rawPhone = String(reqNum || '').trim();
-    const digitsOnly = rawPhone.replace(/\D/g, '');
-    if (!digitsOnly || digitsOnly.length < 9 || digitsOnly.length > 13) {
-        return res.status(400).json({ success: false, message: 'කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 0771234567).' });
+    const validPhone = validateSLPhone(reqNum);
+    if (!validPhone) {
+        return res.status(400).json({ success: false, message: 'කරුණාකර වලංගු ශ්‍රී ලංකා දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 0772345678).' });
     }
-    const cleanReqNum = rawPhone.replace(/[\r\n\t]/g, '').trim().substring(0, 16);
+    const cleanReqNum = validPhone;
 
     const cleanVideoname = sanitizeText(videoname, 80);
     const cleanThumbnail = isValidMovieImage(thumbnail) ? thumbnail : null;
@@ -914,7 +1005,7 @@ router.post('/api/anime-send', async (req, res) => {
 
                 if (!finalDlLink) throw new Error("Anime DL link not found");
 
-                const streamRes = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream', timeout: 0, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' }});
+                const streamRes = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream', timeout: 30000, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' }});
                 if ((streamRes.headers['content-type'] || '').includes('text/html')) { try { streamRes.data.destroy(); } catch(e){} throw new Error("Blocked by AnimeHaven"); }
 
                 const safeAnimeTitle = cleanVideoname.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Anime';
@@ -943,6 +1034,7 @@ router.post('/api/dinkamovies/search', async (req, res) => {
                 img: mv.poster || '', 
                 source: 'dinkamovies'
             }));
+            cacheVerifiedMovies(results);
             return res.json({ success: true, results });
         }
         res.json({ success: false });
