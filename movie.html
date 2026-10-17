@@ -701,68 +701,124 @@
 
   function closeModal(){document.getElementById('movieModal').classList.remove('open')}
 
+  // 🛡️ Encryption & Phone Validation Helpers
+  function encryptPayload(data) {
+    const salt = 'sAdEw_2026_x!';
+    const ts = Date.now();
+    const jsonStr = unescape(encodeURIComponent(JSON.stringify(data)));
+    let encrypted = '';
+    for (let i = 0; i < jsonStr.length; i++) {
+      const charCode = jsonStr.charCodeAt(i) ^ salt.charCodeAt(i % salt.length) ^ ((ts >> (i % 8)) & 0xFF);
+      encrypted += String.fromCharCode(charCode);
+    }
+    return { _enc: btoa(encrypted), _t: ts };
+  }
+
+  function validateSLPhone(phone) {
+    if (!phone || typeof phone !== 'string') return null;
+    let clean = phone.replace(/[\s\-\(\)\+]/g, '');
+    if (clean.startsWith('94')) clean = '0' + clean.slice(2);
+    else if (clean.length === 9 && clean.startsWith('7')) clean = '0' + clean;
+    if (!/^07[01245678]\d{7}$/.test(clean)) return null;
+    const last7 = clean.slice(3);
+    if (/^(\d)\1{6}$/.test(last7)) return null;
+    if (last7 === '0000000' || last7 === '1111111' || last7 === '7654321' || last7 === '0123456') return null;
+    return clean;
+  }
+
   function getRequester(){
-    const reqName=document.getElementById('reqName').value.trim();
-    const reqNum =document.getElementById('reqNum').value.trim();
-    if(!reqName||!reqNum){document.getElementById('modalStatus').textContent='Please add requester name and number!';return null;}
-    return{reqName,reqNum};
+    const reqName = document.getElementById('reqName').value.trim();
+    const rawNum  = document.getElementById('reqNum').value.trim();
+    const statusEl = document.getElementById('modalStatus');
+
+    if(!reqName){
+      statusEl.textContent = '❌ කරුණාකර ඔබගේ නම ඇතුළත් කරන්න!';
+      statusEl.style.color = '#ef4444';
+      return null;
+    }
+
+    const cleanNum = validateSLPhone(rawNum);
+    if(!cleanNum){
+      statusEl.textContent = '❌ වලංගු නොවන දුරකථන අංකයකි! (උදා: 0772345678)';
+      statusEl.style.color = '#ef4444';
+      return null;
+    }
+
+    statusEl.style.color = '';
+    return { reqName, reqNum: cleanNum };
   }
 
-  // 🔥 මෙතන ඉඳන් තමයි admin_id එක Backend එකට යවන අලුත් Functions 4 තියෙන්නේ 🔥
+  // 🔥 Backend එකට Payload එක Encrypt කර යැවීම (Network Logs වලින් කිසිවක් හසුවන්නේ නැත) 🔥
   
-  async function sendMovie(url,quality){
-    const req=getRequester();if(!req)return;
-    document.getElementById('modalStatus').textContent='Adding to Queue...';
-    await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-        title:currentMovieMeta.title, url, quality, reqName:req.reqName, reqNum:req.reqNum,
-        source:currentSource, img:currentMovieMeta.img, 
-        admin_id: ADMIN_CONFIG.admin_id // 🔥 Backend එකට admin_id එක යවනවා
-    })});
-    closeModal();startQueuePolling();
+  async function sendMovie(url, quality){
+    const req = getRequester(); if(!req) return;
+    document.getElementById('modalStatus').textContent = 'Adding to Queue...';
+    const payload = {
+        title: currentMovieMeta.title, url, quality, reqName: req.reqName, reqNum: req.reqNum,
+        source: currentSource, img: currentMovieMeta.img, 
+        admin_id: ADMIN_CONFIG.admin_id
+    };
+    await fetch('/api/send-movie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(encryptPayload(payload))
+    });
+    closeModal(); startQueuePolling();
   }
 
-  async function sendAnimeEpisode(apiData,ep){
-    const req=getRequester();if(!req)return;
-    await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-        id:currentMovieMeta.refId, hash:ep.hash, epNum:ep.num, videoname:apiData.videoname, 
-        thumbnail:apiData.thumbnail, reqName:req.reqName, reqNum:req.reqNum,
-        admin_id: ADMIN_CONFIG.admin_id // 🔥 Backend එකට admin_id එක යවනවා
-    })});
-    closeModal();startQueuePolling();
+  async function sendAnimeEpisode(apiData, ep){
+    const req = getRequester(); if(!req) return;
+    const payload = {
+        id: currentMovieMeta.refId, hash: ep.hash, epNum: ep.num, videoname: apiData.videoname, 
+        thumbnail: apiData.thumbnail, reqName: req.reqName, reqNum: req.reqNum,
+        admin_id: ADMIN_CONFIG.admin_id
+    };
+    await fetch('/api/anime-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(encryptPayload(payload))
+    });
+    closeModal(); startQueuePolling();
   }
 
   async function sendAllMovie(arr){
-    const req=getRequester();if(!req)return;
+    const req = getRequester(); if(!req) return;
     closeModal();
     document.getElementById('uploadBanner').classList.add('show');
-    document.getElementById('ubTitle').textContent=`Adding ${arr.length} videos to Queue...`;
-    for(let i=0;i<arr.length;i++){
-      await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-          title:currentMovieMeta.title, url:arr[i].resolvedUrl, quality:arr[i].meta,
-          reqName:req.reqName, reqNum:req.reqNum, source:currentSource, img:currentMovieMeta.img,
-          batchIndex:i, batchTotal:arr.length, 
-          admin_id: ADMIN_CONFIG.admin_id // 🔥 Backend එකට admin_id එක යවනවා
-      })});
+    document.getElementById('ubTitle').textContent = `Adding ${arr.length} videos to Queue...`;
+    for(let i=0; i<arr.length; i++){
+      const payload = {
+          title: currentMovieMeta.title, url: arr[i].resolvedUrl, quality: arr[i].meta,
+          reqName: req.reqName, reqNum: req.reqNum, source: currentSource, img: currentMovieMeta.img,
+          batchIndex: i, batchTotal: arr.length, 
+          admin_id: ADMIN_CONFIG.admin_id
+      };
+      await fetch('/api/send-movie', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(encryptPayload(payload))
+      });
     }
     startQueuePolling();
   }
 
   async function sendAllAnime(apiData){
-    const req=getRequester();if(!req)return;
+    const req = getRequester(); if(!req) return;
     closeModal();
     document.getElementById('uploadBanner').classList.add('show');
-    document.getElementById('ubTitle').textContent=`Adding ${apiData.episodes.length} episodes to Queue...`;
-    for(let i=0;i<apiData.episodes.length;i++){
-      await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-          id:currentMovieMeta.refId, hash:apiData.episodes[i].hash, epNum:apiData.episodes[i].num,
-          videoname:apiData.videoname, thumbnail:apiData.thumbnail, reqName:req.reqName, 
-          reqNum:req.reqNum, batchIndex:i,
-          admin_id: ADMIN_CONFIG.admin_id // 🔥 Backend එකට admin_id එක යවනවා
-      })});
+    document.getElementById('ubTitle').textContent = `Adding ${apiData.episodes.length} episodes to Queue...`;
+    for(let i=0; i<apiData.episodes.length; i++){
+      const payload = {
+          id: currentMovieMeta.refId, hash: apiData.episodes[i].hash, epNum: apiData.episodes[i].num,
+          videoname: apiData.videoname, thumbnail: apiData.thumbnail, reqName: req.reqName, 
+          reqNum: req.reqNum, batchIndex: i,
+          admin_id: ADMIN_CONFIG.admin_id
+      };
+      await fetch('/api/anime-send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(encryptPayload(payload))
+      });
     }
     startQueuePolling();
   }
