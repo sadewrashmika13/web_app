@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,489 +6,501 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sadew Movie Desk</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
-  /* ─── ROOT TOKENS ─── */
-  :root{
-    --void:#06000f; --void-2:#0d0018;
-    --crimson:#dc2626; --crimson-dim:rgba(220,38,38,.35);
-    --amber:#F5A623;  --amber-dim:rgba(245,166,35,.35);
-    --orange:#e57b16; --orange-dim:rgba(229,123,22,.35);
-    --teal:#0ea5e9;   --teal-dim:rgba(14,165,233,.35);
-    --blue:#3b82f6;   --blue-dim:rgba(59,130,246,.35);
-    --violet:#9333ea; --violet-dim:rgba(147,51,234,.35);
-    --pink:#E81CFF;   --red-dark:#E50914; --green:#00A859;
-    --stub:rgba(139,92,246,0.04); --stub-ink:#0d0018;
-    --text:#e9e0ff; --mute:rgba(196,181,253,0.5);
-    --glass:rgba(139,92,246,0.06); --glass-brd:rgba(139,92,246,0.18);
-  }
+:root{
+  --void:#000000; --void2:#060000;
+  --r:#cc0000; --rh:#ff0000; --rd:#8b0000;
+  --rdim:rgba(204,0,0,.28);
+  /* source brand — untouched */
+  --crimson:#dc2626;--cdim:rgba(220,38,38,.35);
+  --amber:#F5A623;  --adim:rgba(245,166,35,.35);
+  --orange:#e57b16; --odim:rgba(229,123,22,.35);
+  --teal:#0ea5e9;   --tdim:rgba(14,165,233,.35);
+  --blue:#3b82f6;   --bdim:rgba(59,130,246,.35);
+  --violet:#9333ea; --vdim:rgba(147,51,234,.35);
+  --pink:#E81CFF;   --rdark:#E50914; --green:#00A859;
+  --tx:#ffe5e5; --mute:rgba(255,180,180,.5);
+}
 
-  *{ box-sizing:border-box; }
-  body{
-    margin:0; min-height:100vh;
-    background:var(--void);
-    color:var(--text);
-    font-family:'Space Grotesk','Inter',sans-serif;
-    overflow-x:hidden;
-    position:relative;
-  }
+*{box-sizing:border-box;margin:0;padding:0}
 
-  /* ─────────────────────────────────────────
-     BACKGROUND SCENE  (CSS orbs + grid)
-  ───────────────────────────────────────── */
-  #bg-scene{
-    position:fixed; inset:0; z-index:-3;
-    overflow:hidden; pointer-events:none;
-  }
-  #bg-scene::before{
-    content:''; position:absolute; inset:0;
-    background:
-      radial-gradient(ellipse 70% 55% at 15% 30%, rgba(120,40,220,0.18) 0%, transparent 65%),
-      radial-gradient(ellipse 55% 45% at 85% 75%, rgba(80,10,160,0.14) 0%, transparent 65%),
-      radial-gradient(ellipse 40% 35% at 50% 95%, rgba(180,20,20,0.10) 0%, transparent 60%),
-      var(--void);
-    animation:bgBreath 10s ease-in-out infinite alternate;
-  }
-  @keyframes bgBreath{ from{opacity:.75} to{opacity:1} }
+body{
+  min-height:100vh; background:#000;
+  color:var(--tx); font-family:'Space Grotesk','Inter',sans-serif;
+  overflow-x:hidden; position:relative;
+  user-select:none; -webkit-user-select:none;
+}
 
-  .grid-overlay{
-    position:absolute; inset:-50px;
-    background-image:radial-gradient(circle,rgba(139,92,246,0.10) 1px,transparent 1px);
-    background-size:40px 40px;
-    animation:gridDrift 25s linear infinite;
-  }
-  @keyframes gridDrift{ from{transform:translate(0,0)} to{transform:translate(40px,40px)} }
+/* ═══ BACKGROUND ═══ */
+#bg{position:fixed;inset:0;z-index:-3;overflow:hidden;pointer-events:none}
+#bg::before{
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 65% 50% at 18% 20%,rgba(180,0,0,.22) 0%,transparent 60%),
+    radial-gradient(ellipse 50% 40% at 82% 80%,rgba(100,0,0,.16) 0%,transparent 60%),
+    radial-gradient(ellipse 30% 25% at 50% 50%,rgba(60,0,0,.10) 0%,transparent 58%),
+    #000;
+  animation:bgb 8s ease-in-out infinite alternate;
+}
+@keyframes bgb{from{opacity:.8}to{opacity:1}}
 
-  .scan-line{
-    position:absolute; left:0; right:0; height:2px;
-    background:linear-gradient(90deg,transparent 0%,rgba(147,51,234,.3) 20%,rgba(220,38,38,.4) 50%,rgba(147,51,234,.3) 80%,transparent 100%);
-    animation:scanSweep 6s ease-in-out infinite; opacity:0;
-  }
-  @keyframes scanSweep{
-    0%  {top:-2px;  opacity:0}
-    5%  {opacity:1}
-    95% {opacity:1}
-    100%{top:100vh; opacity:0}
-  }
+.g-top{
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(140,0,0,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(140,0,0,.07) 1px,transparent 1px);
+  background-size:52px 52px;
+}
+.g-3d{
+  position:absolute;bottom:0;left:-50%;right:-50%;height:55%;
+  background-image:linear-gradient(rgba(200,0,0,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(200,0,0,.14) 1px,transparent 1px);
+  background-size:64px 64px;
+  transform:rotateX(74deg);transform-origin:bottom center;
+  animation:gp 5s ease-in-out infinite alternate;
+}
+@keyframes gp{from{opacity:.4}to{opacity:1}}
 
-  .orb{
-    position:absolute; border-radius:50%;
-    filter:blur(70px);
-    animation:orbFloat ease-in-out infinite alternate;
-  }
-  @keyframes orbFloat{
-    from{transform:translate(0,0) scale(1)}
-    to  {transform:translate(var(--tx,40px),var(--ty,40px)) scale(1.08)}
-  }
-  .orb-a{width:520px;height:520px;background:radial-gradient(circle,rgba(147,51,234,.32),transparent 70%);top:-160px;left:-160px;animation-duration:8s;--tx:60px;--ty:90px}
-  .orb-b{width:420px;height:420px;background:radial-gradient(circle,rgba(109,40,217,.28),transparent 70%);bottom:-80px;right:-100px;animation-duration:10s;animation-delay:-4s;--tx:-50px;--ty:-60px}
-  .orb-c{width:300px;height:300px;background:radial-gradient(circle,rgba(220,38,38,.20),transparent 70%);top:35%;right:18%;animation-duration:12s;animation-delay:-6s;--tx:35px;--ty:-70px}
-  .orb-d{width:240px;height:240px;background:radial-gradient(circle,rgba(167,85,247,.22),transparent 70%);bottom:25%;left:12%;animation-duration:9s;animation-delay:-2s;--tx:-45px;--ty:55px}
-  .orb-e{width:180px;height:180px;background:radial-gradient(circle,rgba(239,68,68,.15),transparent 70%);top:60%;left:40%;animation-duration:14s;animation-delay:-8s;--tx:50px;--ty:30px}
+.scan{
+  position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent 5%,rgba(255,0,0,.65) 50%,transparent 95%);
+  box-shadow:0 0 18px rgba(255,0,0,.4);
+  animation:sc 5s ease-in-out infinite;opacity:0;
+}
+@keyframes sc{0%{top:-2px;opacity:0}6%{opacity:1}94%{opacity:1}100%{top:100vh;opacity:0}}
 
-  /* ─── CANVAS PARTICLES ─── */
-  #starCanvas{
-    position:fixed; top:0; left:0; width:100%; height:100%;
-    z-index:-2; pointer-events:none; opacity:0.65;
-  }
+.orb{position:absolute;border-radius:50%;filter:blur(80px);animation:of ease-in-out infinite alternate}
+@keyframes of{from{transform:translate(0,0)scale(1)}to{transform:translate(var(--tx,30px),var(--ty,30px))scale(1.10)}}
+.oa{width:520px;height:520px;background:radial-gradient(circle,rgba(200,0,0,.34),transparent 70%);top:-155px;left:-155px;animation-duration:7s;--tx:55px;--ty:80px}
+.ob{width:380px;height:380px;background:radial-gradient(circle,rgba(140,0,0,.26),transparent 70%);bottom:-80px;right:-80px;animation-duration:9s;animation-delay:-4s;--tx:-45px;--ty:-55px}
+.oc{width:270px;height:270px;background:radial-gradient(circle,rgba(255,0,0,.18),transparent 70%);top:42%;right:14%;animation-duration:11s;animation-delay:-5s;--tx:30px;--ty:-60px}
+.od{width:200px;height:200px;background:radial-gradient(circle,rgba(180,0,0,.20),transparent 70%);bottom:28%;left:9%;animation-duration:8s;animation-delay:-2s;--tx:-35px;--ty:45px}
 
-  /* ─── POPCORN ─── */
-  .popcorn{
-    position:absolute; top:-50px; font-size:20px;
-    user-select:none; pointer-events:none;
-    animation:fall linear infinite; z-index:-1; opacity:0.45;
-  }
-  @keyframes fall{
-    0%  {transform:translateY(-50px) rotate(0deg); opacity:0}
-    10% {opacity:0.7}
-    90% {opacity:0.7}
-    100%{transform:translateY(100vh) rotate(360deg); opacity:0}
-  }
+/* background ripple tap */
+.bg-ripple{
+  position:absolute;width:8px;height:8px;border-radius:50%;
+  border:2px solid rgba(180,0,0,.6);
+  transform:translate(-50%,-50%)scale(1);
+  animation:rexp 1.8s ease-out forwards;pointer-events:none;
+}
+@keyframes rexp{
+  0%  {transform:translate(-50%,-50%)scale(1);  opacity:.75}
+  100%{transform:translate(-50%,-50%)scale(28); opacity:0}
+}
 
-  /* ─── UPLOAD BANNER ─── */
-  .upload-banner{
-    position:fixed; top:0; left:0; right:0;
-    background:rgba(10,2,22,0.88);
-    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-    border-bottom:1px solid rgba(139,92,246,0.25);
-    padding:14px 20px; z-index:1000;
-    transform:translateY(-100%); transition:transform 0.4s ease;
-    display:flex; flex-direction:column; gap:10px;
-    box-shadow:0 10px 40px rgba(0,0,0,0.6), 0 0 60px rgba(147,51,234,0.08);
-  }
-  .upload-banner.show{transform:translateY(0)}
-  .ub-info{display:flex;align-items:center;gap:14px}
-  .ub-icon{width:24px;height:24px;color:var(--crimson);animation:spin 1s linear infinite}
-  .ub-text{display:flex;flex-direction:column;flex:1}
-  .ub-title{font-weight:700;font-size:14px;color:#ede9ff}
-  .ub-sub{font-size:12px;color:var(--mute);margin-top:2px}
-  .ub-progress{width:100%;height:3px;background:rgba(139,92,246,0.15);border-radius:4px;overflow:hidden;position:relative}
-  .ub-bar{position:absolute;left:0;top:0;bottom:0;width:30%;background:linear-gradient(90deg,var(--violet),var(--crimson));border-radius:4px;animation:slide 1.5s ease-in-out infinite alternate}
-  @keyframes spin{100%{transform:rotate(360deg)}}
-  @keyframes slide{0%{left:0;width:30%}100%{left:70%;width:30%}}
+#starCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-2;pointer-events:none;opacity:.70}
 
-  /* ─── HEADER ─── */
-  header{
-    padding:64px 24px 28px; text-align:center;
-    position:relative; z-index:5;
-  }
+.popcorn{position:absolute;top:-50px;font-size:20px;user-select:none;pointer-events:none;animation:fall linear infinite;z-index:-1;opacity:.40}
+@keyframes fall{0%{transform:translateY(-50px)rotate(0deg);opacity:0}10%{opacity:.6}90%{opacity:.6}100%{transform:translateY(100vh)rotate(360deg);opacity:0}}
 
-  h1{
-    font-family:'Fraunces',serif; font-weight:600;
-    font-size:clamp(2rem,5vw,3.5rem); margin:10px 0 6px;
-    color:#ede9ff;
-    text-shadow:0 0 50px rgba(147,51,234,0.35), 0 0 100px rgba(147,51,234,0.12);
-  }
-  h1 em{
-    font-style:italic; color:var(--crimson);
-    text-shadow:0 0 30px rgba(220,38,38,0.4);
-  }
+/* ═══ DEVTOOLS WALL ═══ */
+#dtwall{display:none;position:fixed;inset:0;z-index:999999;background:#000;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+#dtwall.show{display:flex}
+#dtwall h2{color:#ff0000;font-family:'Space Grotesk',sans-serif;font-size:30px}
+#dtwall p{color:rgba(255,80,80,.65);font-size:14px}
 
-  /* ─── SOURCE TOGGLE ─── */
-  .source-toggle{
-    display:flex; gap:8px; overflow-x:auto; padding:10px; margin:0 auto;
-    width:min(1000px,95vw); scrollbar-width:none;
-    background:rgba(139,92,246,0.04);
-    border-radius:14px; border:1px solid rgba(139,92,246,0.18);
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-    -ms-overflow-style:none; scroll-behavior:smooth;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,0.03);
-  }
-  .source-toggle::-webkit-scrollbar{display:none}
+/* ═══ UPLOAD BANNER ═══ */
+.upload-banner{
+  position:fixed;top:0;left:0;right:0;background:rgba(4,0,0,.93);
+  backdrop-filter:blur(18px);border-bottom:1px solid rgba(200,0,0,.28);
+  padding:14px 20px;z-index:1000;transform:translateY(-100%);transition:transform .4s ease;
+  display:flex;flex-direction:column;gap:10px;
+  box-shadow:0 12px 40px rgba(0,0,0,.85),0 0 50px rgba(200,0,0,.07);
+}
+.upload-banner.show{transform:translateY(0)}
+.ub-info{display:flex;align-items:center;gap:14px}
+.ub-icon{width:24px;height:24px;color:#ff0000;animation:spin 1s linear infinite}
+.ub-text{display:flex;flex-direction:column;flex:1}
+.ub-title{font-weight:700;font-size:14px;color:#ffe5e5}
+.ub-sub{font-size:12px;color:var(--mute);margin-top:2px}
+.ub-progress{width:100%;height:3px;background:rgba(200,0,0,.12);border-radius:4px;overflow:hidden;position:relative}
+.ub-bar{position:absolute;left:0;top:0;bottom:0;width:30%;background:linear-gradient(90deg,#8b0000,#ff0000);border-radius:4px;animation:bsl 1.5s ease-in-out infinite alternate;box-shadow:0 0 10px #ff0000}
+@keyframes spin{100%{transform:rotate(360deg)}}
+@keyframes bsl{0%{left:0;width:30%}100%{left:70%;width:30%}}
 
-  .src-btn{
-    white-space:nowrap; padding:11px 20px; border-radius:9px;
-    font-weight:600; font-size:13px; letter-spacing:0.02em;
-    background:rgba(139,92,246,0.06); color:var(--mute);
-    border:1px solid transparent; cursor:pointer; transition:all 0.3s; flex-shrink:0;
-    font-family:'Space Grotesk',sans-serif;
-  }
-  .src-btn:hover{background:rgba(139,92,246,0.12);color:#ede9ff;border-color:rgba(139,92,246,0.25)}
+/* ═══ HEADER ═══ */
+header{padding:60px 20px 28px;position:relative;z-index:5}
+.header-inner{
+  max-width:1080px;margin:0 auto;
+  display:flex;align-items:center;gap:48px;
+}
+.header-text{flex:1;text-align:center;min-width:0}
 
-  /* Active colors — brand-specific, kept exact */
-  .src-btn[data-source="cinesubz"].active   {background:var(--crimson);color:#fff;box-shadow:0 4px 15px var(--crimson-dim);border-color:var(--crimson)}
-  .src-btn[data-source="sinhalasub2"].active {background:var(--orange);color:#fff;box-shadow:0 4px 15px var(--orange-dim);border-color:var(--orange)}
-  .src-btn[data-source="slcartoons"].active  {background:var(--amber);color:#fff;box-shadow:0 4px 15px var(--amber-dim);border-color:var(--amber)}
-  .src-btn[data-source="moviesublk"].active  {background:var(--teal);color:#fff;box-shadow:0 4px 15px var(--teal-dim);border-color:var(--teal)}
-  .src-btn[data-source="1tamilmv"].active    {background:var(--blue);color:#fff;box-shadow:0 4px 15px var(--blue-dim);border-color:var(--blue)}
-  .src-btn[data-source="animeheaven"].active {background:var(--violet);color:#fff;box-shadow:0 4px 15px var(--violet-dim);border-color:var(--violet)}
-  .src-btn[data-source="kdrama"].active      {background:var(--pink);color:#fff;box-shadow:0 4px 15px rgba(232,28,255,.35);border-color:var(--pink)}
-  .src-btn[data-source="baiscopes"].active   {background:var(--red-dark);color:#fff;box-shadow:0 4px 15px rgba(229,9,20,.4);border-color:var(--red-dark)}
-  .src-btn[data-source="sublk"].active       {background:var(--green);color:#fff;box-shadow:0 4px 15px rgba(0,168,89,.4);border-color:var(--green)}
-  .src-btn[data-source="dinkamovies"].active {background:#F5A623;color:#000;box-shadow:0 4px 15px rgba(245,166,35,0.4);border-color:#F5A623}
-  /* ─── SEARCH ─── */
-  .search-wrap{
-    max-width:600px; margin:24px auto 0; padding:0 15px;
-    display:flex; gap:10px; position:relative; z-index:5;
-  }
-  .search-box{
-    flex:1; padding:14px 20px; font-size:15px; font-family:'Space Grotesk',sans-serif;
-    border-radius:14px; border:1px solid rgba(139,92,246,0.2);
-    background:rgba(139,92,246,0.05); color:var(--text); outline:none;
-    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
-    transition:border 0.3s, box-shadow 0.3s;
-    box-shadow:0 4px 20px rgba(0,0,0,0.3);
-  }
-  .search-box::placeholder{color:rgba(196,181,253,0.3)}
-  .search-box:focus{
-    border-color:rgba(220,38,38,0.45);
-    box-shadow:0 0 0 3px rgba(220,38,38,0.08), 0 0 30px rgba(147,51,234,0.12);
-    background:rgba(15,4,35,0.9);
-  }
+h1{
+  font-family:'Fraunces',serif;font-weight:700;
+  font-size:clamp(1.8rem,4.5vw,3.2rem);margin:0 0 8px;color:#fff;
+  text-shadow:
+    0 1px 0 #bb0000,0 2px 0 #990000,0 3px 0 #770000,0 4px 0 #550000,
+    0 5px 8px rgba(0,0,0,.9),0 0 40px rgba(255,0,0,.28);
+  transform:perspective(600px) rotateX(4deg);display:inline-block;
+}
+h1 em{font-style:italic;color:#ff0000;text-shadow:0 1px 0 #aa0000,0 2px 0 #880000,0 0 28px rgba(255,0,0,.65)}
 
-  .search-btn{
-    padding:0 26px; border-radius:14px; border:none; cursor:pointer;
-    background:linear-gradient(135deg,var(--violet),var(--crimson));
-    color:#fff; font-weight:700; font-size:15px;
-    font-family:'Space Grotesk',sans-serif; letter-spacing:0.02em;
-    animation:btnPulse 2s ease-in-out infinite alternate; transition:transform 0.2s;
-    position:relative; overflow:hidden;
-  }
-  .search-btn::after{
-    content:''; position:absolute; top:0; left:-120%;
-    width:80%; height:100%;
-    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent);
-    animation:shimmer 3s ease-in-out infinite;
-  }
-  @keyframes shimmer{0%{left:-120%}50%,100%{left:140%}}
-  .search-btn:hover{transform:translateY(-2px)}
-  @keyframes btnPulse{
-    0%  {box-shadow:0 0 8px rgba(147,51,234,.4),0 0 16px rgba(220,38,38,.2)}
-    100%{box-shadow:0 0 16px rgba(147,51,234,.7),0 0 32px rgba(220,38,38,.4)}
-  }
+/* ═══ PHONE MOCKUP ═══ */
+.phone-wrap{flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.phone-frame{
+  width:220px;height:440px;border-radius:36px;
+  background:#050000;border:2px solid rgba(200,0,0,.35);
+  box-shadow:
+    0 0 0 1px rgba(200,0,0,.08),
+    0 0 40px rgba(200,0,0,.18),
+    0 24px 60px rgba(0,0,0,.7),
+    inset 0 0 30px rgba(200,0,0,.04);
+  position:relative;overflow:hidden;
+  animation:pfloat 3s ease-in-out infinite alternate;
+}
+@keyframes pfloat{
+  from{transform:translateY(0) rotate(-2deg)}
+  to  {transform:translateY(-14px) rotate(-1deg)}
+}
 
-  .status{text-align:center;margin:20px 0 0;font-size:13px;color:var(--mute);min-height:20px;letter-spacing:0.03em}
+/* phone side accent line */
+.phone-frame::before{
+  content:'';position:absolute;top:20%;bottom:20%;left:-1px;width:3px;
+  background:linear-gradient(180deg,transparent,rgba(255,0,0,.6),transparent);
+  border-radius:2px;
+}
 
-  /* ─── CONTAINER ─── */
-  .container{
-    max-width:1080px; margin:0 auto; padding:20px 22px 90px;
-    display:flex; flex-direction:column; min-height:50vh;
-  }
-  .movie-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
-    gap:22px; margin-bottom:40px;
-  }
+.phone-notch{
+  width:80px;height:24px;background:#000;
+  border-radius:0 0 14px 14px;margin:0 auto;
+  position:relative;z-index:5;
+}
+.phone-screen{position:absolute;inset:0;background:#000;overflow:hidden}
 
-  /* ─── SKELETON ─── */
-  .skeleton-card{
-    border-radius:18px; overflow:hidden;
-    background:rgba(139,92,246,0.04);
-    border:1px solid rgba(139,92,246,0.12);
-    aspect-ratio:2/3; position:relative;
-  }
-  .skeleton-card::after{
-    content:''; position:absolute; inset:0;
-    background:linear-gradient(90deg,transparent,rgba(147,51,234,0.10),transparent);
-    animation:shimmerCard 1.5s infinite;
-  }
-  @keyframes shimmerCard{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+/* mini site inside phone */
+.pm-bg{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 25%,rgba(160,0,0,.28) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%,rgba(100,0,0,.18) 0%,transparent 60%),
+    #000;
+}
+.pm-grid{
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(140,0,0,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(140,0,0,.09) 1px,transparent 1px);
+  background-size:18px 18px;
+}
+.pm-scan{
+  position:absolute;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,0,0,.55),transparent);
+  animation:sc 3s ease-in-out infinite;opacity:0;
+}
+.pm-header{position:absolute;top:30px;left:10px;right:10px}
+.pm-logo{height:8px;width:55%;background:rgba(255,255,255,.18);border-radius:3px;margin:0 auto 6px}
+.pm-tabs{display:flex;gap:3px;margin-bottom:7px}
+.pm-tab{flex:1;height:6px;border-radius:3px;background:rgba(200,0,0,.15)}
+.pm-tab.active{background:#cc0000}
+.pm-search{height:9px;background:rgba(200,0,0,.14);border-radius:4px;border:1px solid rgba(200,0,0,.2)}
+.pm-cards{position:absolute;top:85px;left:10px;right:10px;display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.pm-card{
+  height:62px;background:rgba(100,0,0,.12);border-radius:7px;
+  border:1px solid rgba(200,0,0,.12);
+  animation:pmc 2s ease-in-out infinite;position:relative;overflow:hidden;
+}
+.pm-card::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:16px;
+  background:rgba(0,0,0,.6);
+}
+.pm-card:nth-child(2){animation-delay:-.4s}
+.pm-card:nth-child(3){animation-delay:-.8s}
+.pm-card:nth-child(4){animation-delay:-1.2s}
+@keyframes pmc{0%,100%{border-color:rgba(200,0,0,.12)}50%{border-color:rgba(255,0,0,.35)}}
 
-  /* ─── MOVIE CARDS ─── */
-  .ticket{
-    cursor:pointer; border-radius:18px; overflow:hidden;
-    background:rgba(139,92,246,0.05);
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-    border:1px solid rgba(139,92,246,0.15);
-    transition:transform .3s ease, box-shadow .3s ease, border-color .3s;
-    box-shadow:0 4px 20px rgba(0,0,0,0.3);
-    display:flex; flex-direction:column;
-    position:relative;
-  }
-  /* top accent line */
-  .ticket::after{
-    content:''; position:absolute; top:0; left:20%; right:20%; height:2px;
-    background:linear-gradient(90deg,transparent,rgba(147,51,234,0.5),transparent);
-    border-radius:0 0 4px 4px; transition:left .3s,right .3s,background .3s;
-  }
-  .ticket:hover{
-    transform:translateY(-8px);
-    border-color:rgba(220,38,38,0.35);
-    box-shadow:
-      0 20px 40px rgba(0,0,0,0.5),
-      0 0 30px rgba(220,38,38,0.10),
-      0 0 60px rgba(147,51,234,0.08),
-      inset 0 1px 0 rgba(255,255,255,0.04);
-  }
-  .ticket:hover::after{
-    left:0;right:0;
-    background:linear-gradient(90deg,transparent,rgba(220,38,38,0.6),transparent);
-  }
-  .ticket .poster{position:relative;aspect-ratio:2/3;overflow:hidden}
-  .ticket .poster img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.5s ease}
-  .ticket:hover .poster img{transform:scale(1.06)}
-  .ticket .badge{
-    position:absolute;top:10px;left:10px;font-size:10px;font-weight:700;
-    padding:4px 10px; border-radius:999px;
-    background:rgba(6,0,15,.75);
-    border:1px solid rgba(139,92,246,0.3); color:#c4b5fd;
-    backdrop-filter:blur(6px); text-transform:uppercase; z-index:2;
-    letter-spacing:0.06em;
-  }
+.pm-wa{
+  position:absolute;bottom:22px;left:10px;right:10px;height:28px;
+  background:linear-gradient(135deg,rgba(37,211,102,.15),rgba(37,211,102,.25));
+  border:1px solid rgba(37,211,102,.3);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+}
+.pm-wa-dot{width:8px;height:8px;background:#25D366;border-radius:50%;margin-right:4px;box-shadow:0 0 6px #25D366}
+.pm-wa-line{height:4px;width:60%;background:rgba(37,211,102,.4);border-radius:2px}
 
-  .stub{
-    background:rgba(139,92,246,0.03); color:var(--text);
-    padding:12px 14px 15px;
-    border-top:1px solid rgba(139,92,246,0.1); flex:1;
-  }
-  .stub h4{
-    margin:0 0 4px; font-family:'Fraunces',serif;
-    font-weight:600; font-size:14px; line-height:1.35; color:#ede9ff;
-  }
+.pm-glow{position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(200,0,0,.1) 100%);pointer-events:none}
+.phone-home-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:80px;height:4px;background:rgba(255,255,255,.2);border-radius:2px}
 
-  /* ─── WA BANNER ─── */
-  .wa-banner-container{
-    width:100%; max-width:600px; margin:20px auto 0; text-align:center;
-    background:linear-gradient(135deg,rgba(37,211,102,0.08) 0%,rgba(18,140,126,0.14) 100%);
-    border:1px solid rgba(37,211,102,0.22);
-    border-radius:22px; padding:32px 22px;
-    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-    box-shadow:0 10px 40px rgba(0,0,0,0.3), 0 0 60px rgba(37,211,102,0.04);
-    transition:all 0.5s ease;
-  }
-  .wa-banner-container h3{
-    font-family:'Space Grotesk',sans-serif; font-weight:800;
-    font-size:26px; margin:0 0 14px 0; color:#000;
-    text-shadow:
-      -1px -1px 0 #FFEA00,1px -1px 0 #FFEA00,-1px 1px 0 #FFEA00,1px 1px 0 #FFEA00,
-      0 0 10px #FFEA00,0 0 22px #FFEA00,0 0 35px #FFEA00;
-    text-transform:uppercase; letter-spacing:1px;
-  }
-  .wa-banner-container h2{margin:0 0 10px 0;font-family:'Fraunces',serif;color:#25D366;font-size:20px}
-  .wa-banner-container p{color:rgba(196,181,253,0.65);font-size:14px;margin:0 0 20px 0;line-height:1.6}
-  .wa-btn{
-    display:inline-flex;align-items:center;justify-content:center;gap:8px;
-    background:#25D366;color:#fff;text-decoration:none;
-    font-weight:700;font-size:15px;font-family:'Space Grotesk',sans-serif;
-    padding:13px 30px;border-radius:999px;
-    box-shadow:0 4px 20px rgba(37,211,102,0.4);
-    transition:transform 0.2s,box-shadow 0.2s;
-  }
-  .wa-btn:hover{transform:translateY(-3px);box-shadow:0 8px 30px rgba(37,211,102,0.6)}
+/* red corner glow on phone */
+.phone-corner-glow{
+  position:absolute;bottom:-20px;right:-20px;
+  width:80px;height:80px;
+  background:radial-gradient(circle,rgba(200,0,0,.5),transparent 70%);
+  border-radius:50%;filter:blur(15px);pointer-events:none;
+}
 
-  /* ─── MODAL ─── */
-  .modal{
-    display:none;position:fixed;inset:0;z-index:999;
-    background:rgba(6,0,15,.8);
-    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-    align-items:center;justify-content:center;padding:20px;
-    opacity:0;transition:opacity 0.3s ease;
-  }
-  .modal.open{display:flex;opacity:1}
-  .modal-card{
-    width:100%;max-width:420px;max-height:88vh;overflow-y:auto;
-    border-radius:22px;
-    background:rgba(13,0,24,0.92);
-    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-    border:1px solid rgba(139,92,246,0.2);
-    box-shadow:0 30px 60px rgba(0,0,0,0.6),0 0 80px rgba(147,51,234,0.08);
-    transform:scale(0.95);
-    transition:transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
-    position:relative;
-  }
-  /* modal top accent */
-  .modal-card::before{
-    content:'';position:absolute;top:0;left:0;right:0;height:2px;
-    background:linear-gradient(90deg,transparent,rgba(147,51,234,0.7) 35%,rgba(220,38,38,0.7) 65%,transparent);
-    border-radius:22px 22px 0 0; z-index:20;
-  }
-  .modal.open .modal-card{transform:scale(1)}
+@media(max-width:780px){
+  .header-inner{flex-direction:column;gap:24px;padding-top:50px}
+  .phone-frame{width:160px;height:320px;border-radius:28px}
+  .pm-cards{top:75px}
+  .pm-card{height:45px}
+  .pm-wa{bottom:16px;height:24px}
+}
+@media(max-width:480px){.phone-wrap{display:none}}
 
-  .modal-head{position:relative}
-  .modal-head img{
-    width:100%;height:210px;object-fit:cover;display:block;
-    mask-image:linear-gradient(to bottom,black 50%,transparent 100%);
-    -webkit-mask-image:linear-gradient(to bottom,black 50%,transparent 100%);
-  }
-  .close-btn{
-    position:absolute;top:14px;right:14px;width:34px;height:34px;
-    border-radius:50%;
-    background:rgba(6,0,15,.7);
-    border:1px solid rgba(139,92,246,0.3);
-    color:#c4b5fd;cursor:pointer;display:flex;align-items:center;justify-content:center;
-    font-size:18px;backdrop-filter:blur(6px);z-index:10;
-    transition:background 0.2s,border-color 0.2s;
-  }
-  .close-btn:hover{background:rgba(220,38,38,.8);border-color:rgba(220,38,38,.6);color:#fff}
-  .modal-title{
-    position:absolute;bottom:14px;left:18px;right:18px;
-    font-family:'Fraunces',serif;font-weight:600;font-size:21px;
-    color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.95);z-index:10;
-  }
-  .modal-body{padding:12px 20px 26px}
+/* ═══ SOURCE TOGGLE ═══ */
+.source-toggle{
+  display:flex;gap:8px;overflow-x:auto;padding:10px;margin:20px auto 0;
+  width:min(1000px,95vw);scrollbar-width:none;
+  background:rgba(120,0,0,.04);border-radius:14px;border:1px solid rgba(200,0,0,.13);
+  backdrop-filter:blur(14px);-ms-overflow-style:none;scroll-behavior:smooth;
+  box-shadow:0 0 24px rgba(180,0,0,.05);
+}
+.source-toggle::-webkit-scrollbar{display:none}
+.src-btn{
+  white-space:nowrap;padding:11px 20px;border-radius:9px;font-weight:600;font-size:13px;
+  background:rgba(120,0,0,.06);color:var(--mute);border:1px solid transparent;
+  cursor:pointer;transition:all .3s;flex-shrink:0;font-family:'Space Grotesk',sans-serif;
+}
+.src-btn:hover{background:rgba(180,0,0,.12);color:#ffe5e5;border-color:rgba(200,0,0,.22)}
+.src-btn[data-source="cinesubz"].active   {background:var(--crimson);color:#fff;box-shadow:0 4px 15px var(--cdim);border-color:var(--crimson)}
+.src-btn[data-source="sinhalasub2"].active{background:var(--orange);color:#fff;box-shadow:0 4px 15px var(--odim);border-color:var(--orange)}
+.src-btn[data-source="slcartoons"].active {background:var(--amber);color:#fff;box-shadow:0 4px 15px var(--adim);border-color:var(--amber)}
+.src-btn[data-source="moviesublk"].active {background:var(--teal);color:#fff;box-shadow:0 4px 15px var(--tdim);border-color:var(--teal)}
+.src-btn[data-source="1tamilmv"].active   {background:var(--blue);color:#fff;box-shadow:0 4px 15px var(--bdim);border-color:var(--blue)}
+.src-btn[data-source="animeheaven"].active{background:var(--violet);color:#fff;box-shadow:0 4px 15px var(--vdim);border-color:var(--violet)}
+.src-btn[data-source="kdrama"].active     {background:var(--pink);color:#fff;box-shadow:0 4px 15px rgba(232,28,255,.35);border-color:var(--pink)}
+.src-btn[data-source="baiscopes"].active  {background:var(--rdark);color:#fff;box-shadow:0 4px 15px rgba(229,9,20,.4);border-color:var(--rdark)}
+.src-btn[data-source="sublk"].active      {background:var(--green);color:#fff;box-shadow:0 4px 15px rgba(0,168,89,.4);border-color:var(--green)}
+.src-btn[data-source="dinkamovies"].active{background:#F5A623;color:#000;box-shadow:0 4px 15px rgba(245,166,35,.4);border-color:#F5A623}
 
-  .field{
-    width:100%;padding:13px 16px;margin-bottom:12px;border-radius:12px;
-    border:1px solid rgba(139,92,246,0.18);
-    background:rgba(10,2,25,0.8);
-    color:#e9e0ff;outline:none;
-    font-family:'Space Grotesk',sans-serif;font-size:14px;
-    transition:border 0.3s,box-shadow 0.3s;
-  }
-  .field::placeholder{color:rgba(139,92,246,0.3)}
-  .field:focus{
-    border-color:rgba(220,38,38,0.45);
-    box-shadow:0 0 0 3px rgba(220,38,38,0.08),0 0 25px rgba(147,51,234,0.1);
-    background:rgba(15,4,35,0.9);
-  }
-  .modal-status{font-size:13px;color:#c4b5fd;margin:4px 0 14px;text-align:center;letter-spacing:0.02em}
+/* ═══ SEARCH ═══ */
+.search-wrap{max-width:600px;margin:22px auto 0;padding:0 15px;display:flex;gap:10px;position:relative;z-index:5}
+.search-box{
+  flex:1;padding:14px 20px;font-size:15px;font-family:'Space Grotesk',sans-serif;
+  border-radius:14px;border:1px solid rgba(200,0,0,.22);
+  background:rgba(100,0,0,.07);color:var(--tx);outline:none;
+  backdrop-filter:blur(10px);transition:border .3s,box-shadow .3s;
+  box-shadow:0 4px 22px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.02);
+}
+.search-box::placeholder{color:rgba(255,120,120,.28)}
+.search-box:focus{border-color:rgba(255,0,0,.48);box-shadow:0 0 0 3px rgba(255,0,0,.10),0 0 28px rgba(200,0,0,.14);background:rgba(10,0,0,.92)}
+.search-btn{
+  padding:0 26px;border-radius:14px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#6b0000,#cc0000 55%,#ff2200);
+  color:#fff;font-weight:700;font-size:15px;font-family:'Space Grotesk',sans-serif;
+  animation:btnp 2s ease-in-out infinite alternate;transition:transform .2s;
+  position:relative;overflow:hidden;
+}
+.search-btn::after{content:'';position:absolute;top:0;left:-120%;width:80%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent);animation:shim 3s ease-in-out infinite}
+@keyframes shim{0%{left:-120%}50%,100%{left:140%}}
+.search-btn:hover{transform:translateY(-2px)}
+@keyframes btnp{
+  0%  {box-shadow:0 0 10px rgba(200,0,0,.5),0 0 20px rgba(255,0,0,.2)}
+  100%{box-shadow:0 0 22px rgba(255,0,0,.85),0 0 44px rgba(200,0,0,.4)}
+}
+.status{text-align:center;margin:18px 0 0;font-size:13px;color:var(--mute);min-height:20px;letter-spacing:.03em}
 
-  /* ─── QUALITY BUTTONS ─── */
-  .quality-row{
-    display:flex;flex-wrap:wrap;gap:9px;
-    max-height:260px;overflow-y:auto;padding-right:4px;
-  }
-  .quality-row::-webkit-scrollbar{width:5px}
-  .quality-row::-webkit-scrollbar-thumb{background:rgba(139,92,246,0.25);border-radius:4px}
+/* ═══ CONTAINER + GRID ═══ */
+.container{max-width:1080px;margin:0 auto;padding:20px 22px 90px;display:flex;flex-direction:column;min-height:50vh}
+.movie-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:22px;margin-bottom:40px;perspective:1200px}
 
-  .qbtn{
-    padding:11px 16px;border-radius:12px;
-    border:1px solid rgba(139,92,246,0.15);
-    background:rgba(139,92,246,0.06);
-    color:var(--text);cursor:pointer;
-    transition:all 0.25s;flex:1;min-width:120px;text-align:center;
-    font-weight:600;font-size:13px;
-    font-family:'Space Grotesk',sans-serif;
-  }
-  .qbtn:hover{
-    background:rgba(139,92,246,0.15);
-    border-color:rgba(220,38,38,0.35);
-    color:#ede9ff;transform:translateY(-2px);
-    box-shadow:0 6px 20px rgba(147,51,234,0.15);
-  }
-  .qbtn.all-btn{
-    width:100%;flex:100%;
-    background:linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.36));
-    border-color:#10b981;color:#fff;justify-content:center;
-    box-shadow:0 4px 15px rgba(16,185,129,0.25);
-  }
-  .qbtn.all-btn:hover{
-    background:linear-gradient(135deg,rgba(16,185,129,0.35),rgba(16,185,129,0.55));
-    box-shadow:0 6px 22px rgba(16,185,129,0.45);
-  }
+.skeleton-card{border-radius:18px;overflow:hidden;background:rgba(120,0,0,.05);border:1px solid rgba(200,0,0,.09);aspect-ratio:2/3;position:relative}
+.skeleton-card::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(200,0,0,.09),transparent);animation:shc 1.5s infinite}
+@keyframes shc{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+
+/* 3-D cards */
+.ticket{
+  cursor:pointer;border-radius:18px;overflow:visible;background:rgba(8,0,0,.75);
+  border:1px solid rgba(200,0,0,.16);
+  box-shadow:0 6px 24px rgba(0,0,0,.60),inset 0 1px 0 rgba(255,255,255,.03);
+  display:flex;flex-direction:column;position:relative;
+  transform-style:preserve-3d;will-change:transform;
+}
+.ticket-inner{border-radius:18px;overflow:hidden;display:flex;flex-direction:column;flex:1;position:relative}
+.ticket-inner::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;z-index:10;background:linear-gradient(90deg,transparent,rgba(255,0,0,.80),transparent);opacity:0;transition:opacity .3s}
+.ticket:hover .ticket-inner::before{opacity:1}
+.ticket:hover{border-color:rgba(255,0,0,.42);box-shadow:0 28px 56px rgba(0,0,0,.75),0 0 32px rgba(255,0,0,.16),inset 0 1px 0 rgba(255,255,255,.04)}
+.ticket .poster{position:relative;aspect-ratio:2/3;overflow:hidden}
+.ticket .poster img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s ease}
+.ticket:hover .poster img{transform:scale(1.07)}
+.ticket .badge{position:absolute;top:10px;left:10px;font-size:10px;font-weight:700;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,.82);border:1px solid rgba(200,0,0,.32);color:#ffb3b3;backdrop-filter:blur(6px);text-transform:uppercase;z-index:2;letter-spacing:.06em}
+.stub{background:rgba(6,0,0,.88);color:var(--tx);padding:12px 14px 15px;border-top:1px solid rgba(200,0,0,.10)}
+.stub h4{margin:0;font-family:'Fraunces',serif;font-weight:600;font-size:14px;line-height:1.35;color:#ffe5e5}
+
+/* ═══ WA BANNER — redesigned ═══ */
+.wa-banner{
+  width:100%;max-width:820px;margin:20px auto 0;
+  background:linear-gradient(135deg,rgba(0,0,0,.85) 0%,rgba(8,0,0,.9) 50%,rgba(0,20,8,.85) 100%);
+  border:1px solid rgba(37,211,102,.16);
+  border-radius:28px;overflow:hidden;
+  box-shadow:0 16px 50px rgba(0,0,0,.55),0 0 50px rgba(37,211,102,.04),0 0 80px rgba(200,0,0,.04);
+  /* top edge — red fade in left, green fade in right */
+  position:relative;
+}
+.wa-banner::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,rgba(255,0,0,.6) 0%,transparent 40%,transparent 60%,rgba(37,211,102,.6) 100%);
+  z-index:10;
+}
+
+.wa-inner{
+  display:flex;align-items:center;gap:0;
+  position:relative;z-index:2;
+}
+
+/* ── LEFT: photo + orbit ── */
+.wa-left{
+  flex-shrink:0;width:320px;
+  display:flex;align-items:center;justify-content:center;
+  padding:36px 20px 36px 36px;position:relative;
+}
+
+/* stage must be big enough for outermost ring */
+.photo-stage{
+  position:relative;
+  width:300px;height:300px;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* glow behind photo */
+.photo-glow{
+  position:absolute;
+  width:180px;height:180px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(200,0,0,.35) 0%,rgba(37,211,102,.08) 50%,transparent 70%);
+  animation:glow 2.5s ease-in-out infinite alternate;
+  z-index:1;
+}
+@keyframes glow{from{transform:scale(.92);opacity:.7}to{transform:scale(1.08);opacity:1}}
+
+/* orbit rings — centered absolutely */
+.orbit-r{
+  position:absolute;border-radius:50%;
+  top:50%;left:50%;
+  transform-origin:50% 50%;
+  animation:ospin linear infinite;
+}
+.orbit-r.r1{
+  width:200px;height:200px;margin:-100px 0 0 -100px;
+  border:1px solid rgba(255,0,0,.25);animation-duration:7s;
+}
+.orbit-r.r2{
+  width:248px;height:248px;margin:-124px 0 0 -124px;
+  border:1px solid rgba(255,50,50,.14);animation-duration:12s;animation-direction:reverse;
+}
+.orbit-r.r3{
+  width:294px;height:294px;margin:-147px 0 0 -147px;
+  border:1px dashed rgba(255,0,0,.08);animation-duration:20s;
+}
+@keyframes ospin{to{transform:rotate(360deg)}}
+
+/* dots on rings */
+.o-dot{position:absolute;border-radius:50%}
+.dot-t {top:-5px;  left:calc(50% - 5px)}
+.dot-b {bottom:-5px;left:calc(50% - 5px)}
+.dot-l {left:-5px; top:calc(50% - 4px)}
+.dot-r {right:-5px;top:calc(50% - 4px)}
+.dot-tl{top:14%;  left:5%}
+.dot-tr{top:14%;  right:5%}
+.dot-bl{bottom:14%;left:5%}
+.dot-br{bottom:14%;right:5%}
+
+.dr { width:10px;height:10px;background:#ff0000;box-shadow:0 0 10px #ff0000,0 0 20px rgba(255,0,0,.4)}
+.dw { width:7px; height:7px; background:#fff;   box-shadow:0 0 7px #fff,0 0 14px rgba(255,255,255,.3)}
+.do { width:8px; height:8px; background:#ff6600;box-shadow:0 0 8px #ff6600}
+.dr2{ width:6px; height:6px; background:#ff3333;box-shadow:0 0 6px #ff3333}
+.dg { width:9px; height:9px; background:#25D366;box-shadow:0 0 10px #25D366,0 0 20px rgba(37,211,102,.35)}
+.dg2{ width:6px; height:6px; background:#00ff80;box-shadow:0 0 7px #00ff80}
+.dp { width:5px; height:5px; background:#ff80ff;box-shadow:0 0 6px #ff80ff}
+
+/* photo circle */
+.wa-photo-circle{
+  width:150px;height:150px;border-radius:50%;overflow:hidden;
+  position:relative;z-index:5;
+  border:3px solid rgba(37,211,102,.55);
+  box-shadow:
+    0 0 0 6px rgba(37,211,102,.08),
+    0 0 0 12px rgba(37,211,102,.04),
+    0 0 0 18px rgba(200,0,0,.04),
+    0 12px 30px rgba(0,0,0,.65),
+    0 0 30px rgba(255,0,0,.22),
+    0 0 50px rgba(37,211,102,.12);
+}
+.wa-photo-circle img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* ── RIGHT: text ── */
+.wa-right{
+  flex:1;padding:36px 36px 36px 20px;
+  display:flex;flex-direction:column;align-items:flex-start;
+  border-left:1px solid rgba(200,0,0,.10);
+}
+.wa-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(200,0,0,.12);border:1px solid rgba(200,0,0,.22);
+  color:#ffb3b3;font-size:11px;font-weight:700;padding:4px 12px;border-radius:999px;
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;
+}
+.wa-badge-dot{width:6px;height:6px;background:#ff0000;border-radius:50%;animation:bdot 1.2s ease-in-out infinite alternate;box-shadow:0 0 6px #ff0000}
+@keyframes bdot{from{opacity:.4}to{opacity:1}}
+
+.wa-right h3{
+  font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:18px;margin:0 0 8px;color:#000;
+  text-shadow:-1px -1px 0 #FFEA00,1px -1px 0 #FFEA00,-1px 1px 0 #FFEA00,1px 1px 0 #FFEA00,0 0 10px #FFEA00,0 0 22px #FFEA00;
+  text-transform:uppercase;letter-spacing:1px;
+}
+.wa-right h2{margin:0 0 10px;font-family:'Fraunces',serif;color:#25D366;font-size:20px}
+.wa-right p{color:rgba(200,255,200,.58);font-size:13px;margin:0 0 22px;line-height:1.65;flex:1}
+.wa-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  background:#25D366;color:#fff;text-decoration:none;
+  font-weight:700;font-size:14px;font-family:'Space Grotesk',sans-serif;
+  padding:12px 26px;border-radius:999px;
+  box-shadow:0 4px 20px rgba(37,211,102,.40);
+  transition:transform .2s,box-shadow .2s;white-space:nowrap;
+}
+.wa-btn:hover{transform:translateY(-3px);box-shadow:0 8px 30px rgba(37,211,102,.60)}
+
+/* mobile WA banner */
+@media(max-width:680px){
+  .wa-inner{flex-direction:column}
+  .wa-left{width:100%;padding:36px 20px 20px}
+  .wa-right{padding:20px 24px 32px;border-left:none;border-top:1px solid rgba(200,0,0,.10);align-items:center;text-align:center}
+  .photo-stage{width:260px;height:260px}
+  .orbit-r.r1{width:175px;height:175px;margin:-87px 0 0 -87px}
+  .orbit-r.r2{width:218px;height:218px;margin:-109px 0 0 -109px}
+  .orbit-r.r3{width:255px;height:255px;margin:-127px 0 0 -127px}
+  .wa-photo-circle{width:130px;height:130px}
+}
+
+/* ═══ MODAL ═══ */
+.modal{display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.90);backdrop-filter:blur(12px);align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .3s}
+.modal.open{display:flex;opacity:1}
+.modal-card{width:100%;max-width:420px;max-height:88vh;overflow-y:auto;border-radius:22px;background:rgba(6,0,0,.96);border:1px solid rgba(200,0,0,.24);box-shadow:0 32px 80px rgba(0,0,0,.85),0 0 60px rgba(200,0,0,.10);transform:scale(.95);transition:transform .3s cubic-bezier(.175,.885,.32,1.275);position:relative}
+.modal-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(255,0,0,.85) 50%,transparent);border-radius:22px 22px 0 0;z-index:20}
+.modal.open .modal-card{transform:scale(1)}
+.modal-head{position:relative}
+.modal-head img{width:100%;height:210px;object-fit:cover;display:block;mask-image:linear-gradient(to bottom,black 50%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,black 50%,transparent 100%)}
+.close-btn{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.78);border:1px solid rgba(200,0,0,.28);color:#ffb3b3;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;backdrop-filter:blur(6px);z-index:10;transition:background .2s}
+.close-btn:hover{background:rgba(200,0,0,.82);color:#fff}
+.modal-title{position:absolute;bottom:14px;left:18px;right:18px;font-family:'Fraunces',serif;font-weight:600;font-size:21px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.98);z-index:10}
+.modal-body{padding:12px 20px 26px}
+.field{width:100%;padding:13px 16px;margin-bottom:12px;border-radius:12px;border:1px solid rgba(200,0,0,.16);background:rgba(4,0,0,.88);color:#ffe5e5;outline:none;font-family:'Space Grotesk',sans-serif;font-size:14px;transition:border .3s,box-shadow .3s}
+.field::placeholder{color:rgba(180,0,0,.32)}
+.field:focus{border-color:rgba(255,0,0,.48);box-shadow:0 0 0 3px rgba(255,0,0,.08);background:rgba(10,0,0,.94)}
+.modal-status{font-size:13px;color:#ffb3b3;margin:4px 0 14px;text-align:center}
+.quality-row{display:flex;flex-wrap:wrap;gap:9px;max-height:260px;overflow-y:auto;padding-right:4px}
+.quality-row::-webkit-scrollbar{width:5px}
+.quality-row::-webkit-scrollbar-thumb{background:rgba(200,0,0,.22);border-radius:4px}
+.qbtn{padding:11px 16px;border-radius:12px;border:1px solid rgba(200,0,0,.14);background:rgba(120,0,0,.09);color:var(--tx);cursor:pointer;transition:all .25s;flex:1;min-width:120px;text-align:center;font-weight:600;font-size:13px;font-family:'Space Grotesk',sans-serif}
+.qbtn:hover{background:rgba(200,0,0,.22);border-color:rgba(255,0,0,.40);color:#fff;transform:translateY(-2px);box-shadow:0 6px 18px rgba(200,0,0,.20)}
+.qbtn.all-btn{width:100%;flex:100%;background:linear-gradient(135deg,rgba(16,185,129,.18),rgba(16,185,129,.36));border-color:#10b981;color:#fff;box-shadow:0 4px 15px rgba(16,185,129,.25)}
+.qbtn.all-btn:hover{background:linear-gradient(135deg,rgba(16,185,129,.36),rgba(16,185,129,.55));box-shadow:0 6px 22px rgba(16,185,129,.45)}
 </style>
 </head>
 <body>
 
-<!-- ─── BACKGROUND SCENE (CSS orbs + grid + scan-line) ─── -->
-<div id="bg-scene" aria-hidden="true">
-  <div class="grid-overlay"></div>
-  <div class="scan-line"></div>
-  <div class="orb orb-a"></div>
-  <div class="orb orb-b"></div>
-  <div class="orb orb-c"></div>
-  <div class="orb orb-d"></div>
-  <div class="orb orb-e"></div>
+<div id="dtwall">
+  <h2>⛔ ACCESS DENIED</h2>
+  <p>Developer tools are not permitted on this platform.</p>
 </div>
 
-<!-- ─── CANVAS PARTICLES (floating colored dots) ─── -->
+<!-- BG -->
+<div id="bg" aria-hidden="true">
+  <div class="g-top"></div>
+  <div class="g-3d"></div>
+  <div class="scan"></div>
+  <div class="orb oa"></div><div class="orb ob"></div><div class="orb oc"></div><div class="orb od"></div>
+</div>
 <canvas id="starCanvas"></canvas>
-<script>
-  const canvas = document.getElementById('starCanvas');
-  const ctx = canvas.getContext('2d');
-  function resizeCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
-  const particles = [];
-  const colors = ['#dc2626','#F5A623','#0ea5e9','#9333ea','#10b981','#E81CFF','#c4b5fd','#FFEA00'];
-  for(let i=0;i<150;i++){
-    particles.push({
-      x:Math.random()*canvas.width, y:Math.random()*canvas.height,
-      radius:Math.random()*2+0.4,
-      color:colors[Math.floor(Math.random()*colors.length)],
-      speed:Math.random()*0.35+0.1, drift:(Math.random()-0.5)*0.18
-    });
-  }
-  function drawParticles(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    particles.forEach(p=>{
-      ctx.beginPath();ctx.arc(p.x,p.y,p.radius,0,Math.PI*2);
-      ctx.fillStyle=p.color;ctx.fill();
-      p.y+=p.speed;p.x+=p.drift;
-      if(p.y>canvas.height){p.y=-10;p.x=Math.random()*canvas.width;}
-      if(p.x>canvas.width)p.x=0;
-      if(p.x<0)p.x=canvas.width;
-    });
-    requestAnimationFrame(drawParticles);
-  }
-  drawParticles();
-</script>
 
-<!-- ─── POPCORN ─── -->
-<script>
-  function createPopcorn(){
-    const p=document.createElement('div');
-    p.classList.add('popcorn'); p.textContent='🍿';
-    p.style.left=Math.random()*100+'vw';
-    p.style.animationDuration=Math.random()*3+6+'s';
-    p.style.fontSize=Math.random()*10+12+'px';
-    document.body.appendChild(p);
-    setTimeout(()=>p.remove(),9000);
-  }
-  setInterval(createPopcorn,2000);
-</script>
-
-<!-- ─── UPLOAD BANNER ─── -->
+<!-- UPLOAD BANNER -->
 <div id="uploadBanner" class="upload-banner">
   <div class="ub-info">
     <svg class="ub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
@@ -495,50 +508,128 @@
       <div class="ub-title" id="ubTitle">Checking server queue...</div>
       <div class="ub-sub" id="ubSub">Please wait</div>
     </div>
-    <button onclick="document.getElementById('uploadBanner').classList.remove('show')" style="background:none;border:none;color:#c4b5fd;font-size:24px;cursor:pointer;padding:0 5px;opacity:0.7">×</button>
+    <button onclick="document.getElementById('uploadBanner').classList.remove('show')" style="background:none;border:none;color:#ffb3b3;font-size:24px;cursor:pointer;padding:0 5px;opacity:.7">×</button>
   </div>
   <div class="ub-progress"><div class="ub-bar"></div></div>
 </div>
 
-<!-- ─── HEADER ─── -->
+<!-- HEADER -->
 <header>
-  <h1 id="pageHeading">Search movie and upload group <em>and enjoy</em></h1>
-  <div class="source-toggle" id="sourceToggle">
-    <button class="src-btn active" data-source="cinesubz"    onclick="setSource('cinesubz',this)">CineSubz</button>
-    <button class="src-btn"        data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">SinhalaSub</button>
-    <button class="src-btn"        data-source="slcartoons"  onclick="setSource('slcartoons',this)">SL Cartoons</button>
-    <button class="src-btn"        data-source="moviesublk"  onclick="setSource('moviesublk',this)">MovieSubLK</button>
-    <button class="src-btn"        data-source="1tamilmv"    onclick="setSource('1tamilmv',this)">1TamilMV</button>
-    <button class="src-btn"        data-source="animeheaven" onclick="setSource('animeheaven',this)">AnimeHaven</button>
-    <button class="src-btn"        data-source="kdrama"      onclick="setSource('kdrama',this)">KDrama</button>
-    <button class="src-btn"        data-source="baiscopes"   onclick="setSource('baiscopes',this)">Baiscopes</button>
-    <button class="src-btn"        data-source="sublk"       onclick="setSource('sublk',this)">Sub.lk</button>
-    <button class="src-btn"        data-source="dinkamovies" onclick="setSource('dinkamovies',this)">🎬 DinkaMovies</button>
+  <div class="header-inner">
+    <!-- text side -->
+    <div class="header-text">
+      <h1 id="pageHeading">Search movie and upload group <em>and enjoy</em></h1>
+      <div class="source-toggle" id="sourceToggle">
+        <button class="src-btn active" data-source="cinesubz"    onclick="setSource('cinesubz',this)">CineSubz</button>
+        <button class="src-btn"        data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">SinhalaSub</button>
+        <button class="src-btn"        data-source="slcartoons"  onclick="setSource('slcartoons',this)">SL Cartoons</button>
+        <button class="src-btn"        data-source="moviesublk"  onclick="setSource('moviesublk',this)">MovieSubLK</button>
+        <button class="src-btn"        data-source="1tamilmv"    onclick="setSource('1tamilmv',this)">1TamilMV</button>
+        <button class="src-btn"        data-source="animeheaven" onclick="setSource('animeheaven',this)">AnimeHaven</button>
+        <button class="src-btn"        data-source="kdrama"      onclick="setSource('kdrama',this)">KDrama</button>
+        <button class="src-btn"        data-source="baiscopes"   onclick="setSource('baiscopes',this)">Baiscopes</button>
+        <button class="src-btn"        data-source="sublk"       onclick="setSource('sublk',this)">Sub.lk</button>
+        <button class="src-btn"        data-source="dinkamovies" onclick="setSource('dinkamovies',this)">🎬 DinkaMovies</button>
+      </div>
+      <div class="search-wrap">
+        <input type="text" id="movieName" class="search-box" placeholder="Search a movie, cartoon or anime…" onkeydown="if(event.key==='Enter')searchMovie()">
+        <button class="search-btn" onclick="searchMovie()">Search</button>
+      </div>
+      <p class="status" id="statusMsg"></p>
+    </div>
+
+    <!-- phone mockup -->
+    <div class="phone-wrap">
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <div class="pm-bg"></div>
+          <div class="pm-grid"></div>
+          <div class="pm-scan"></div>
+          <div class="pm-header">
+            <div class="pm-logo"></div>
+            <div class="pm-tabs">
+              <div class="pm-tab active"></div>
+              <div class="pm-tab"></div>
+              <div class="pm-tab"></div>
+              <div class="pm-tab"></div>
+            </div>
+            <div class="pm-search"></div>
+          </div>
+          <div class="pm-cards">
+            <div class="pm-card"></div>
+            <div class="pm-card"></div>
+            <div class="pm-card"></div>
+            <div class="pm-card"></div>
+          </div>
+          <div class="pm-wa">
+            <div class="pm-wa-dot"></div>
+            <div class="pm-wa-line"></div>
+          </div>
+          <div class="pm-glow"></div>
+        </div>
+        <div class="phone-home-bar"></div>
+        <div class="phone-corner-glow"></div>
+      </div>
+    </div>
   </div>
-  <div class="search-wrap">
-    <input type="text" id="movieName" class="search-box" placeholder="Search a movie, cartoon or anime…" onkeydown="if(event.key==='Enter')searchMovie()">
-    <button class="search-btn" onclick="searchMovie()">Search</button>
-  </div>
-  <p class="status" id="statusMsg"></p>
 </header>
 
-<!-- ─── MAIN CONTAINER ─── -->
+<!-- MAIN -->
 <div class="container">
   <div class="movie-grid" id="movieGrid"></div>
 
-  <!-- WhatsApp Banner -->
-  <div class="wa-banner-container" id="waBanner">
-    <h3 id="waBannerTopTitle">Sadew x Mini Movie Sender</h3>
-    <h2 id="waBannerMainTitle">🍿 Join Our Movie Group!</h2>
-    <p id="waBannerDesc">Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!</p>
-    <a id="waGroupLink" href="https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E" target="_blank" class="wa-btn">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-      Join WhatsApp Group
-    </a>
+  <!-- WA BANNER — new layout -->
+  <div class="wa-banner" id="waBanner">
+    <div class="wa-inner">
+
+      <!-- LEFT: photo orbit -->
+      <div class="wa-left">
+        <div class="photo-stage">
+          <div class="photo-glow"></div>
+
+          <!-- ring 1: 2 dots -->
+          <div class="orbit-r r1">
+            <span class="o-dot dot-t dr"></span>
+            <span class="o-dot dot-b dg"></span>
+          </div>
+          <!-- ring 2: 3 dots -->
+          <div class="orbit-r r2">
+            <span class="o-dot dot-t dw"></span>
+            <span class="o-dot dot-l do"></span>
+            <span class="o-dot dot-r dr2"></span>
+          </div>
+          <!-- ring 3: 4 dots -->
+          <div class="orbit-r r3">
+            <span class="o-dot dot-tl dg2"></span>
+            <span class="o-dot dot-tr dp"></span>
+            <span class="o-dot dot-bl dr"></span>
+            <span class="o-dot dot-br dw"></span>
+          </div>
+
+          <!-- photo -->
+          <div class="wa-photo-circle">
+            <img src="https://res.cloudinary.com/p6lu5bpe/image/upload/v1792296282/eoy2goxb5kxcymkpzo8y.jpg" alt="Group" draggable="false">
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: text + button -->
+      <div class="wa-right">
+        <div class="wa-badge"><span class="wa-badge-dot"></span>LIVE</div>
+        <h3 id="waBannerTopTitle">Sadew x Mini Movie Sender</h3>
+        <h2 id="waBannerMainTitle">🍿 Join Our Movie Group!</h2>
+        <p id="waBannerDesc">Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!</p>
+        <a id="waGroupLink" href="https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E" target="_blank" class="wa-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          Join WhatsApp Group
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- ─── MODAL ─── -->
+<!-- MODAL -->
 <div class="modal" id="movieModal">
   <div class="modal-card">
     <div class="modal-head">
@@ -555,282 +646,140 @@
   </div>
 </div>
 
-<!-- ─── JAVASCRIPT ─── -->
+<!-- ═══════════════ SCRIPTS ═══════════════ -->
 <script>
-  /* ================================================================
-   *  ✏️  EDIT YOUR DETAILS HERE — ADMIN CONFIG
-   * ================================================================ */
-  const ADMIN_CONFIG = {
-    admin_id:          "sade", // 🔥 මෙතන admin_02, admin_03 විදිහට ෆයිල් එකෙන් ෆයිල් එකට වෙනස් කරන්න
-    pageTitle:         "Sadew unlimited movie",
-    headerTitle:       "Search movie and upload group",
-    headerTitleEm:     "and enjoy",
-    waBannerTopTitle:  "Sadew x Mini Movie Sender",
-    waBannerMainTitle: "🍿 Join Our Movie Group!",
-    waBannerDesc:      "Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!",
-    waGroupLink:       "https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E",
-  };
+/* PARTICLES — red only */
+(function(){
+  const cv=document.getElementById('starCanvas'),cx=cv.getContext('2d');
+  function rs(){cv.width=window.innerWidth;cv.height=window.innerHeight}
+  window.addEventListener('resize',rs);rs();
+  const c=['#ff0000','#cc0000','#ff3333','#ff6666','#8b0000','#dd0000','#ff4444','#aa0000'];
+  const p=Array.from({length:190},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,r:Math.random()*1.7+.3,c:c[Math.floor(Math.random()*c.length)],s:Math.random()*.28+.07,d:(Math.random()-.5)*.14}));
+  function dr(){cx.clearRect(0,0,cv.width,cv.height);p.forEach(pt=>{cx.beginPath();cx.arc(pt.x,pt.y,pt.r,0,Math.PI*2);cx.fillStyle=pt.c;cx.fill();pt.y+=pt.s;pt.x+=pt.d;if(pt.y>cv.height){pt.y=-10;pt.x=Math.random()*cv.width}if(pt.x>cv.width)pt.x=0;if(pt.x<0)pt.x=cv.width});requestAnimationFrame(dr)}
+  dr();
+})();
 
-  document.addEventListener('DOMContentLoaded', () => {
-    document.title = ADMIN_CONFIG.pageTitle;
-    document.getElementById('pageHeading').innerHTML    = `${ADMIN_CONFIG.headerTitle} <em>${ADMIN_CONFIG.headerTitleEm}</em>`;
-    document.getElementById('waBannerTopTitle').textContent  = ADMIN_CONFIG.waBannerTopTitle;
-    document.getElementById('waBannerMainTitle').textContent = ADMIN_CONFIG.waBannerMainTitle;
-    document.getElementById('waBannerDesc').textContent      = ADMIN_CONFIG.waBannerDesc;
-    document.getElementById('waGroupLink').href              = ADMIN_CONFIG.waGroupLink;
-  });
+/* POPCORN */
+(function(){function p(){const e=document.createElement('div');e.className='popcorn';e.textContent='🍿';e.style.left=Math.random()*100+'vw';e.style.animationDuration=(Math.random()*3+6)+'s';e.style.fontSize=(Math.random()*10+12)+'px';document.body.appendChild(e);setTimeout(()=>e.remove(),9200)}setInterval(p,2400)})();
 
-  /* ================================================================
-   *  APP LOGIC — WITH DYNAMIC ADMIN ID
-   * ================================================================ */
-  let currentSource   = 'cinesubz';
-  let currentMovieMeta = {};
-  let currentDownloads = [];
-  let pollInterval = null;
-
-  function startQueuePolling(){
-    if(pollInterval) clearInterval(pollInterval);
-    document.getElementById('uploadBanner').classList.add('show');
-    pollInterval = setInterval(async ()=>{
-      try{
-        const res  = await fetch('/api/queue');
-        const data = await res.json();
-        const titleEl = document.getElementById('ubTitle');
-        const subEl   = document.getElementById('ubSub');
-        if(!data.active && data.queue.length===0){
-          titleEl.textContent="✅ All Tasks Completed!";
-          subEl.textContent="Your videos have been sent to the group.";
-          setTimeout(()=>document.getElementById('uploadBanner').classList.remove('show'),4000);
-          clearInterval(pollInterval); return;
-        }
-        if(data.active){
-          const myNum  = document.getElementById('reqNum').value.trim();
-          const isMine = data.active.userNum===myNum;
-          if(isMine){
-            titleEl.textContent=`🚀 Sending Your Request: ${data.active.title} (${data.active.quality})`;
-            subEl.textContent="Server is actively uploading this to WhatsApp...";
-          }else{
-            titleEl.textContent=`⏳ Waiting in Queue... (Position: ${data.queue.length+1})`;
-            subEl.textContent=`Currently processing someone else's request: ${data.active.title}`;
-          }
-        }
-      }catch(e){}
-    },3000);
+/* BG RIPPLE TAP — GPU-only transform+opacity, smooth on mobile */
+(function(){
+  const bg=document.getElementById('bg');
+  function ripple(){
+    const el=document.createElement('div');
+    el.className='bg-ripple';
+    el.style.left=(Math.random()*100)+'%';
+    el.style.top=(Math.random()*100)+'%';
+    bg.appendChild(el);
+    setTimeout(()=>el.remove(),1900);
   }
+  setInterval(ripple,700);
+})();
 
-  function setSource(src,btnElement){
-    currentSource=src;
-    document.querySelectorAll('.src-btn').forEach(b=>b.classList.remove('active'));
-    btnElement.classList.add('active');
-    btnElement.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
-  }
+/* ADMIN CONFIG */
+const ADMIN_CONFIG={
+  admin_id:'sade',
+  pageTitle:'Sadew unlimited movie',
+  headerTitle:'Search movie and upload group',
+  headerTitleEm:'and enjoy',
+  waBannerTopTitle:'Sadew x Mini Movie Sender',
+  waBannerMainTitle:'🍿 Join Our Movie Group!',
+  waBannerDesc:'Get daily updates on the latest Sinhala subtitled movies, cartoons, anime and KDramas directly to your WhatsApp. Send requests, watch trailers, and chill with the community!',
+  waGroupLink:'https://chat.whatsapp.com/KOUsIveriCDKLoG0efc63E',
+};
+document.addEventListener('DOMContentLoaded',()=>{
+  document.title=ADMIN_CONFIG.pageTitle;
+  document.getElementById('pageHeading').innerHTML=`${ADMIN_CONFIG.headerTitle} <em>${ADMIN_CONFIG.headerTitleEm}</em>`;
+  document.getElementById('waBannerTopTitle').textContent=ADMIN_CONFIG.waBannerTopTitle;
+  document.getElementById('waBannerMainTitle').textContent=ADMIN_CONFIG.waBannerMainTitle;
+  document.getElementById('waBannerDesc').textContent=ADMIN_CONFIG.waBannerDesc;
+  document.getElementById('waGroupLink').href=ADMIN_CONFIG.waGroupLink;
+});
 
-  function showSkeleton(){
-    const grid=document.getElementById('movieGrid');
-    grid.innerHTML='';
-    for(let i=0;i<8;i++){
-      const s=document.createElement('div'); s.className='skeleton-card'; grid.appendChild(s);
-    }
-  }
+/* APP STATE */
+let currentSource='cinesubz',currentMovieMeta={},currentDownloads=[],pollInterval=null;
 
-  async function searchMovie(){
-    const query=document.getElementById('movieName').value.trim();
-    if(!query) return;
-    const statusEl=document.getElementById('statusMsg');
-    statusEl.textContent='Searching…';
-    showSkeleton();
-    try{
-      const endpoint=currentSource==='animeheaven'?'/api/anime-search':'/api/search';
-      const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,source:currentSource})});
-      const data=await res.json();
-      const grid=document.getElementById('movieGrid');
-      grid.innerHTML='';
-      if(data.success && data.results?.length){
-        statusEl.textContent=`${data.results.length} results found`;
-        data.results.forEach(mv=>{
-          const card=document.createElement('div');
-          card.className='ticket';
-          let cap=mv.source?mv.source.charAt(0).toUpperCase()+mv.source.slice(1):'CineSubz';
-          card.innerHTML=`<div class="poster"><img src="${mv.img||'https://via.placeholder.com/400'}"><span class="badge">${cap}</span></div><div class="stub"><h4>${mv.title}</h4></div>`;
-          card.onclick=()=>openModal(mv.title,mv.img,mv.url||mv.id,mv.imdb);
-          grid.appendChild(card);
-        });
-      }else{statusEl.textContent='No results found.';}
-    }catch(e){statusEl.textContent='Search Error!';document.getElementById('movieGrid').innerHTML='';}
-  }
+function startQueuePolling(){
+  if(pollInterval)clearInterval(pollInterval);
+  document.getElementById('uploadBanner').classList.add('show');
+  pollInterval=setInterval(async()=>{
+    try{const res=await fetch('/api/queue'),data=await res.json();
+      const tEl=document.getElementById('ubTitle'),sEl=document.getElementById('ubSub');
+      if(!data.active&&data.queue.length===0){tEl.textContent='✅ All Tasks Completed!';sEl.textContent='Your videos have been sent to the group.';setTimeout(()=>document.getElementById('uploadBanner').classList.remove('show'),4000);clearInterval(pollInterval);return}
+      if(data.active){const mn=document.getElementById('reqNum').value.trim(),im=data.active.userNum===mn;tEl.textContent=im?`🚀 Sending: ${data.active.title} (${data.active.quality})`:`⏳ Queue... (Pos: ${data.queue.length+1})`;sEl.textContent=im?'Uploading to WhatsApp...':`Processing: ${data.active.title}`}
+    }catch(_){}
+  },3000);
+}
 
-  async function openModal(title,img,refId,imdb){
-    const modal=document.getElementById('movieModal');
-    modal.classList.add('open');
-    document.getElementById('modalTitle').textContent=title;
-    document.getElementById('modalImg').src=img||'https://via.placeholder.com/400';
-    document.getElementById('qualityButtons').innerHTML='';
-    const modalStatus=document.getElementById('modalStatus');
-    modalStatus.textContent='Fetching episodes/links…';
-    currentDownloads=[];
-    try{
-      const isAnime=currentSource==='animeheaven';
-      const res=await fetch(isAnime?'/api/anime-episodes':'/api/links',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(isAnime?{id:refId}:{url:refId,source:currentSource})
+function setSource(src,btn){currentSource=src;document.querySelectorAll('.src-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');btn.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'})}
+
+function showSkeleton(){const g=document.getElementById('movieGrid');g.innerHTML='';for(let i=0;i<8;i++){const s=document.createElement('div');s.className='skeleton-card';g.appendChild(s)}}
+
+async function searchMovie(){
+  const q=document.getElementById('movieName').value.trim();if(!q)return;
+  const st=document.getElementById('statusMsg');st.textContent='Searching…';showSkeleton();
+  try{
+    const ep=currentSource==='animeheaven'?'/api/anime-search':'/api/search';
+    const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,source:currentSource})});
+    const data=await res.json(),grid=document.getElementById('movieGrid');grid.innerHTML='';
+    if(data.success&&data.results?.length){
+      st.textContent=`${data.results.length} results found`;
+      data.results.forEach(mv=>{
+        const card=document.createElement('div');card.className='ticket';
+        const cap=mv.source?(mv.source.charAt(0).toUpperCase()+mv.source.slice(1)):'CineSubz';
+        card.innerHTML=`<div class="ticket-inner"><div class="poster"><img src="${mv.img||'https://via.placeholder.com/400'}" alt="${mv.title}" loading="lazy"><span class="badge">${cap}</span></div><div class="stub"><h4>${mv.title}</h4></div></div>`;
+        card.onclick=()=>openModal(mv.title,mv.img,mv.url||mv.id,mv.imdb);
+        card.addEventListener('mouseenter',()=>{card.style.transition='transform .1s ease,box-shadow .3s,border-color .3s'});
+        card.addEventListener('mousemove',e=>{const r=card.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;card.style.transform=`perspective(900px) rotateY(${x*20}deg) rotateX(${-y*20}deg) translateZ(14px) scale(1.03)`});
+        card.addEventListener('mouseleave',()=>{card.style.transition='transform .55s ease,box-shadow .3s,border-color .3s';card.style.transform='perspective(900px) rotateX(0) rotateY(0) translateZ(0) scale(1)'});
+        grid.appendChild(card);
       });
-      const data=await res.json();
-      if(data.success){
-        modalStatus.textContent='Pick an option:';
-        currentMovieMeta={title,img,imdb,refId};
-        let arr=isAnime?data.episodes:data.downloads;
-        currentDownloads=arr;
-        let isSeries=arr.length>1&&(isAnime||currentSource==='slcartoons'||currentSource==='moviesublk'||currentSource==='kdrama'||arr[0].meta.toLowerCase().includes('episode')||arr[0].meta.toLowerCase().includes('part'));
-        if(isSeries){
-          const btnAll=document.createElement('button');
-          btnAll.className='qbtn all-btn';
-          btnAll.innerHTML=`🚀 Queue ALL Episodes Automatically (${arr.length})`;
-          btnAll.onclick=()=>isAnime?sendAllAnime(data):sendAllMovie(arr);
-          document.getElementById('qualityButtons').appendChild(btnAll);
-        }
-        arr.forEach(item=>{
-          const btn=document.createElement('button');
-          btn.className='qbtn';
-          btn.textContent=isAnime?`Ep ${item.num}`:item.meta;
-          btn.onclick=()=>isAnime?sendAnimeEpisode(data,item):sendMovie(item.resolvedUrl,item.meta);
-          document.getElementById('qualityButtons').appendChild(btn);
-        });
-      }else{modalStatus.textContent='No links found.';}
-    }catch(e){modalStatus.textContent='Error loading links.';}
-  }
+    }else{st.textContent='No results found.'}
+  }catch(_){document.getElementById('statusMsg').textContent='Search Error!';document.getElementById('movieGrid').innerHTML=''}
+}
 
-  function closeModal(){document.getElementById('movieModal').classList.remove('open')}
+async function openModal(title,img,refId,imdb){
+  const modal=document.getElementById('movieModal');modal.classList.add('open');
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalImg').src=img||'https://via.placeholder.com/400';
+  document.getElementById('qualityButtons').innerHTML='';
+  const ms=document.getElementById('modalStatus');ms.textContent='Fetching links…';currentDownloads=[];
+  try{
+    const isA=currentSource==='animeheaven';
+    const res=await fetch(isA?'/api/anime-episodes':'/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isA?{id:refId}:{url:refId,source:currentSource})});
+    const data=await res.json();
+    if(data.success){
+      ms.textContent='Pick an option:';currentMovieMeta={title,img,imdb,refId};
+      const arr=isA?data.episodes:data.downloads;currentDownloads=arr;
+      const isS=arr.length>1&&(isA||['slcartoons','moviesublk','kdrama'].includes(currentSource)||arr[0].meta?.toLowerCase().includes('episode')||arr[0].meta?.toLowerCase().includes('part'));
+      if(isS){const ba=document.createElement('button');ba.className='qbtn all-btn';ba.innerHTML=`🚀 Queue ALL Episodes (${arr.length})`;ba.onclick=()=>isA?sendAllAnime(data):sendAllMovie(arr);document.getElementById('qualityButtons').appendChild(ba)}
+      arr.forEach(item=>{const b=document.createElement('button');b.className='qbtn';b.textContent=isA?`Ep ${item.num}`:item.meta;b.onclick=()=>isA?sendAnimeEpisode(data,item):sendMovie(item.resolvedUrl,item.meta);document.getElementById('qualityButtons').appendChild(b)});
+    }else{ms.textContent='No links found.'}
+  }catch(_){document.getElementById('modalStatus').textContent='Error loading links.'}
+}
+function closeModal(){document.getElementById('movieModal').classList.remove('open')}
 
-  // 🛡️ Encryption & Phone Validation Helpers
-  function encryptPayload(data) {
-    const salt = 'sAdEw_2026_x!';
-    const ts = Date.now();
-    const jsonStr = unescape(encodeURIComponent(JSON.stringify(data)));
-    let encrypted = '';
-    for (let i = 0; i < jsonStr.length; i++) {
-      const charCode = jsonStr.charCodeAt(i) ^ salt.charCodeAt(i % salt.length) ^ ((ts >> (i % 8)) & 0xFF);
-      encrypted += String.fromCharCode(charCode);
-    }
-    return { _enc: btoa(encrypted), _t: ts };
-  }
+function encryptPayload(d){const s='sAdEw_2026_x!',ts=Date.now(),j=unescape(encodeURIComponent(JSON.stringify(d)));let e='';for(let i=0;i<j.length;i++)e+=String.fromCharCode(j.charCodeAt(i)^s.charCodeAt(i%s.length)^((ts>>(i%8))&0xFF));return{_enc:btoa(e),_t:ts}}
 
-  function validateSLPhone(phone) {
-    if (!phone || typeof phone !== 'string') return null;
-    let clean = phone.replace(/[\s\-\(\)\+]/g, '');
-    if (clean.startsWith('94')) clean = '0' + clean.slice(2);
-    else if (clean.length === 9 && clean.startsWith('7')) clean = '0' + clean;
-    if (!/^07[01245678]\d{7}$/.test(clean)) return null;
-    const last7 = clean.slice(3);
-    if (/^(\d)\1{6}$/.test(last7)) return null;
-    if (last7 === '0000000' || last7 === '1111111' || last7 === '7654321' || last7 === '0123456') return null;
-    return clean;
-  }
+function validateSLPhone(p){if(!p||typeof p!=='string')return null;let c=p.replace(/[\s\-\+]/g,'');if(c.startsWith('94'))c='0'+c.slice(2);else if(c.length===9&&c.startsWith('7'))c='0'+c;if(!/^07[01245678]\d{7}$/.test(c))return null;const l7=c.slice(3);if(/^(\d)\1{6}$/.test(l7))return null;if(['0000000','1111111','7654321','0123456'].includes(l7))return null;return c}
 
-  function getRequester(){
-    const reqName = document.getElementById('reqName').value.trim();
-    const rawNum  = document.getElementById('reqNum').value.trim();
-    const statusEl = document.getElementById('modalStatus');
+function getRequester(){const n=document.getElementById('reqName').value.trim(),r=document.getElementById('reqNum').value.trim(),s=document.getElementById('modalStatus');if(!n){s.textContent='❌ කරුණාකර ඔබගේ නම ඇතුළත් කරන්න!';s.style.color='#ef4444';return null}const c=validateSLPhone(r);if(!c){s.textContent='❌ වලංගු නොවන දුරකථන අංකයකි! (උදා: 0772345678)';s.style.color='#ef4444';return null}s.style.color='';return{reqName:n,reqNum:c}}
 
-    if(!reqName){
-      statusEl.textContent = '❌ කරුණාකර ඔබගේ නම ඇතුළත් කරන්න!';
-      statusEl.style.color = '#ef4444';
-      return null;
-    }
+async function sendMovie(url,quality){const req=getRequester();if(!req)return;document.getElementById('modalStatus').textContent='Adding to Queue...';await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(encryptPayload({title:currentMovieMeta.title,url,quality,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img,admin_id:ADMIN_CONFIG.admin_id}))});closeModal();startQueuePolling()}
+async function sendAnimeEpisode(apiData,ep){const req=getRequester();if(!req)return;await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(encryptPayload({id:currentMovieMeta.refId,hash:ep.hash,epNum:ep.num,videoname:apiData.videoname,thumbnail:apiData.thumbnail,reqName:req.reqName,reqNum:req.reqNum,admin_id:ADMIN_CONFIG.admin_id}))});closeModal();startQueuePolling()}
+async function sendAllMovie(arr){const req=getRequester();if(!req)return;closeModal();document.getElementById('uploadBanner').classList.add('show');document.getElementById('ubTitle').textContent=`Adding ${arr.length} videos to Queue...`;for(let i=0;i<arr.length;i++){await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(encryptPayload({title:currentMovieMeta.title,url:arr[i].resolvedUrl,quality:arr[i].meta,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img,batchIndex:i,batchTotal:arr.length,admin_id:ADMIN_CONFIG.admin_id}))})}startQueuePolling()}
+async function sendAllAnime(apiData){const req=getRequester();if(!req)return;closeModal();document.getElementById('uploadBanner').classList.add('show');document.getElementById('ubTitle').textContent=`Adding ${apiData.episodes.length} episodes to Queue...`;for(let i=0;i<apiData.episodes.length;i++){await fetch('/api/anime-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(encryptPayload({id:currentMovieMeta.refId,hash:apiData.episodes[i].hash,epNum:apiData.episodes[i].num,videoname:apiData.videoname,thumbnail:apiData.thumbnail,reqName:req.reqName,reqNum:req.reqNum,batchIndex:i,admin_id:ADMIN_CONFIG.admin_id}))})}startQueuePolling()}
 
-    const cleanNum = validateSLPhone(rawNum);
-    if(!cleanNum){
-      statusEl.textContent = '❌ වලංගු නොවන දුරකථන අංකයකි! (උදා: 0772345678)';
-      statusEl.style.color = '#ef4444';
-      return null;
-    }
-
-    statusEl.style.color = '';
-    return { reqName, reqNum: cleanNum };
-  }
-
-  // 🔥 Backend එකට Payload එක Encrypt කර යැවීම (Network Logs වලින් කිසිවක් හසුවන්නේ නැත) 🔥
-  
-  async function sendMovie(url, quality){
-    const req = getRequester(); if(!req) return;
-    document.getElementById('modalStatus').textContent = 'Adding to Queue...';
-    const payload = {
-        title: currentMovieMeta.title, url, quality, reqName: req.reqName, reqNum: req.reqNum,
-        source: currentSource, img: currentMovieMeta.img, 
-        admin_id: ADMIN_CONFIG.admin_id
-    };
-    await fetch('/api/send-movie', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(encryptPayload(payload))
-    });
-    closeModal(); startQueuePolling();
-  }
-
-  async function sendAnimeEpisode(apiData, ep){
-    const req = getRequester(); if(!req) return;
-    const payload = {
-        id: currentMovieMeta.refId, hash: ep.hash, epNum: ep.num, videoname: apiData.videoname, 
-        thumbnail: apiData.thumbnail, reqName: req.reqName, reqNum: req.reqNum,
-        admin_id: ADMIN_CONFIG.admin_id
-    };
-    await fetch('/api/anime-send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(encryptPayload(payload))
-    });
-    closeModal(); startQueuePolling();
-  }
-
-  async function sendAllMovie(arr){
-    const req = getRequester(); if(!req) return;
-    closeModal();
-    document.getElementById('uploadBanner').classList.add('show');
-    document.getElementById('ubTitle').textContent = `Adding ${arr.length} videos to Queue...`;
-    for(let i=0; i<arr.length; i++){
-      const payload = {
-          title: currentMovieMeta.title, url: arr[i].resolvedUrl, quality: arr[i].meta,
-          reqName: req.reqName, reqNum: req.reqNum, source: currentSource, img: currentMovieMeta.img,
-          batchIndex: i, batchTotal: arr.length, 
-          admin_id: ADMIN_CONFIG.admin_id
-      };
-      await fetch('/api/send-movie', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(encryptPayload(payload))
-      });
-    }
-    startQueuePolling();
-  }
-
-  async function sendAllAnime(apiData){
-    const req = getRequester(); if(!req) return;
-    closeModal();
-    document.getElementById('uploadBanner').classList.add('show');
-    document.getElementById('ubTitle').textContent = `Adding ${apiData.episodes.length} episodes to Queue...`;
-    for(let i=0; i<apiData.episodes.length; i++){
-      const payload = {
-          id: currentMovieMeta.refId, hash: apiData.episodes[i].hash, epNum: apiData.episodes[i].num,
-          videoname: apiData.videoname, thumbnail: apiData.thumbnail, reqName: req.reqName, 
-          reqNum: req.reqNum, batchIndex: i,
-          admin_id: ADMIN_CONFIG.admin_id
-      };
-      await fetch('/api/anime-send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(encryptPayload(payload))
-      });
-    }
-    startQueuePolling();
-  }
-
-  // 🛡️ Disable Right Click & Inspect Element Shortcuts
-  document.addEventListener('contextmenu', e => e.preventDefault());
-  document.addEventListener('keydown', e => {
-    if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || (e.ctrlKey && e.key === 'u')) {
-      e.preventDefault();
-      return false;
-    }
-  });
+/* ═══ SECURITY ═══ */
+document.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();return false});
+document.addEventListener('keydown',e=>{if(e.key==='F12'){e.preventDefault();return false}if(e.ctrlKey&&e.shiftKey&&['I','J','C','K'].includes(e.key)){e.preventDefault();return false}if(e.ctrlKey&&['u','U','s','S'].includes(e.key)){e.preventDefault();return false}},true);
+(function(){const n=()=>{};['log','warn','info','error','table','dir','dirxml','group','groupCollapsed','groupEnd','time','timeEnd','assert','count','trace'].forEach(m=>{try{console[m]=n}catch(_){}})})();
+(function(){const T=160,w=document.getElementById('dtwall');let o=false;function c(){const wd=window.outerWidth-window.innerWidth,hd=window.outerHeight-window.innerHeight;if(wd>T||hd>T){if(!o){o=true;w.classList.add('show')}}else{o=false;w.classList.remove('show')}}setInterval(c,400);window.addEventListener('resize',c)})();
+(function loop(){try{(function(){const d=Date.now();debugger;if(Date.now()-d>90)document.getElementById('dtwall').classList.add('show')})()}catch(_){}setTimeout(loop,1800)})();
+document.addEventListener('selectstart',e=>{if(!['INPUT','TEXTAREA'].includes(e.target.tagName))e.preventDefault()});
+document.addEventListener('dragstart',e=>e.preventDefault());
+(function(){const o=window.fetch.bind(window);window.fetch=function(url,opts){if(typeof url==='string'&&!url.startsWith('/')&&!url.startsWith(location.origin))return Promise.reject(new Error('blocked'));return o(url,opts)}})();
+new MutationObserver(m=>{m.forEach(n=>n.addedNodes.forEach(nd=>{if(nd.tagName==='IMG'){nd.setAttribute('draggable','false');nd.addEventListener('contextmenu',e=>e.preventDefault())}if(nd.querySelectorAll)nd.querySelectorAll('img').forEach(i=>{i.setAttribute('draggable','false');i.addEventListener('contextmenu',e=>e.preventDefault())})}))}).observe(document.body,{childList:true,subtree:true});
 </script>
 </body>
 </html>
