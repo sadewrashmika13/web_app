@@ -206,7 +206,7 @@ jobs:
         run: |
           npm install -g concurrently ngrok
           ngrok config add-authtoken $NGROK_AUTHTOKEN
-          sleep $((RANDOM % 60 + 10))
+          sleep 2
           NGROK_TARGET=${NGROK_URL:-undertone-stylishly-opponent.ngrok-free.dev}
           concurrently \
             --names "app,tunnel" \
