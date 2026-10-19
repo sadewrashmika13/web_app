@@ -807,6 +807,7 @@ async function autoReconnectOnStartup() {
         const authSessions = await Auth.distinct('sessionId', { key: 'creds' });
         
         const MAX_ACTIVE_SESSIONS = 40;
+        const primaryNumber = (config.OWNER_NUMBER || '94705236759').replace(/[^0-9]/g, "");
         let numbers = [...new Set(authSessions)]
             .map(number => String(number).replace(/[^0-9]/g, ""))
             .filter(Boolean)
@@ -817,8 +818,16 @@ async function autoReconnectOnStartup() {
             return;
         }
 
-        console.log(`🚀 [Auto-Reconnect] Safely reconnecting ${numbers.length} sessions...`);
+        // 🔥 Prioritize primary bot number so it connects FIRST on startup
+        numbers.sort((a, b) => {
+            if (a === primaryNumber || a === '94705236759') return -1;
+            if (b === primaryNumber || b === '94705236759') return 1;
+            return 0;
+        });
 
+        console.log(`🚀 [Auto-Reconnect] Safely reconnecting ${numbers.length} sessions (Primary: ${numbers[0]})...`);
+
+        let index = 0;
         for (const number of numbers) {
             const sanitized = number.replace(/[^0-9]/g, '');
             if (activeSockets.has(sanitized)) continue;
@@ -828,7 +837,10 @@ async function autoReconnectOnStartup() {
             } catch (error) {
                 console.error(`❌ Reconnect error for ${sanitized}:`, error.message);
             }
-            await delay(5000); // 5 seconds delay between sessions
+            index++;
+            if (index < numbers.length) {
+                await delay(4000); // 4 seconds delay between secondary sessions
+            }
         }
     } catch (error) {
         console.error('Auto-reconnect on startup failed:', error);
