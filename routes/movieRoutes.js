@@ -4,6 +4,9 @@ const crypto = require('crypto');
 const cheerio = require('cheerio');
 const qs = require('qs');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 const Admin = require('../models/Admin'); // 🔥 Admin Database එක ඉම්පෝට් කළා
 
 const router = express.Router();
@@ -306,9 +309,33 @@ function getActiveSocket(targetBotNumber) {
     const activeSockets = global.activeSockets;
     if (!activeSockets || activeSockets.size === 0) return null;
     
-    const numberToUse = targetBotNumber || FALLBACK_BOT_NUMBER;
-    const sessionData = activeSockets.get(numberToUse) || Array.from(activeSockets.values())[0];
-    return sessionData.socket || sessionData;
+    const cleanNum = targetBotNumber ? String(targetBotNumber).replace(/[^0-9]/g, '') : '';
+    const cleanFallback = FALLBACK_BOT_NUMBER.replace(/[^0-9]/g, '');
+    
+    const sessionData = (cleanNum && activeSockets.get(cleanNum)) || activeSockets.get(cleanFallback) || Array.from(activeSockets.values())[0];
+    return sessionData?.socket || sessionData;
+}
+
+// 🛡️ Bot restart වූ සැනින් socket ready වෙනකම් තත්පර 15ක් බලා සිට live socket එක ලබාගැනීම
+async function getReadySocket(targetBotNumber, maxWaitMs = 15000) {
+    const startTime = Date.now();
+    const cleanNum = targetBotNumber ? String(targetBotNumber).replace(/[^0-9]/g, '') : '';
+    const cleanFallback = FALLBACK_BOT_NUMBER.replace(/[^0-9]/g, '');
+
+    while (Date.now() - startTime < maxWaitMs) {
+        const activeSockets = global.activeSockets;
+        if (activeSockets && activeSockets.size > 0) {
+            let sessionData = (cleanNum && activeSockets.get(cleanNum)) || activeSockets.get(cleanFallback) || Array.from(activeSockets.values())[0];
+            if (sessionData) {
+                const sock = sessionData.socket || sessionData;
+                if (sock && sock.user && (!sock.ws || sock.ws.readyState === 1)) {
+                    return sock;
+                }
+            }
+        }
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    return getActiveSocket(targetBotNumber);
 }
 
 async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 420000, retries = 0) {
@@ -598,13 +625,22 @@ router.post('/api/send-movie', async (req, res) => {
 
     const { title, url, quality, reqName, reqNum, source, img, imdb, batchIndex, admin_id } = payload;
 
-    // 🛡️ 4. Anti-Duplicate Debounce Check (allows queuing any number of movies / all episodes in a batch)
+    // 🛡️ 4. Title & Quality Validation
+    const cleanTitle = sanitizeText(title, 80);
+    const cleanQuality = sanitizeQuality(quality, clientIp);
+    if (!cleanTitle || cleanTitle.length < 2) {
+        return res.status(400).json({ success: false, message: 'Invalid movie title.' });
+    }
+
+    const normKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // 🛡️ 5. Anti-Duplicate Debounce Check (allows queuing any number of movies / all episodes in a batch)
     const dupKey = `${clientIp}_${normKey}_${cleanQuality}_${url}`;
     if (isRateLimited(dupKey, 2)) {
         return res.json({ success: true, taskId: 'dup', position: taskQueue.queue.length });
     }
 
-    // 🛡️ 5. Requester Validation (Strict SL Mobile Phone)
+    // 🛡️ 6. Requester Validation (Strict SL Mobile Phone)
     const cleanReqName = sanitizeText(reqName, 30);
     if (!cleanReqName || cleanReqName.length < 1) {
         return res.status(400).json({ success: false, message: 'කරුණාකර ඔබගේ නම ඇතුළත් කරන්න.' });
@@ -615,13 +651,6 @@ router.post('/api/send-movie', async (req, res) => {
         return res.status(400).json({ success: false, message: 'කරුණාකර වලංගු ශ්‍රී ලංකා දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 0772345678).' });
     }
     const cleanReqNum = validPhone;
-
-    // 🛡️ 6. Title & Quality Validation
-    const cleanTitle = sanitizeText(title, 80);
-    const cleanQuality = sanitizeQuality(quality, clientIp);
-    if (!cleanTitle || cleanTitle.length < 2) {
-        return res.status(400).json({ success: false, message: 'Invalid movie title.' });
-    }
 
     // Block defacement / hacker keywords in title
     const suspiciousTitle = /(?:hacked|anonymous|pwned|defaced|root@|\/etc|\bcat\b|<script|curl)/i;
@@ -635,7 +664,6 @@ router.post('/api/send-movie', async (req, res) => {
     const cleanImg = isValidMovieImage(img) ? img : null;
 
     // 🛡️ 8. Catalog Verification: Ensure the movie actually exists!
-    const normKey = cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '');
     let verifiedMovie = verifiedMoviesCache.get(normKey);
 
     if (!verifiedMovie && (!source || source === 'cinesubz')) {
@@ -694,9 +722,9 @@ router.post('/api/send-movie', async (req, res) => {
         id: taskId,
         info: { title: verifiedTitle, quality: cleanQuality, reqName: cleanReqName, userNum: cleanReqNum },
         run: async () => {
-            const sock = getActiveSocket(dynamicBotNumber);
+            const sock = await getReadySocket(dynamicBotNumber, 15000);
             if (!sock) {
-                console.error(`Socket not found for bot number: ${dynamicBotNumber}`);
+                console.error(`Socket not ready/found for bot number: ${dynamicBotNumber}`);
                 return;
             }
 
@@ -711,7 +739,7 @@ router.post('/api/send-movie', async (req, res) => {
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}`;
                     
                     try {
-                        await sock.sendMessage(exactBotJid, { text: adminInboxText });
+                        await sendMediaSafely(sock, exactBotJid, { text: adminInboxText }, 6000);
                     } catch (e) {
                         console.log("Inbox Notification Error:", e.message);
                     }
@@ -842,29 +870,7 @@ router.post('/api/send-movie', async (req, res) => {
                             break;
                         }
 
-                        // High-speed direct stream from source
-                        let streamRes = await axios({
-                            method: 'GET',
-                            url: finalVidUrl,
-                            responseType: 'stream',
-                            timeout: 45000,
-                            headers: {
-                                ...HEADERS,
-                                'Accept': '*/*',
-                                'Accept-Encoding': 'identity',
-                                'Connection': 'keep-alive'
-                            },
-                            httpsAgent
-                        });
-                        
-                        if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
-                            try{ streamRes.data.destroy(); }catch(e){}
-                            await sendMediaSafely(sock, dynamicGroupJid, { text: `⚠️ *File Too Large (>2GB)*\n🎬 ${verifiedTitle}\n🔗 ${url}` });
-                            streamUploaded = true;
-                            break;
-                        }
-
-                        const mimeType = (finalVidUrl.includes('.mkv') || (streamRes.headers['content-type'] && streamRes.headers['content-type'].includes('matroska'))) ? 'video/x-matroska' : 'video/mp4';
+                        const mimeType = (finalVidUrl.includes('.mkv')) ? 'video/x-matroska' : 'video/mp4';
                         const fileExt = mimeType === 'video/x-matroska' ? 'mkv' : 'mp4';
                         
                         const safeMovieTitle = verifiedTitle.substring(0, 35).replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Movie';
@@ -872,11 +878,65 @@ router.post('/api/send-movie', async (req, res) => {
                         let fileName = `${safeMovieTitle} - ${safeQualityForFile}.${fileExt}`;
                         let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${cleanQuality}*\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*` : `🎬 *${verifiedTitle}*\n> *${dynamicFooter}*`;
 
-                        await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption }, 480000);
+                        // 🛡️ High-speed SSD pipe download (Zero RAM heap spike, prevents GitHub OOM crash)
+                        const tempFilePath = path.join(os.tmpdir(), `mv_${Date.now()}_${crypto.randomBytes(3).toString('hex')}.${fileExt}`);
                         
-                        streamUploaded = true;
-                        console.log(`[STREAM] ✅ Successfully uploaded: ${verifiedTitle} (${cleanQuality})`);
-                        break;
+                        try {
+                            const writer = fs.createWriteStream(tempFilePath);
+                            const streamRes = await axios({
+                                method: 'GET',
+                                url: finalVidUrl,
+                                responseType: 'stream',
+                                timeout: 180000,
+                                headers: {
+                                    ...HEADERS,
+                                    'Accept': '*/*',
+                                    'Accept-Encoding': 'identity',
+                                    'Connection': 'keep-alive'
+                                },
+                                httpsAgent
+                            });
+
+                            if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
+                                try { streamRes.data.destroy(); } catch(e){}
+                                try { writer.close(); fs.unlinkSync(tempFilePath); } catch(e){}
+                                await sendMediaSafely(sock, dynamicGroupJid, { text: `⚠️ *File Too Large (>2GB)*\n🎬 ${verifiedTitle}\n🔗 ${url}` });
+                                streamUploaded = true;
+                                break;
+                            }
+
+                            streamRes.data.pipe(writer);
+
+                            await new Promise((resolve, reject) => {
+                                writer.on('finish', resolve);
+                                writer.on('error', reject);
+                                streamRes.data.on('error', reject);
+                            });
+
+                            const stats = fs.statSync(tempFilePath);
+                            if (!stats || stats.size < 5000) {
+                                throw new Error("Downloaded file is empty or corrupted");
+                            }
+
+                            console.log(`[STREAM] 📦 File downloaded to SSD (${(stats.size / 1024 / 1024).toFixed(1)} MB). Uploading to WhatsApp group...`);
+
+                            // Send from local SSD file - Baileys streams chunk-by-chunk with zero memory pressure!
+                            await sendMediaSafely(sock, dynamicGroupJid, {
+                                document: { url: tempFilePath },
+                                mimetype: mimeType,
+                                fileName,
+                                caption: smallCaption
+                            }, 480000);
+
+                            streamUploaded = true;
+                            console.log(`[STREAM] ✅ Successfully uploaded: ${verifiedTitle} (${cleanQuality})`);
+                            break;
+
+                        } finally {
+                            if (fs.existsSync(tempFilePath)) {
+                                try { fs.unlinkSync(tempFilePath); } catch(e){}
+                            }
+                        }
 
                     } catch (err) {
                         lastError = err;
@@ -1030,7 +1090,7 @@ router.post('/api/anime-send', async (req, res) => {
         id: taskId,
         info: { title: cleanVideoname, quality: `Episode ${cleanEpNum}`, reqName: cleanReqName, userNum: cleanReqNum },
         run: async () => {
-            const sock = getActiveSocket(dynamicBotNumber);
+            const sock = await getReadySocket(dynamicBotNumber, 15000);
             if (!sock) return;
 
             try {
@@ -1119,34 +1179,66 @@ router.post('/api/anime-send', async (req, res) => {
 
                         if (!finalDlLink) throw new Error("Anime DL link not found");
 
-                        const streamRes = await axios({
-                            url: finalDlLink,
-                            method: 'GET',
-                            responseType: 'stream',
-                            timeout: 45000,
-                            headers: {
-                                ...HEADERS,
-                                'Referer': 'https://animeheaven.me/',
-                                'Accept': '*/*',
-                                'Accept-Encoding': 'identity',
-                                'Connection': 'keep-alive'
-                            }
-                        });
-                        
-                        if ((streamRes.headers['content-type'] || '').includes('text/html')) {
-                            try { streamRes.data.destroy(); } catch(e){}
-                            throw new Error("Blocked by AnimeHaven");
-                        }
-
                         const safeAnimeTitle = cleanVideoname.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Anime';
                         const fileName = `${safeAnimeTitle} - Ep ${cleanEpNum} [SADEW].mp4`;
                         let epCaption = `🎬 Episode ${cleanEpNum}\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*`;
 
-                        await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption }, 480000);
-                        
-                        streamUploaded = true;
-                        console.log(`[ANIME STREAM] ✅ Success on attempt ${attempt} for: ${cleanVideoname} - Ep ${cleanEpNum}`);
-                        break;
+                        // 🛡️ High-speed SSD pipe download (Zero RAM heap spike)
+                        const tempAnimePath = path.join(os.tmpdir(), `anime_${Date.now()}_${crypto.randomBytes(3).toString('hex')}.mp4`);
+
+                        try {
+                            const writer = fs.createWriteStream(tempAnimePath);
+                            const streamRes = await axios({
+                                url: finalDlLink,
+                                method: 'GET',
+                                responseType: 'stream',
+                                timeout: 180000,
+                                headers: {
+                                    ...HEADERS,
+                                    'Referer': 'https://animeheaven.me/',
+                                    'Accept': '*/*',
+                                    'Accept-Encoding': 'identity',
+                                    'Connection': 'keep-alive'
+                                }
+                            });
+                            
+                            if ((streamRes.headers['content-type'] || '').includes('text/html')) {
+                                try { streamRes.data.destroy(); } catch(e){}
+                                try { writer.close(); fs.unlinkSync(tempAnimePath); } catch(e){}
+                                throw new Error("Blocked by AnimeHaven");
+                            }
+
+                            streamRes.data.pipe(writer);
+
+                            await new Promise((resolve, reject) => {
+                                writer.on('finish', resolve);
+                                writer.on('error', reject);
+                                streamRes.data.on('error', reject);
+                            });
+
+                            const stats = fs.statSync(tempAnimePath);
+                            if (!stats || stats.size < 5000) {
+                                throw new Error("Downloaded anime file is empty or corrupted");
+                            }
+
+                            console.log(`[ANIME STREAM] 📦 File downloaded to SSD (${(stats.size / 1024 / 1024).toFixed(1)} MB). Uploading to WhatsApp group...`);
+
+                            await sendMediaSafely(sock, dynamicGroupJid, {
+                                document: { url: tempAnimePath },
+                                mimetype: 'video/mp4',
+                                fileName,
+                                caption: epCaption
+                            }, 480000);
+                            
+                            streamUploaded = true;
+                            console.log(`[ANIME STREAM] ✅ Success on attempt ${attempt} for: ${cleanVideoname} - Ep ${cleanEpNum}`);
+                            break;
+
+                        } finally {
+                            if (fs.existsSync(tempAnimePath)) {
+                                try { fs.unlinkSync(tempAnimePath); } catch(e){}
+                            }
+                        }
 
                     } catch (err) {
                         lastError = err;
