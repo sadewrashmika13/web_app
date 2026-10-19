@@ -112,9 +112,9 @@ function isIpBanned(ip) {
 function recordSuspiciousRequest(ip) {
     const attempts = (failedAttempts.get(ip) || 0) + 1;
     failedAttempts.set(ip, attempts);
-    if (attempts >= 2) {
-        bannedIps.set(ip, Date.now() + 60 * 60 * 1000); // 1 hour ban
-        console.warn(`[SECURITY] 🚨 IP ${ip} has been BANNED for 1 hour due to repeated forged requests.`);
+    if (attempts >= 10) {
+        bannedIps.set(ip, Date.now() + 10 * 60 * 1000); // 10 minutes ban
+        console.warn(`[SECURITY] 🚨 IP ${ip} has been temporarily blocked for 10 minutes.`);
     }
 }
 
@@ -123,8 +123,8 @@ function decryptPayload(body) {
     if (!body || !body._enc || !body._t) return null;
     const ts = Number(body._t);
     const now = Date.now();
-    // 5 minutes expiry window
-    if (!ts || Math.abs(now - ts) > 300000) {
+    // 30 minutes expiry window (prevents clock skew failures on other phones/laptops)
+    if (!ts || Math.abs(now - ts) > 1800000) {
         throw new Error('Expired request session');
     }
     const salt = 'sAdEw_2026_x!';
@@ -147,7 +147,7 @@ function validateSLPhone(phone) {
     if (!/^07[01245678]\d{7}$/.test(clean)) return null;
     const last7 = clean.slice(3);
     if (/^(\d)\1{6}$/.test(last7)) return null;
-    if (last7 === '1234567' || last7 === '7654321' || last7 === '0123456') return null;
+    if (last7 === '0000000' || last7 === '1111111' || last7 === '7654321') return null;
     return clean;
 }
 
@@ -599,14 +599,6 @@ router.post('/api/send-movie', async (req, res) => {
         return res.status(403).json({ success: false, message: '🚫 Direct script access is blocked.' });
     }
 
-    const origin = req.headers['origin'] || '';
-    const referer = req.headers['referer'] || '';
-    if (!origin && !referer) {
-        console.warn(`[SECURITY] 🚨 Blocked request without Origin/Referer from IP ${clientIp}`);
-        recordSuspiciousRequest(clientIp);
-        return res.status(403).json({ success: false, message: '🚫 Direct API access without web browser is forbidden.' });
-    }
-
     // 🛡️ 3. Decrypt and verify payload (Blocks DevTools / Network tab inspection & direct curl)
     let payload = null;
     try {
@@ -1013,14 +1005,6 @@ router.post('/api/anime-send', async (req, res) => {
         console.warn(`[SECURITY] 🚨 Blocked CLI/curl anime request from IP ${clientIp}`);
         recordSuspiciousRequest(clientIp);
         return res.status(403).json({ success: false, message: '🚫 Direct script access is blocked.' });
-    }
-
-    const origin = req.headers['origin'] || '';
-    const referer = req.headers['referer'] || '';
-    if (!origin && !referer) {
-        console.warn(`[SECURITY] 🚨 Blocked anime request without Origin/Referer from IP ${clientIp}`);
-        recordSuspiciousRequest(clientIp);
-        return res.status(403).json({ success: false, message: '🚫 Direct API access without web browser is forbidden.' });
     }
 
     // 🛡️ 3. Decrypt Payload
