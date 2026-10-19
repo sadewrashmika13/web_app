@@ -243,12 +243,20 @@ const GEMINI_KEYS = [
     process.env.GEMINI_KEY_4, process.env.GEMINI_KEY_5, process.env.GEMINI_KEY_6
 ].filter(Boolean);
 
+const geminiSummaryCache = new Map();
+
 async function getGeminiSummary(movieTitle) {
     if (!movieTitle) return "";
     const cleanSearchTitle = movieTitle.split('|')[0]
         .replace(/sinhala subtitles|සිංහල උපසිරැසි|sinhala sub|subtitles/gi, '')
         .replace(/\s+/g, ' ')
         .trim();
+    
+    const cacheKey = cleanSearchTitle.toLowerCase();
+    if (geminiSummaryCache.has(cacheKey)) {
+        return geminiSummaryCache.get(cacheKey);
+    }
+
     const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${cleanSearchTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
     const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite'];
 
@@ -269,10 +277,16 @@ async function getGeminiSummary(movieTitle) {
                         { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
                         { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
                     ]
-                }, { timeout: 8000 });
+                }, { timeout: 4000 });
                 if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    const result = response.data.candidates[0].content.parts[0].text.trim();
                     console.log(`[GEMINI] ✅ AI Summary generated successfully with ${model}`);
-                    return response.data.candidates[0].content.parts[0].text.trim();
+                    geminiSummaryCache.set(cacheKey, result);
+                    if (geminiSummaryCache.size > 2000) {
+                        const firstKey = geminiSummaryCache.keys().next().value;
+                        geminiSummaryCache.delete(firstKey);
+                    }
+                    return result;
                 }
             } catch (err) {
                 // Continue to next model/key
@@ -281,6 +295,11 @@ async function getGeminiSummary(movieTitle) {
     }
     return ""; 
 }
+
+// 🔥 Keep DanuZz API (Vercel) warm to eliminate cold-start delay
+setInterval(() => {
+    axios.get(`${CZ_API}/search?q=avatar`, { timeout: 6000 }).catch(() => {});
+}, 3 * 60 * 1000);
 
 // 🔥 Dynamic විදිහට අදාල නම්බර් එකේ Socket එක ගන්නවා 🔥
 function getActiveSocket(targetBotNumber) {
@@ -292,7 +311,7 @@ function getActiveSocket(targetBotNumber) {
     return sessionData.socket || sessionData;
 }
 
-async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 360000, retries = 0) {
+async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 420000, retries = 0) {
     try {
         const sendPromise = sock.sendMessage(jid, msgParams);
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
@@ -302,9 +321,9 @@ async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 360000, retries
     }
 }
 
-// 🔥 High-Speed Concurrent Task Queue (Up to 2 simultaneous movie streams)
+// 🔥 Strict FIFO Sequential Task Queue (Uploads 1 by 1 in requested order)
 const taskQueue = {
-    queue: [], active: [], maxActive: 2,
+    queue: [], active: [], maxActive: 1,
     add: function(task) { this.queue.push(task); this.processNext(); },
     processNext: async function() {
         if (this.active.length >= this.maxActive || this.queue.length === 0) return;
@@ -312,7 +331,7 @@ const taskQueue = {
         this.active.push(task);
         (async () => {
             try {
-                console.log(`[QUEUE] Starting Task: ${task.info.title}`);
+                console.log(`[QUEUE] 🎬 Starting Task: ${task.info.title} (${task.info.quality}) | Remaining: ${this.queue.length}`);
                 await task.run();
             } catch (e) {
                 console.error(`[QUEUE] Error:`, e.message);
@@ -321,9 +340,6 @@ const taskQueue = {
                 this.processNext();
             }
         })();
-        if (this.queue.length > 0 && this.active.length < this.maxActive) {
-            this.processNext();
-        }
     }
 };
 
@@ -582,10 +598,10 @@ router.post('/api/send-movie', async (req, res) => {
 
     const { title, url, quality, reqName, reqNum, source, img, imdb, batchIndex, admin_id } = payload;
 
-    // 🛡️ 4. Rate Limiting Check (Spam Prevention)
-    const rateLimitKey = `${clientIp}_${reqNum || ''}`;
-    if (isRateLimited(rateLimitKey, 15)) {
-        return res.status(429).json({ success: false, message: '⚠️ කරුණාකර තත්පර 15ක් රැඳී සිට නැවත උත්සාහ කරන්න.' });
+    // 🛡️ 4. Anti-Duplicate Debounce Check (allows queuing any number of movies / all episodes in a batch)
+    const dupKey = `${clientIp}_${normKey}_${cleanQuality}_${url}`;
+    if (isRateLimited(dupKey, 2)) {
+        return res.json({ success: true, taskId: 'dup', position: taskQueue.queue.length });
     }
 
     // 🛡️ 5. Requester Validation (Strict SL Mobile Phone)
@@ -662,7 +678,6 @@ router.post('/api/send-movie', async (req, res) => {
     let dynamicFooter = 'Sadew Web Sender';
 
     try {
-        // 🔥 Admin_id එකක් ආවොත් Database එකෙන් අදාල කස්ටමර්ගේ Settings ගන්නවා
         if (admin_id) {
             const adminData = await Admin.findOne({ username: String(admin_id).trim() });
             if (adminData) {
@@ -679,7 +694,6 @@ router.post('/api/send-movie', async (req, res) => {
         id: taskId,
         info: { title: verifiedTitle, quality: cleanQuality, reqName: cleanReqName, userNum: cleanReqNum },
         run: async () => {
-            // 🔥 Database එකෙන් ගත්ත නිවැරදි Bot Socket එක අරගන්නවා
             const sock = getActiveSocket(dynamicBotNumber);
             if (!sock) {
                 console.error(`Socket not found for bot number: ${dynamicBotNumber}`);
@@ -690,135 +704,196 @@ router.post('/api/send-movie', async (req, res) => {
                 const isBatch = typeof batchIndex !== 'undefined';
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
 
-                let finalVidUrl = url;
-
-                if (finalVidUrl.includes('drive.google') || finalVidUrl.includes('drive.usercontent')) {
-                    let match = finalVidUrl.match(/\/file\/d\/([^\/]+)/) || finalVidUrl.match(/[?&]id=([^&]+)/) || finalVidUrl.match(/\/d\/([^\/]+)/);
-                    if (match) {
-                        const fileId = match[1];
-                        try {
-                            const wsRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/download/gdrive?url=${encodeURIComponent(`https://drive.google.com/file/d/${fileId}/view`)}&apitoken=4ehG6P`);
-                            if (wsRes.data?.success && wsRes.data.downloadUrl) { finalVidUrl = wsRes.data.downloadUrl; }
-                        } catch(e) {}
-                    }
-                }
-
-                if (source === 'kdrama') {
-                    const page1 = await axios.get(url, { httpsAgent });
-                    const $1 = cheerio.load(page1.data);
-                    const formData = {};
-                    $1('form').first().find('input[type="hidden"]').each((i, el) => { formData[$1(el).attr('name')] = $1(el).attr('value'); });
-                    const page2 = await axios.post(url, qs.stringify(formData), {
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': url, 'User-Agent': 'Mozilla/5.0' }, httpsAgent
-                    });
-                    const $2 = cheerio.load(page2.data);
-                    let directLink = $2('a').filter((i, el) => $2(el).text().trim() === 'Start download').attr('href');
-                    if (!directLink) directLink = $2('.btn-success').attr('href') || $2('a[href*=".mkv"]').attr('href') || $2('a[href*=".mp4"]').attr('href');
-                    if (directLink) { finalVidUrl = directLink; } else { throw new Error("KDrama Direct Link Bypass Failed"); }
-                }
-
-                if (source === 'cinesubz' && (finalVidUrl.includes('drive.csplayer') || finalVidUrl.includes('server'))) {
-                    const tryDownloadUrl = async (urlToTry) => {
-                        try {
-                            const dlApiUrl = `${CZ_API}/download?url=${encodeURIComponent(urlToTry)}`;
-                            const dlRes = await axios.get(dlApiUrl, { timeout: 8000 });
-                            if (dlRes.data?.success && dlRes.data?.result?.downloadUrls) {
-                                const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.includes('t.me') && !u.url.includes('telegram.me') && !u.url.includes('telegram.dog'));
-                                if (httpUrl) return httpUrl.url;
-                            }
-                        } catch (e) { return null; }
-                        return null;
-                    };
-
-                    let resolvedStreamUrl = await tryDownloadUrl(finalVidUrl);
-                    if (!resolvedStreamUrl && finalVidUrl.includes('/server')) {
-                        console.log("[WEB CZ] Original server failed. Trying alternate servers...");
-                        const altServers = ['1', '2', '3', '6', '10'];
-                        for (let s of altServers) {
-                            const altUrl = finalVidUrl.replace(/\/server\d+\//, `/server${s}/`);
-                            if (altUrl === finalVidUrl) continue;
-                            resolvedStreamUrl = await tryDownloadUrl(altUrl);
-                            if (resolvedStreamUrl) break;
-                        }
-                    }
-                    if (resolvedStreamUrl) { finalVidUrl = resolvedStreamUrl; } else { throw new Error("DanuZz API Cinesubz bypass failed on Web Server."); }
-                }
-
-                // 🔥 DINKAMOVIES (Cloudflare Proxy 2GB Stream) 🔥
-                if (source === 'dinkamovies') {
-                    let fileId = null;
-                    if (finalVidUrl.includes('drive.google.com')) {
-                        let m = finalVidUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || finalVidUrl.match(/id=([a-zA-Z0-9_-]+)/) || finalVidUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-                        if (m) fileId = m[1];
-                    }
-
-                    if (fileId) {
-                        // අපේ Cloudflare Proxy එක!
-                        finalVidUrl = `https://sadew.sadewrashmika069.workers.dev/download?key=sadew123&id=${fileId}`;
-                    }
-                }
-
-                if (isFirstInBatch) {
-                    // 🔥 1. ඒ වෙලාවේ ඇත්තටම කනෙක්ට් වෙලා වැඩ කරන බොට්ගේ ID එකම ගන්නවා (වරදින්නේ නෑ)
-                    const exactBotJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+                // 1. Send details card once if first in batch
+                let detailsCardSent = false;
+                if (isFirstInBatch && !detailsCardSent) {
+                    const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}`;
                     
-                    // 🔥 2. Admin ගේ ඉන්බොක්ස් එකට (Yourself) යවනවා
                     try {
                         await sock.sendMessage(exactBotJid, { text: adminInboxText });
                     } catch (e) {
                         console.log("Inbox Notification Error:", e.message);
                     }
-                    
-                    // 3. (ගෲප් එකට යවන කොටස)
-                    const aiSummary = await getGeminiSummary(verifiedTitle);
-                    
+
+                    // Quick AI summary with 6s max race (never hangs the queue)
+                    let aiSummary = "";
+                    try {
+                        const sumPromise = getGeminiSummary(verifiedTitle);
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 6000));
+                        aiSummary = await Promise.race([sumPromise, timeoutPromise]);
+                    } catch(e) {}
+
                     let cap = `🎬 *${verifiedTitle}*\n✨ *Quality:* ${cleanQuality}\n\n`;
                     if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
                     cap += `👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
 
-                    // 🛡️ SEND SUMMARY: WITH POSTER IF AVAILABLE, OR AS TEXT IF NO POSTER!
                     if (finalPoster) {
                         try {
-                            await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 60000);
+                            await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 25000);
+                            detailsCardSent = true;
                         } catch (imgErr) {
                             console.log("[SEND] Poster send failed, sending text message with AI summary instead:", imgErr.message);
-                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 30000);
+                            try {
+                                await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 15000);
+                                detailsCardSent = true;
+                            } catch(e) {}
                         }
                     } else {
-                        // Poster එකක් නැති චිත්‍රපට සඳහා AI Summary එක Text Message එකක් ලෙස යවන්න
-                        await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 30000);
+                        try {
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 15000);
+                            detailsCardSent = true;
+                        } catch(e) {}
                     }
                 }
 
-                if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
-                    const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
-                    await sendMediaSafely(sock, dynamicGroupJid, { text: teleText }, 30000);
-                    return; 
+                // 2. Direct Video Stream & Upload with 3-attempt auto-retry (10s wait on drop)
+                let streamUploaded = false;
+                let lastError = null;
+                const maxRetries = 3;
+
+                for (let attempt = 1; attempt <= maxRetries && !streamUploaded; attempt++) {
+                    try {
+                        if (attempt > 1) {
+                            console.log(`[STREAM] ⏳ Connection drop or error. Waiting 10 seconds before auto-retry (${attempt}/${maxRetries})...`);
+                            await new Promise(r => setTimeout(r, 10000));
+                        }
+
+                        console.log(`[STREAM] 🚀 Attempt ${attempt}/${maxRetries} starting for: ${verifiedTitle} (${cleanQuality})`);
+                        
+                        let finalVidUrl = url;
+
+                        if (finalVidUrl.includes('drive.google') || finalVidUrl.includes('drive.usercontent')) {
+                            let match = finalVidUrl.match(/\/file\/d\/([^\/]+)/) || finalVidUrl.match(/[?&]id=([^&]+)/) || finalVidUrl.match(/\/d\/([^\/]+)/);
+                            if (match) {
+                                const fileId = match[1];
+                                try {
+                                    const wsRes = await axios.get(`https://whiteshadow-x-api.onrender.com/api/download/gdrive?url=${encodeURIComponent(`https://drive.google.com/file/d/${fileId}/view`)}&apitoken=4ehG6P`, { timeout: 10000 });
+                                    if (wsRes.data?.success && wsRes.data.downloadUrl) { finalVidUrl = wsRes.data.downloadUrl; }
+                                } catch(e) {}
+                            }
+                        }
+
+                        if (source === 'kdrama') {
+                            const page1 = await axios.get(url, { httpsAgent, timeout: 15000 });
+                            const $1 = cheerio.load(page1.data);
+                            const formData = {};
+                            $1('form').first().find('input[type="hidden"]').each((i, el) => { formData[$1(el).attr('name')] = $1(el).attr('value'); });
+                            const page2 = await axios.post(url, qs.stringify(formData), {
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': url, 'User-Agent': 'Mozilla/5.0' },
+                                httpsAgent,
+                                timeout: 15000
+                            });
+                            const $2 = cheerio.load(page2.data);
+                            let directLink = $2('a').filter((i, el) => $2(el).text().trim() === 'Start download').attr('href');
+                            if (!directLink) directLink = $2('.btn-success').attr('href') || $2('a[href*=".mkv"]').attr('href') || $2('a[href*=".mp4"]').attr('href');
+                            if (directLink) { finalVidUrl = directLink; } else { throw new Error("KDrama Direct Link Bypass Failed"); }
+                        }
+
+                        if (source === 'cinesubz' && (finalVidUrl.includes('drive.csplayer') || finalVidUrl.includes('server'))) {
+                            const tryDownloadUrl = async (urlToTry, timeoutMs = 12000) => {
+                                try {
+                                    const dlApiUrl = `${CZ_API}/download?url=${encodeURIComponent(urlToTry)}`;
+                                    const dlRes = await axios.get(dlApiUrl, { timeout: timeoutMs, headers: HEADERS });
+                                    if (dlRes.data?.success && dlRes.data?.result?.downloadUrls) {
+                                        const httpUrl = dlRes.data.result.downloadUrls.find(u => u.url && u.url.startsWith('http') && !u.url.includes('t.me') && !u.url.includes('telegram.me') && !u.url.includes('telegram.dog'));
+                                        if (httpUrl) return httpUrl.url;
+                                    }
+                                } catch (e) { return null; }
+                                return null;
+                            };
+
+                            let resolvedStreamUrl = await tryDownloadUrl(finalVidUrl, 12000);
+                            if (!resolvedStreamUrl && finalVidUrl.includes('/server')) {
+                                console.log("[WEB CZ] Server failed. Trying alternate servers in parallel...");
+                                const altServers = ['1', '2', '3', '6', '10', '4', '5'];
+                                const candidates = altServers
+                                    .map(s => finalVidUrl.replace(/\/server\d+\//, `/server${s}/`))
+                                    .filter(u => u !== finalVidUrl);
+                                
+                                for (let i = 0; i < candidates.length && !resolvedStreamUrl; i += 3) {
+                                    const batch = candidates.slice(i, i + 3);
+                                    try {
+                                        resolvedStreamUrl = await Promise.any(batch.map(u => tryDownloadUrl(u, 8000).then(r => {
+                                            if (!r) throw new Error("empty");
+                                            return r;
+                                        })));
+                                    } catch(e) {}
+                                }
+                            }
+                            if (resolvedStreamUrl) { finalVidUrl = resolvedStreamUrl; } else { throw new Error("DanuZz API Cinesubz bypass failed on Web Server."); }
+                        }
+
+                        if (source === 'dinkamovies') {
+                            let fileId = null;
+                            if (finalVidUrl.includes('drive.google.com')) {
+                                let m = finalVidUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || finalVidUrl.match(/id=([a-zA-Z0-9_-]+)/) || finalVidUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+                                if (m) fileId = m[1];
+                            }
+                            if (fileId) {
+                                finalVidUrl = `https://sadew.sadewrashmika069.workers.dev/download?key=sadew123&id=${fileId}`;
+                            }
+                        }
+
+                        if (source === 'baiscopes' && finalVidUrl.includes('t.me')) {
+                            const teleText = `📥 *Telegram Link Detected!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n\nකරුණාකර පහත ලින්ක් එකෙන් ගොස් Telegram හරහා චිත්රපටය ලබාගන්න:\n🔗 ${finalVidUrl}\n\n👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: teleText }, 30000);
+                            streamUploaded = true;
+                            break;
+                        }
+
+                        // High-speed direct stream from source
+                        let streamRes = await axios({
+                            method: 'GET',
+                            url: finalVidUrl,
+                            responseType: 'stream',
+                            timeout: 45000,
+                            headers: {
+                                ...HEADERS,
+                                'Accept': '*/*',
+                                'Accept-Encoding': 'identity',
+                                'Connection': 'keep-alive'
+                            },
+                            httpsAgent
+                        });
+                        
+                        if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
+                            try{ streamRes.data.destroy(); }catch(e){}
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: `⚠️ *File Too Large (>2GB)*\n🎬 ${verifiedTitle}\n🔗 ${url}` });
+                            streamUploaded = true;
+                            break;
+                        }
+
+                        const mimeType = (finalVidUrl.includes('.mkv') || (streamRes.headers['content-type'] && streamRes.headers['content-type'].includes('matroska'))) ? 'video/x-matroska' : 'video/mp4';
+                        const fileExt = mimeType === 'video/x-matroska' ? 'mkv' : 'mp4';
+                        
+                        const safeMovieTitle = verifiedTitle.substring(0, 35).replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Movie';
+                        const safeQualityForFile = cleanQuality.replace(/[^a-zA-Z0-9\-.]/g, ' ').replace(/\s+/g, ' ').trim() || 'HD';
+                        let fileName = `${safeMovieTitle} - ${safeQualityForFile}.${fileExt}`;
+                        let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${cleanQuality}*\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*` : `🎬 *${verifiedTitle}*\n> *${dynamicFooter}*`;
+
+                        await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption }, 480000);
+                        
+                        streamUploaded = true;
+                        console.log(`[STREAM] ✅ Successfully uploaded: ${verifiedTitle} (${cleanQuality})`);
+                        break;
+
+                    } catch (err) {
+                        lastError = err;
+                        console.warn(`[STREAM] ⚠️ Attempt ${attempt} failed: ${err.message}`);
+                    }
                 }
 
-                let streamRes = await axios({ method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 30000, headers: HEADERS, httpsAgent });
-                
-                if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
-                    try{ streamRes.data.destroy(); }catch(e){}
-                    await sendMediaSafely(sock, dynamicGroupJid, { text: `⚠️ *File Too Large (>2GB)*\n🔗 ${url}` });
-                    return;
+                if (!streamUploaded) {
+                    const errMsg = lastError?.response ? `HTTP ${lastError.response.status}` : (lastError?.message || 'Upload failed');
+                    console.error(`[STREAM] ❌ All ${maxRetries} attempts failed for ${verifiedTitle}: ${errMsg}`);
+                    try {
+                        await sendMediaSafely(sock, dynamicGroupJid, { text: `❌ *Upload Failed:* ${verifiedTitle} - ${cleanQuality}\n_Error: ${errMsg}. Please try again shortly._` }, 30000);
+                    } catch(e){}
                 }
 
-                const mimeType = (finalVidUrl.includes('.mkv') || (streamRes.headers['content-type'] && streamRes.headers['content-type'].includes('matroska'))) ? 'video/x-matroska' : 'video/mp4';
-                const fileExt = mimeType === 'video/x-matroska' ? 'mkv' : 'mp4';
-                
-                // 🛡️ Format Safe Document File Name (no rogue characters, no leading dashes)
-                const safeMovieTitle = verifiedTitle.substring(0, 35).replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Movie';
-                const safeQualityForFile = cleanQuality.replace(/[^a-zA-Z0-9\-.]/g, ' ').replace(/\s+/g, ' ').trim() || 'HD';
-                let fileName = `${safeMovieTitle} - ${safeQualityForFile}.${fileExt}`;
-                let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${cleanQuality}*\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*` : `🎬 *${verifiedTitle}*\n> *${dynamicFooter}*`;
-
-                await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: mimeType, fileName, caption: smallCaption });
-                
-            } catch (err) {
-                const errMsg = err.response ? `HTTP ${err.response.status}` : err.message;
-                try { await sendMediaSafely(sock, dynamicGroupJid, { text: `❌ *Failed:* ${verifiedTitle} - ${cleanQuality}\n_Error: ${errMsg}_` }, 30000); } catch(e){}
+            } catch (outerErr) {
+                console.error("[QUEUE] Outer Error:", outerErr.message);
             }
         }
     });
@@ -904,10 +979,10 @@ router.post('/api/anime-send', async (req, res) => {
 
     const { id, hash, epNum, videoname, thumbnail, reqName, reqNum, batchIndex, admin_id } = payload;
 
-    // 🛡️ 4. Rate Limiting Check
-    const rateLimitKey = `${clientIp}_${reqNum || ''}`;
-    if (isRateLimited(rateLimitKey, 15)) {
-        return res.status(429).json({ success: false, message: '⚠️ කරුණාකර තත්පර 15ක් රැඳී සිට නැවත උත්සාහ කරන්න.' });
+    // 🛡️ 4. Anti-Duplicate Debounce Check
+    const dupKey = `${clientIp}_${id}_${epNum}`;
+    if (isRateLimited(dupKey, 2)) {
+        return res.json({ success: true, taskId: 'dup' });
     }
 
     // 🛡️ 5. Validation & Sanitization
@@ -962,13 +1037,28 @@ router.post('/api/anime-send', async (req, res) => {
                 const isBatch = typeof batchIndex !== 'undefined';
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
 
-                if (isFirstInBatch) {
-                    await sendMediaSafely(sock, dynamicBotNumber + '@s.whatsapp.net', { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${cleanVideoname} - Ep ${cleanEpNum}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}` }, 30000);
-                    const aiSummary = await getGeminiSummary(cleanVideoname);
-                    const seriesHtml = (await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS })).data;
-                    const descMatch = seriesHtml.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
-                    let origDesc = descMatch ? descMatch[1].trim().replace(/<[^>]+>/g, '') : cleanVideoname;
-                    if (origDesc.length > 300) origDesc = origDesc.substring(0, 300) + '...';
+                // 1. Send details card once if first in batch
+                let animeCardSent = false;
+                if (isFirstInBatch && !animeCardSent) {
+                    const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
+                    try {
+                        await sendMediaSafely(sock, exactBotJid, { text: `📌 *New Anime Requested!*\n🎬 *Title:* ${cleanVideoname} - Ep ${cleanEpNum}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}` }, 30000);
+                    } catch(e) {}
+
+                    let aiSummary = "";
+                    try {
+                        const sumPromise = getGeminiSummary(cleanVideoname);
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 6000));
+                        aiSummary = await Promise.race([sumPromise, timeoutPromise]);
+                    } catch(e) {}
+
+                    let origDesc = cleanVideoname;
+                    try {
+                        const seriesHtml = (await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS, timeout: 10000 })).data;
+                        const descMatch = seriesHtml.match(/<div class=['"]infodes c['"]>([\s\S]*?)<\/div>/i);
+                        if (descMatch) origDesc = descMatch[1].trim().replace(/<[^>]+>/g, '');
+                        if (origDesc.length > 300) origDesc = origDesc.substring(0, 300) + '...';
+                    } catch(e) {}
 
                     let cardText = `🎬 *${cleanVideoname}*\n\n`;
                     if (aiSummary) { cardText += `📖 *Summary:*\n${aiSummary}\n\n`; } else { cardText += `📝 *Description:*\n${origDesc}\n\n`; }
@@ -976,45 +1066,104 @@ router.post('/api/anime-send', async (req, res) => {
 
                     if (cleanThumbnail) {
                         try {
-                            await sendMediaSafely(sock, dynamicGroupJid, { image: { url: cleanThumbnail }, caption: cardText }, 60000);
+                            await sendMediaSafely(sock, dynamicGroupJid, { image: { url: cleanThumbnail }, caption: cardText }, 25000);
+                            animeCardSent = true;
                         } catch (imgErr) {
-                            console.log("[SEND] Anime poster failed, sending text description:", imgErr.message);
-                            await sendMediaSafely(sock, dynamicGroupJid, { text: cardText }, 30000);
+                            try {
+                                await sendMediaSafely(sock, dynamicGroupJid, { text: cardText }, 15000);
+                                animeCardSent = true;
+                            } catch(e) {}
                         }
                     } else {
-                        await sendMediaSafely(sock, dynamicGroupJid, { text: cardText }, 30000);
+                        try {
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: cardText }, 15000);
+                            animeCardSent = true;
+                        } catch(e) {}
                     }
                 }
 
-                const gateHtml = (await axios.get(`${ANIME_BASE}/gate.php`, { headers: { ...HEADERS, 'Referer': `${ANIME_BASE}/anime.php?${id}`, 'Cookie': `key=${hash}` } })).data;
-                let finalDlLink = '';
-                const downloadRegex = /<a\s+href=['"](https?:\/\/[a-z0-9]+\.animeheaven\.me\/video\.mp4\?[^'"]+)['"]/gi;
-                let dlMatch = downloadRegex.exec(gateHtml);
+                // 2. Direct Video Stream & Upload with 3-attempt auto-retry (10s wait on drop)
+                let streamUploaded = false;
+                let lastError = null;
+                const maxRetries = 3;
 
-                if (dlMatch) { finalDlLink = dlMatch[1]; } else {
-                    const sourceRegex = /<source\s+src=['"]([^'"]+)['"]/gi;
-                    let srcMatch;
-                    while ((srcMatch = sourceRegex.exec(gateHtml)) !== null) {
-                        let src = srcMatch[1];
-                        if (src && !src.includes('&error')) {
-                            if (src.startsWith('//')) src = 'https:' + src;
-                            if (src.includes('.animeheaven.me')) { finalDlLink = src.replace(/&[a-z0-9]+$/, '&d'); break; }
+                for (let attempt = 1; attempt <= maxRetries && !streamUploaded; attempt++) {
+                    try {
+                        if (attempt > 1) {
+                            console.log(`[ANIME STREAM] ⏳ Connection drop or error. Waiting 10 seconds before auto-retry (${attempt}/${maxRetries})...`);
+                            await new Promise(r => setTimeout(r, 10000));
                         }
+
+                        console.log(`[ANIME STREAM] 🚀 Attempt ${attempt}/${maxRetries} starting for: ${cleanVideoname} - Ep ${cleanEpNum}`);
+
+                        const gateHtml = (await axios.get(`${ANIME_BASE}/gate.php`, {
+                            headers: { ...HEADERS, 'Referer': `${ANIME_BASE}/anime.php?${id}`, 'Cookie': `key=${hash}` },
+                            timeout: 15000
+                        })).data;
+                        
+                        let finalDlLink = '';
+                        const downloadRegex = /<a\s+href=['"](https?:\/\/[a-z0-9]+\.animeheaven\.me\/video\.mp4\?[^'"]+)['"]/gi;
+                        let dlMatch = downloadRegex.exec(gateHtml);
+
+                        if (dlMatch) { finalDlLink = dlMatch[1]; } else {
+                            const sourceRegex = /<source\s+src=['"]([^'"]+)['"]/gi;
+                            let srcMatch;
+                            while ((srcMatch = sourceRegex.exec(gateHtml)) !== null) {
+                                let src = srcMatch[1];
+                                if (src && !src.includes('&error')) {
+                                    if (src.startsWith('//')) src = 'https:' + src;
+                                    if (src.includes('.animeheaven.me')) { finalDlLink = src.replace(/&[a-z0-9]+$/, '&d'); break; }
+                                }
+                            }
+                        }
+
+                        if (!finalDlLink) throw new Error("Anime DL link not found");
+
+                        const streamRes = await axios({
+                            url: finalDlLink,
+                            method: 'GET',
+                            responseType: 'stream',
+                            timeout: 45000,
+                            headers: {
+                                ...HEADERS,
+                                'Referer': 'https://animeheaven.me/',
+                                'Accept': '*/*',
+                                'Accept-Encoding': 'identity',
+                                'Connection': 'keep-alive'
+                            }
+                        });
+                        
+                        if ((streamRes.headers['content-type'] || '').includes('text/html')) {
+                            try { streamRes.data.destroy(); } catch(e){}
+                            throw new Error("Blocked by AnimeHaven");
+                        }
+
+                        const safeAnimeTitle = cleanVideoname.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Anime';
+                        const fileName = `${safeAnimeTitle} - Ep ${cleanEpNum} [SADEW].mp4`;
+                        let epCaption = `🎬 Episode ${cleanEpNum}\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*`;
+
+                        await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption }, 480000);
+                        
+                        streamUploaded = true;
+                        console.log(`[ANIME STREAM] ✅ Success on attempt ${attempt} for: ${cleanVideoname} - Ep ${cleanEpNum}`);
+                        break;
+
+                    } catch (err) {
+                        lastError = err;
+                        console.warn(`[ANIME STREAM] ⚠️ Attempt ${attempt} failed: ${err.message}`);
                     }
                 }
 
-                if (!finalDlLink) throw new Error("Anime DL link not found");
+                if (!streamUploaded) {
+                    const errMsg = lastError?.response ? `HTTP ${lastError.response.status}` : (lastError?.message || 'Upload failed');
+                    console.error(`[ANIME STREAM] ❌ All ${maxRetries} attempts failed for ${cleanVideoname}: ${errMsg}`);
+                    try {
+                        await sendMediaSafely(sock, dynamicGroupJid, { text: `❌ *Failed:* ${cleanVideoname} - Ep ${cleanEpNum}\n_Error: ${errMsg}. Please try again shortly._` }, 30000);
+                    } catch(e){}
+                }
 
-                const streamRes = await axios({ url: finalDlLink, method: 'GET', responseType: 'stream', timeout: 30000, headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://animeheaven.me/' }});
-                if ((streamRes.headers['content-type'] || '').includes('text/html')) { try { streamRes.data.destroy(); } catch(e){} throw new Error("Blocked by AnimeHaven"); }
-
-                const safeAnimeTitle = cleanVideoname.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Anime';
-                const fileName = `${safeAnimeTitle} - Ep ${cleanEpNum} [SADEW].mp4`;
-                let epCaption = `🎬 Episode ${cleanEpNum}\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*`;
-
-                await sendMediaSafely(sock, dynamicGroupJid, { document: { stream: streamRes.data }, mimetype: 'video/mp4', fileName, caption: epCaption });
-            } catch (err) {
-                try { await sendMediaSafely(sock, dynamicGroupJid, { text: `❌ *Failed:* ${cleanVideoname} - Ep ${cleanEpNum}\n_Network dropped or timeout._` }, 30000); } catch(e){}
+            } catch (outerErr) {
+                console.error("[ANIME QUEUE] Outer Error:", outerErr.message);
             }
         }
     });
