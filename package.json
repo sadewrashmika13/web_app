@@ -4,7 +4,7 @@
   "description": "WhatsApp Bot with Multi-Device Support and Auto-Cleanup",
   "main": "index.js",
   "scripts": {
-    "start": "node --expose-gc index.js",
+    "start": "node --expose-gc --max-old-space-size=4096 index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
