@@ -17,6 +17,8 @@ const CZ_API = "https://cz-dnuz.vercel.app";
 const ZANTA_API_BASE = "https://api.zanta-mini.store";
 const ZANTA_KEY = "zan_FIAO7Ayh_eo1vllkep6";
 const ANIME_BASE = "https://animeheaven.me";
+const KUROX_API_BASE = "https://api.kurox.site/api/v1/moviebox";
+const KUROX_KEY = "kx_27d485da9d2ec5dcfe3b37fa8713a8e0";
 
 // 🔥 මේවා දැන් Fallbacks (DB එකෙන් ආවේ නැත්තම් විතරක් මේවා පාවිච්චි වෙනවා) 🔥
 const FALLBACK_GROUP_JID = '120363425721300928@g.us'; 
@@ -43,7 +45,13 @@ const ALLOWED_IMAGE_HOSTS = [
     'mizuki-md-api.netlify.app',
     'whiteshadow-x-api.onrender.com',
     'kavindu-download-web.vercel.app',
-    'cz-dnuz.vercel.app'
+    'cz-dnuz.vercel.app',
+    'pbcdnw.aoneroom.com',
+    'aoneroom.com',
+    'macdn.aoneroom.com',
+    'moviebox.asitha.top',
+    'bcdnw.hakunaymatata.com',
+    'kurox.site'
 ];
 
 function isValidMovieImage(imgUrl) {
@@ -261,14 +269,16 @@ async function getGeminiSummary(movieTitle) {
     }
 
     const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${cleanSearchTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
-    const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite'];
+    const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash'];
 
-    if (GEMINI_KEYS.length === 0) {
-        console.warn("[GEMINI] ⚠️ No GEMINI_KEY_1..6 found in environment!");
-        return "";
-    }
+    const fallbackKeys = [
+        "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA",
+        "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ",
+        "AQ.Ab8RN6IMIGwHe7iM4N6ao40c9m8rTOPkJNyr5CPKKH1bnfEz2g"
+    ];
+    const effectiveKeys = GEMINI_KEYS.length > 0 ? GEMINI_KEYS : fallbackKeys;
 
-    for (const key of GEMINI_KEYS) {
+    for (const key of effectiveKeys) {
         for (const model of models) {
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
@@ -375,6 +385,50 @@ router.get('/api/queue', (req, res) => { res.json({ active: taskQueue.active.len
 router.post('/api/search', async (req, res) => {
     const { query, source } = req.body;
     try {
+        if (source === 'moviebox') {
+            const cleanQ = (query || '').trim();
+            let searchRes;
+            if (!cleanQ || cleanQ === '__trending__' || cleanQ.toLowerCase() === 'trending') {
+                searchRes = await axios.get(`${KUROX_API_BASE}?apiKey=${KUROX_KEY}&action=trending&page=1&type=all`, {
+                    headers: { 'X-API-KEY': KUROX_KEY },
+                    timeout: 15000
+                });
+                const items = searchRes.data?.items || searchRes.data?.results || [];
+                if (items.length > 0) {
+                    const results = items.slice(0, 36).map(mv => ({
+                        title: mv.title || 'Movie',
+                        url: mv.id,
+                        img: mv.thumbnail || '',
+                        source: 'moviebox',
+                        type: mv.type || 'movie',
+                        year: mv.year || '',
+                        rating: mv.rating || ''
+                    }));
+                    cacheVerifiedMovies(results);
+                    return res.json({ success: true, results });
+                }
+            } else {
+                searchRes = await axios.get(`${KUROX_API_BASE}?apiKey=${KUROX_KEY}&q=${encodeURIComponent(cleanQ)}&action=search&page=1&type=all`, {
+                    headers: { 'X-API-KEY': KUROX_KEY },
+                    timeout: 15000
+                });
+                const items = searchRes.data?.results || searchRes.data?.items || [];
+                if (items.length > 0) {
+                    const results = items.slice(0, 24).map(mv => ({
+                        title: mv.title || 'Movie',
+                        url: mv.id,
+                        img: mv.thumbnail || '',
+                        source: 'moviebox',
+                        type: mv.type || 'movie',
+                        year: mv.year || '',
+                        rating: mv.rating || ''
+                    }));
+                    cacheVerifiedMovies(results);
+                    return res.json({ success: true, results });
+                }
+            }
+            return res.json({ success: false });
+        }
         if (source === 'sinhalasub2') {
             const searchRes = await axios.get(`${ZANTA_API_BASE}/api/sinhalasub/search?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(query)}`);
             if (searchRes.data?.success && searchRes.data.results?.length > 0) {
@@ -475,6 +529,69 @@ router.post('/api/search', async (req, res) => {
 router.post('/api/links', async (req, res) => {
     const { url, source } = req.body;
     try {
+        if (source === 'moviebox') {
+            let mbId = String(url).trim();
+            if (mbId.includes('id=')) {
+                const m = mbId.match(/[?&]id=([^&]+)/);
+                if (m) mbId = m[1];
+            }
+            try {
+                const infoRes = await axios.get(`${KUROX_API_BASE}?apiKey=${KUROX_KEY}&id=${mbId}&action=info&season=1&episode=1&type=all`, {
+                    headers: { 'X-API-KEY': KUROX_KEY },
+                    timeout: 15000
+                });
+                const data = infoRes.data?.data || {};
+                const sources = infoRes.data?.sources || [];
+                const seasons = data.seasons || [];
+                const isSeries = (data.type === 'tv' || data.type === 'series') || (Array.isArray(seasons) && seasons.length > 0);
+
+                let downloads = [];
+                if (isSeries && Array.isArray(seasons) && seasons.length > 0) {
+                    for (const s of seasons) {
+                        const sNum = s.season;
+                        const epCount = s.episodes || 0;
+                        for (let ep = 1; ep <= epCount; ep++) {
+                            downloads.push({
+                                meta: `S${sNum} Ep ${ep} - 720p`,
+                                resolvedUrl: `moviebox://${mbId}:${sNum}:${ep}:720`,
+                                direct: true
+                            });
+                        }
+                    }
+                } else {
+                    if (sources.length > 0) {
+                        sources.forEach(src => {
+                            const q = src.quality || 'HD';
+                            downloads.push({
+                                meta: `${q}`,
+                                resolvedUrl: src.directDownloadUrl || src.downloadUrl || src.streamUrl || `moviebox://${mbId}:0:1:${q}`,
+                                direct: true
+                            });
+                        });
+                    } else {
+                        ['1080p', '720p', '480p', '360p'].forEach(q => {
+                            downloads.push({
+                                meta: q,
+                                resolvedUrl: `moviebox://${mbId}:0:1:${q}`,
+                                direct: true
+                            });
+                        });
+                    }
+                }
+
+                if (downloads.length > 0) {
+                    return res.json({
+                        success: true,
+                        downloads,
+                        thumbnail: data.thumbnail || '',
+                        isSeries
+                    });
+                }
+            } catch (err) {
+                console.error("[MOVIEBOX LINKS ERROR]:", err.message);
+            }
+            return res.json({ success: false });
+        }
         if (source === 'sinhalasub2') {
             const dlRes = await axios.get(`${ZANTA_API_BASE}/api/sinhalasub/dl?apiKey=${ZANTA_KEY}&text=${encodeURIComponent(url)}`);
             if (!dlRes.data?.success) return res.json({ success: false });
@@ -685,7 +802,7 @@ router.post('/api/send-movie', async (req, res) => {
     const finalPoster = isValidMovieImage(verifiedMovie.img) ? verifiedMovie.img : (cleanImg || null);
 
     // 🛡️ 9. URL Security Check
-    if (!url || typeof url !== 'string' || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    if (!url || typeof url !== 'string' || (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('moviebox://'))) {
         recordSuspiciousRequest(clientIp);
         return res.status(400).json({ success: false, message: 'Invalid download URL format.' });
     }
@@ -782,6 +899,27 @@ router.post('/api/send-movie', async (req, res) => {
                         console.log(`[STREAM] 🚀 Attempt ${attempt}/${maxRetries} starting for: ${verifiedTitle} (${cleanQuality})`);
                         
                         let finalVidUrl = url;
+
+                        if (finalVidUrl.startsWith('moviebox://')) {
+                            try {
+                                const parts = finalVidUrl.replace('moviebox://', '').split(':');
+                                const [mbId, mbSeason, mbEpisode, preferredQ] = parts;
+                                const mbInfoRes = await axios.get(`${KUROX_API_BASE}?apiKey=${KUROX_KEY}&id=${mbId}&action=info&season=${mbSeason || 1}&episode=${mbEpisode || 1}&type=all`, {
+                                    headers: { 'X-API-KEY': KUROX_KEY },
+                                    timeout: 15000
+                                });
+                                const mbSources = mbInfoRes.data?.sources || [];
+                                const chosen = (preferredQ ? mbSources.find(s => s.quality === `${preferredQ}p` || s.quality === preferredQ) : null) || mbSources.find(s => s.quality === '1080p') || mbSources.find(s => s.quality === '720p') || mbSources[0];
+                                if (chosen && (chosen.directDownloadUrl || chosen.downloadUrl || chosen.streamUrl)) {
+                                    finalVidUrl = chosen.directDownloadUrl || chosen.downloadUrl || chosen.streamUrl;
+                                    console.log(`[MOVIEBOX] ✅ Resolved on-demand stream URL for ID ${mbId} S${mbSeason}E${mbEpisode}: ${chosen.quality}`);
+                                } else {
+                                    throw new Error("MovieBox direct stream link resolution failed");
+                                }
+                            } catch (mbErr) {
+                                throw new Error(`MovieBox stream error: ${mbErr.message}`);
+                            }
+                        }
 
                         if (finalVidUrl.includes('drive.google') || finalVidUrl.includes('drive.usercontent')) {
                             let match = finalVidUrl.match(/\/file\/d\/([^\/]+)/) || finalVidUrl.match(/[?&]id=([^&]+)/) || finalVidUrl.match(/\/d\/([^\/]+)/);
