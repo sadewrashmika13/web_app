@@ -272,7 +272,7 @@ app.use('/central_panel.html', async (req, res) => {
 });
 
 // 5. Nimal's Web (අලුත් කස්ටමර්ස්ලගේ ලින්ක්ස් ඔක්කොම දාන්නේ මෙතනට)
-app.use('/nimal', async (req, res) => { 
+app.use('/deshan', async (req, res) => { 
    res.sendFile(path.join(__path, 'nimal.html')); 
 });
 
