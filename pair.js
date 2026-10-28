@@ -78,17 +78,17 @@ const images = [
     'https://res.cloudinary.com/p6lu5bpe/image/upload/v1788163901/c69kczqhf92hmoat3jzt.jpg',
     'https://res.cloudinary.com/p6lu5bpe/image/upload/v1788163893/i8kowfuwyxec0jzelzxt.jpg',
     'https://res.cloudinary.com/p6lu5bpe/image/upload/v1788164066/drpycuhfxyogmmevl9vh.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1783328021/zanta_media_uploads/tnuazopka24oahpvh3mc.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1783327996/zanta_media_uploads/vfq2mrf2hwkzhjerc3zz.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1783327966/zanta_media_uploads/nca5y1t1fl5klruuxehp.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1783328043/zanta_media_uploads/d0svlrulezrpif4mfl9w.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1780590033/zanta_media_uploads/dttqjshprca9zvqcpbwg.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1780590033/zanta_media_uploads/dttqjshprca9zvqcpbwg.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1783328053/zanta_media_uploads/mtifkjupz6kvdistsqit.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1780590033/zanta_media_uploads/dttqjshprca9zvqcpbwg.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1780590033/zanta_media_uploads/dttqjshprca9zvqcpbwg.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1783332950/zanta_media_uploads/sxkybgfhhi5gtkqsns2z.jpg',
-    'https://res.cloudinary.com/dqlh378fb/image/upload/v1783332958/zanta_media_uploads/yxtvp8zwoju8xsvghzr7.jpg'
+'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160510/vhcqdtgxyj8yahmkssuy.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160520/gu7raty0gcqv1tt4ynet.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160540/qhm9b2fhu76szjmww2bi.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160550/shkuyncvdz8sdcotl0xy.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160560/fatcvpo88266kgbheefm.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160570/t4oj6xlw3ckvzkgyynnu.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160580/lyhjrtbx0h2udwwkpe2h.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160587/fe9rkgrppzgiokscyrjj.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160602/wgyjeagvtbzvbabuwdlc.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160646/v1epoygcjrxe8kpu4yxh.jpg',
+    'https://res.cloudinary.com/p6lu5bpe/image/upload/v1793160656/hnke5e90bovubthbwzem.jpg'
   ]; 
 
 Object.defineProperty(global, 'akira', {
