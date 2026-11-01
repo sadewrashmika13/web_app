@@ -14,6 +14,7 @@ const router = express.Router();
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 const CZ_API = "https://cz-dnuz.vercel.app";
+const CZ2_API = "https://cinesubz-api-cnw.vercel.app/api";
 const ZANTA_API_BASE = "https://api.zanta-mini.store";
 const ZANTA_KEY = "zan_FIAO7Ayh_eo1vllkep6";
 const ANIME_BASE = "https://animeheaven.me";
@@ -30,6 +31,11 @@ const ALLOWED_IMAGE_HOSTS = [
     'cinesubz.net',
     'cinesubz.co',
     'cinesubz.lk',
+    'cinesubz-api-cnw.vercel.app',
+    'supercloud1.xyz',
+    'terracloud2.site',
+    'avatarzone.online',
+    'player2.setwenna.one',
     'sinhalasub.lk',
     'sinhalasub.net',
     'image.tmdb.org',
@@ -268,51 +274,83 @@ async function getGeminiSummary(movieTitle) {
         return geminiSummaryCache.get(cacheKey);
     }
 
-    const prompt = `Write a short, engaging summary and description (max 4 sentences) for the movie, tv series or anime "${cleanSearchTitle}". Do not include spoilers. Write it beautifully in Sinhala language mixed with English words. Add matching emojis.`;
-    const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash'];
+    const prompt = `ඔබ දක්ෂ සිනමා විචාරකයෙකි. "${cleanSearchTitle}" චිත්‍රපටය හෝ කතා මාලාව (TV Series/Anime) පිළිබඳව ආකර්ෂණීය, රසවත් සහ විස්තරාත්මක සාරාංශයක් (Summary & Overview) ලියන්න.
 
-    const fallbackKeys = [
-        "AQ.Ab8RN6Kw88lnDbxkFgLtX8GwUH5tDtyIo12nevDaTHS7aR_pDA",
-        "AQ.Ab8RN6IlX79ZUjetBgGH8sF5o5zSWf1wyv9q-ON1XJJ7quebQQ",
-        "AQ.Ab8RN6IMIGwHe7iM4N6ao40c9m8rTOPkJNyr5CPKKH1bnfEz2g"
-    ];
-    const effectiveKeys = GEMINI_KEYS.length > 0 ? GEMINI_KEYS : fallbackKeys;
+විශේෂ උපදෙස්:
+1. භාෂාව: කියවන්නා ඇදබැඳ තබාගන්නා සුළු, ලස්සන කතා කරන සරල සිංහලෙන් (Natural Conversational Sinhala) ලියන්න. අවශ්‍ය තැන්වලදී සුලභ ඉංග්‍රීසි සිනමා වචන (Hero, Villain, Action, Suspense, Plot twist, Season වැනි) මිශ්‍ර කළ හැක.
+2. අන්තර්ගතය: කතාවේ ප්‍රධාන තේමාව, කුතුහලය සහ හැඟීම් මනාව මතුවන සේ වාක්‍ය 5-6 ක පමණ පැහැදිලි සවිස්තරාත්මක විස්තරයක් ලබාදෙන්න. ප්‍රධාන රහස් (Major Spoilers) කිසිවිටෙක් හෙළි නොකරන්න.
+3. ස්වභාවය: සිනමාලෝලියෙක් තවත් කෙනෙකුට කතාවේ වටිනාකම සහ රසය කියාදෙන සුහද, උද්යෝගිමත් ශෛලියක් තිබිය යුතුය.
+4. Emojis: අන්තර්ගතයට ගැලපෙන ආකර්ෂණීය emojis (🎬🍿✨🔥 ආදී) යොදාගන්න.
+කරුණාකර සිංහල සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න.`;
+    const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const effectiveKeys = GEMINI_KEYS.length > 0 ? GEMINI_KEYS : [];
 
-    for (const key of effectiveKeys) {
-        for (const model of models) {
-            try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-                const response = await axios.post(url, { 
-                    contents: [{ parts: [{ text: prompt }] }],
-                    safetySettings: [
-                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                    ]
-                }, { timeout: 4000 });
-                if (response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-                    const result = response.data.candidates[0].content.parts[0].text.trim();
-                    console.log(`[GEMINI] ✅ AI Summary generated successfully with ${model}`);
-                    geminiSummaryCache.set(cacheKey, result);
-                    if (geminiSummaryCache.size > 2000) {
-                        const firstKey = geminiSummaryCache.keys().next().value;
-                        geminiSummaryCache.delete(firstKey);
+    // 1. Google Generative Language API
+    if (effectiveKeys.length > 0) {
+        for (const key of effectiveKeys) {
+            for (const model of models) {
+                try {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+                    const response = await axios.post(url, { 
+                        contents: [{ parts: [{ text: prompt }] }],
+                        safetySettings: [
+                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                        ]
+                    }, { timeout: 3500 });
+
+                    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text && text.trim().length > 20) {
+                        const result = text.trim();
+                        console.log(`[GEMINI] ✅ AI Summary generated with ${model}`);
+                        geminiSummaryCache.set(cacheKey, result);
+                        if (geminiSummaryCache.size > 2000) {
+                            const firstKey = geminiSummaryCache.keys().next().value;
+                            geminiSummaryCache.delete(firstKey);
+                        }
+                        return result;
                     }
-                    return result;
+                } catch (err) {
+                    // Continue to next model/key
                 }
-            } catch (err) {
-                // Continue to next model/key
             }
         }
     }
+
+    // 2. High-speed Multi-API Fallback (David Cyril API - 100% reliable free endpoints)
+    const fallbackEndpoints = [
+        "https://apis.davidcyril.name.ng/ai/gemini-3.1-flash-lite",
+        "https://apis.davidcyril.name.ng/ai/gemini-3.1-pro",
+        "https://apis.davidcyril.name.ng/ai/gemini-3-pro"
+    ];
+
+    for (const ep of fallbackEndpoints) {
+        try {
+            const fbRes = await axios.get(`${ep}?prompt=${encodeURIComponent(prompt)}`, { timeout: 6000 });
+            const reply = fbRes.data?.data || fbRes.data?.result || fbRes.data?.message;
+            if (reply && typeof reply === 'string' && reply.trim().length > 20) {
+                const result = reply.trim();
+                console.log(`[GEMINI] ✅ AI Summary generated via fallback endpoint: ${ep}`);
+                geminiSummaryCache.set(cacheKey, result);
+                return result;
+            }
+        } catch (fbErr) {
+            // Try next fallback
+        }
+    }
+
     return ""; 
 }
 
-// 🔥 Keep DanuZz API (Vercel) warm to eliminate cold-start delay
-setInterval(() => {
-    axios.get(`${CZ_API}/search?q=avatar`, { timeout: 6000 }).catch(() => {});
-}, 3 * 60 * 1000);
+// 🔥 Keep APIs warm to eliminate cold-start delay
+function warmApis() {
+    axios.get(`${CZ_API}/search?q=avatar`, { timeout: 8000 }).catch(() => {});
+    axios.get(`${CZ2_API}/search?q=batman`, { timeout: 8000 }).catch(() => {});
+}
+warmApis();
+setInterval(warmApis, 2.5 * 60 * 1000);
 
 // 🔥 Dynamic විදිහට අදාල නම්බර් එකේ Socket එක ගන්නවා 🔥
 function getActiveSocket(targetBotNumber) {
@@ -515,6 +553,29 @@ router.post('/api/search', async (req, res) => {
                 return res.json({ success: true, results });
             }
             return res.json({ success: false });
+        }
+        if (source === 'cinesubz2') {
+            try {
+                const searchRes = await axios.get(`${CZ2_API}/search?q=${encodeURIComponent(query)}`, { timeout: 15000, headers: HEADERS });
+                const data = searchRes.data || {};
+                const list = data.data || data.result || [];
+                if (list.length > 0) {
+                    const results = list.slice(0, 10).map(mv => ({
+                        title: mv.title || mv.name || 'Movie',
+                        url: mv.url || mv.link,
+                        img: mv.img || mv.image || '',
+                        source: 'cinesubz2',
+                        year: mv.year || mv.date || '',
+                        imdb: mv.imdb || '',
+                        runtime: mv.runtime || ''
+                    }));
+                    cacheVerifiedMovies(results);
+                    return res.json({ success: true, results });
+                }
+            } catch (cz2Err) {
+                console.error("[CZ2] Search API error:", cz2Err.message);
+            }
+            return res.json({ success: false });
         }   
         const searchRes = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`);
         if (searchRes.data.success && searchRes.data.result?.length > 0) {
@@ -688,6 +749,46 @@ if (source === 'dinkamovies') {
             }
             return res.json({ success: false });
         }
+        if (source === 'cinesubz2') {
+            try {
+                const dlRes = await axios.get(`${CZ2_API}/dl-links?url=${encodeURIComponent(url)}`, { timeout: 25000, headers: HEADERS });
+                const dlData = dlRes.data || {};
+
+                if (dlData.allEpisodes && Array.isArray(dlData.allEpisodes) && dlData.allEpisodes.length > 0) {
+                    const downloads = dlData.allEpisodes.map(ep => ({
+                        meta: `Episode ${ep.episode}: ${ep.title || ''}`.trim(),
+                        resolvedUrl: ep.url,
+                        direct: false
+                    }));
+                    return res.json({ success: true, downloads, isSeries: true });
+                }
+
+                const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
+                let downloads = [];
+                arr.forEach(item => {
+                    let resolvedUrl = item.direct_mp4_url || item.url || item.link;
+                    if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
+                        resolvedUrl = resolvedUrl.replace('avatarzone.online', 'terracloud2.site');
+                        let q = item.quality || item.resolution || item.name || '';
+                        if (!q) {
+                            if (resolvedUrl.includes('480p')) q = '480p';
+                            else if (resolvedUrl.includes('720p')) q = '720p';
+                            else if (resolvedUrl.includes('1080p')) q = '1080p';
+                            else q = 'HD';
+                        }
+                        const sizeStr = item.fileSize || item.size;
+                        const metaLabel = `${q} ${sizeStr && sizeStr !== 'Unknown' ? `(${sizeStr})` : ''}`.trim();
+                        downloads.push({ meta: metaLabel, resolvedUrl: resolvedUrl, direct: true });
+                    }
+                });
+                if (downloads.length > 0) {
+                    return res.json({ success: true, downloads });
+                }
+            } catch (cz2DlErr) {
+                console.error("[CZ2] Links API error:", cz2DlErr.message);
+            }
+            return res.json({ success: false });
+        }
         const dlRes = await axios.get(`${CZ_API}/movidl?url=${encodeURIComponent(url)}`);
         res.json({ success: true, downloads: dlRes.data.result?.downloads || [] });
     } catch (error) { res.json({ success: false }); }
@@ -792,6 +893,24 @@ router.post('/api/send-movie', async (req, res) => {
         } catch (e) {}
     }
 
+    if (!verifiedMovie && source === 'cinesubz2') {
+        try {
+            const verifyRes = await axios.get(`${CZ2_API}/search?q=${encodeURIComponent(cleanTitle.substring(0, 30))}`, { timeout: 6000, headers: HEADERS });
+            const list = verifyRes.data?.data || verifyRes.data?.result || [];
+            if (list.length > 0) {
+                const found = list.find(m => {
+                    const k = sanitizeText(m.title, 80).toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return k.includes(normKey) || normKey.includes(k);
+                }) || list[0];
+
+                if (found) {
+                    verifiedMovie = { title: (found.title || found.name).trim(), img: found.img || found.image };
+                    verifiedMoviesCache.set(normKey, verifiedMovie);
+                }
+            }
+        } catch (e) {}
+    }
+
     // For verified sources (or cache misses), safe title fallback
     if (!verifiedMovie) {
         verifiedMovie = { title: cleanTitle, img: cleanImg || '' };
@@ -847,11 +966,10 @@ router.post('/api/send-movie', async (req, res) => {
                     const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}`;
                     
-                    try {
-                        await sendMediaSafely(sock, exactBotJid, { text: adminInboxText }, 6000);
-                    } catch (e) {
-                        console.log("Inbox Notification Error:", e.message);
-                    }
+                    // Non-blocking fire-and-forget notification (NEVER hangs the queue!)
+                    sendMediaSafely(sock, exactBotJid, { text: adminInboxText }, 5000).catch(e => {
+                        console.log("Inbox Notification Error (non-blocking):", e.message);
+                    });
 
                     // Quick AI summary with 6s max race (never hangs the queue)
                     let aiSummary = "";
@@ -861,24 +979,29 @@ router.post('/api/send-movie', async (req, res) => {
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
-                    let cap = `🎬 *${verifiedTitle}*\n✨ *Quality:* ${cleanQuality}\n\n`;
-                    if (aiSummary) cap += `📖 *Summary:*\n${aiSummary}\n\n`;
-                    cap += `👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
+                    let cap = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n`;
+                    cap += `🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n`;
+                    if (aiSummary) cap += `\n📖 *සාරාංශය (Overview):*\n${aiSummary}\n`;
+                    cap += `\n👤 *Required By:* ${cleanReqName}\n\n> 👑 *${dynamicFooter}* 👑`;
 
                     if (finalPoster) {
                         try {
-                            await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 25000);
+                            const imgRes = await axios.get(finalPoster, { responseType: 'arraybuffer', timeout: 5000, headers: HEADERS });
+                            await sendMediaSafely(sock, dynamicGroupJid, { image: Buffer.from(imgRes.data), caption: cap }, 15000);
                             detailsCardSent = true;
                         } catch (imgErr) {
-                            console.log("[SEND] Poster send failed, sending text message with AI summary instead:", imgErr.message);
+                            console.log("[SEND] Poster image buffer fetch failed, trying url fallback or text:", imgErr.message);
                             try {
-                                await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 15000);
+                                await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 10000);
                                 detailsCardSent = true;
-                            } catch(e) {}
+                            } catch (e2) {
+                                await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 10000);
+                                detailsCardSent = true;
+                            }
                         }
                     } else {
                         try {
-                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 15000);
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 10000);
                             detailsCardSent = true;
                         } catch(e) {}
                     }
@@ -982,6 +1105,28 @@ router.post('/api/send-movie', async (req, res) => {
                             if (resolvedStreamUrl) { finalVidUrl = resolvedStreamUrl; } else { throw new Error("DanuZz API Cinesubz bypass failed on Web Server."); }
                         }
 
+                        if (source === 'cinesubz2') {
+                            if (finalVidUrl.includes('cinesubz.net') || finalVidUrl.includes('/episodes/') || !finalVidUrl.match(/\.(mp4|mkv)(\?|$)/i)) {
+                                try {
+                                    console.log(`[CZ2] Resolving direct stream link for: ${finalVidUrl}`);
+                                    const epRes = await axios.get(`${CZ2_API}/dl-links?url=${encodeURIComponent(finalVidUrl)}`, { timeout: 25000, headers: HEADERS });
+                                    const arr = epRes.data?.downloadLinks || epRes.data?.result || epRes.data?.data || [];
+                                    for (let item of arr) {
+                                        let u = item.direct_mp4_url || item.url || item.link;
+                                        if (u && typeof u === 'string' && u.startsWith('http')) {
+                                            finalVidUrl = u.replace('avatarzone.online', 'terracloud2.site');
+                                            break;
+                                        }
+                                    }
+                                } catch (epErr) {
+                                    console.error("[CZ2] Failed to resolve episode link:", epErr.message);
+                                }
+                            }
+                            if (finalVidUrl.includes('avatarzone.online')) {
+                                finalVidUrl = finalVidUrl.replace('avatarzone.online', 'terracloud2.site');
+                            }
+                        }
+
                         if (source === 'dinkamovies') {
                             let fileId = null;
                             if (finalVidUrl.includes('drive.google.com')) {
@@ -1008,65 +1153,51 @@ router.post('/api/send-movie', async (req, res) => {
                         let fileName = `${safeMovieTitle} - ${safeQualityForFile}.${fileExt}`;
                         let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${cleanQuality}*\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*` : `🎬 *${verifiedTitle}*\n> *${dynamicFooter}*`;
 
-                        // 🛡️ High-speed SSD pipe download (Zero RAM heap spike, prevents GitHub OOM crash)
-                        const tempFilePath = path.join(os.tmpdir(), `mv_${Date.now()}_${crypto.randomBytes(3).toString('hex')}.${fileExt}`);
-                        
-                        try {
-                            const writer = fs.createWriteStream(tempFilePath);
-                            const streamRes = await axios({
-                                method: 'GET',
-                                url: finalVidUrl,
-                                responseType: 'stream',
-                                timeout: 180000,
-                                headers: {
-                                    ...HEADERS,
-                                    'Accept': '*/*',
-                                    'Accept-Encoding': 'identity',
-                                    'Connection': 'keep-alive'
-                                },
-                                httpsAgent
-                            });
+                        // 🚀 ULTRA FAST DIRECT WHATSAPP STREAMING (Zero disk lag, starts streaming immediately)
+                        console.log(`[STREAM] 🚀 Live streaming to WhatsApp: ${fileName}`);
+                        const streamHeaders = {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Referer': (source && source.startsWith('cinesubz')) ? 'https://cinesubz.net/' : 'https://google.com/',
+                            'Accept': '*/*'
+                        };
 
-                            if (streamRes.headers['content-length'] && parseInt(streamRes.headers['content-length']) > 2 * 1024 * 1024 * 1024) {
-                                try { streamRes.data.destroy(); } catch(e){}
-                                try { writer.close(); fs.unlinkSync(tempFilePath); } catch(e){}
-                                await sendMediaSafely(sock, dynamicGroupJid, { text: `⚠️ *File Too Large (>2GB)*\n🎬 ${verifiedTitle}\n🔗 ${url}` });
-                                streamUploaded = true;
-                                break;
-                            }
+                        const streamRes = await axios({
+                            method: 'GET',
+                            url: finalVidUrl,
+                            responseType: 'stream',
+                            timeout: 0,
+                            headers: streamHeaders,
+                            maxRedirects: 10,
+                            httpsAgent
+                        });
 
-                            streamRes.data.pipe(writer);
-
-                            await new Promise((resolve, reject) => {
-                                writer.on('finish', resolve);
-                                writer.on('error', reject);
-                                streamRes.data.on('error', reject);
-                            });
-
-                            const stats = fs.statSync(tempFilePath);
-                            if (!stats || stats.size < 5000) {
-                                throw new Error("Downloaded file is empty or corrupted");
-                            }
-
-                            console.log(`[STREAM] 📦 File downloaded to SSD (${(stats.size / 1024 / 1024).toFixed(1)} MB). Uploading to WhatsApp group...`);
-
-                            // Send from local SSD file - Baileys streams chunk-by-chunk with zero memory pressure!
-                            await sendMediaSafely(sock, dynamicGroupJid, {
-                                document: { url: tempFilePath },
-                                mimetype: mimeType,
-                                fileName,
-                                caption: smallCaption
-                            }, 480000);
-
-                            streamUploaded = true;
-                            console.log(`[STREAM] ✅ Successfully uploaded: ${verifiedTitle} (${cleanQuality})`);
-                            break;
-
-                        } finally {
-                            if (fs.existsSync(tempFilePath)) {
-                                try { fs.unlinkSync(tempFilePath); } catch(e){}
-                            }
+                        const ct = streamRes.headers['content-type'] || '';
+                        if (ct.includes('text/html')) {
+                            try { streamRes.data.destroy(); } catch(e){}
+                            throw new Error("Server returned HTML page instead of video file");
                         }
+
+                        const cl = parseInt(streamRes.headers['content-length'] || '0');
+                        if (cl > 2 * 1024 * 1024 * 1024) {
+                            try { streamRes.data.destroy(); } catch(e){}
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: `⚠️ *File Too Large (>2GB)*\n🎬 ${verifiedTitle}\n🔗 ${url}` });
+                            streamUploaded = true;
+                            break;
+                        }
+
+                        await sendMediaSafely(sock, dynamicGroupJid, {
+                            document: { stream: streamRes.data },
+                            mimetype: mimeType,
+                            fileName: fileName,
+                            caption: smallCaption
+                        }, 1800000);
+
+                        try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (err) {}
+                        setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
+
+                        streamUploaded = true;
+                        console.log(`[STREAM] ✅ Successfully live streamed: ${verifiedTitle} (${cleanQuality})`);
+                        break;
 
                     } catch (err) {
                         lastError = err;

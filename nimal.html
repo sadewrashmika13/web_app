@@ -137,12 +137,13 @@ footer{text-align:center;margin:30px auto 24px;padding:22px 16px;max-width:1100p
 <header>
   <div class="topbar"><div class="brand"><img src="https://res.cloudinary.com/p6lu5bpe/image/upload/v1793176117/czp3rhfmc51bljnfj5bp.jpg" alt=""><span><b>DESHAN</b> Movie Hub</span></div><a class="adm" id="adminLink" href="#" target="_blank"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2z"/></svg> Admin</a></div>
   <div class="header-inner">
-    <div class="badge-on"><i></i>11 sources online</div>
+    <div class="badge-on"><i></i>12 sources online</div>
     <h1 id="pageHeading">Deshan <em>Movie Hub</em></h1>
     <p class="sub">Movies, TV, cartoons සහ anime — source එකක් තෝරලා search කරන්න.</p>
     <div class="chips"><span>◈ Multi source</span><span>CC Sinhala sub</span><span>⚡ Fast search</span></div>
     <div class="source-toggle" id="sourceToggle">
       <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz',this)">CineSubz</button>
+      <button class="src-btn" data-source="cinesubz2" onclick="setSource('cinesubz2',this)">🎬 CineSubz 2 (V2)</button>
       <button class="src-btn" data-source="moviebox" onclick="setSource('moviebox',this)">🎬 MovieBox Pro</button>
       <button class="src-btn" data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">SinhalaSub</button>
       <button class="src-btn" data-source="animeheaven" onclick="setSource('animeheaven',this)">AnimeHaven</button>
@@ -284,7 +285,7 @@ function renderCards(list){
   const grid=document.getElementById('movieGrid');grid.innerHTML='';
   list.forEach((mv,idx)=>{
     const card=document.createElement('div');card.className='ticket';card.style.animationDelay=Math.min(idx*60,700)+'ms';
-    const cap=mv.source?(mv.source==='moviebox'?'MovieBox Pro':mv.source.charAt(0).toUpperCase()+mv.source.slice(1)):'CineSubz';
+    const cap=mv.source?(mv.source==='moviebox'?'MovieBox Pro':(mv.source==='cinesubz2'?'CineSubz 2':mv.source.charAt(0).toUpperCase()+mv.source.slice(1))):'CineSubz';
     const typeBadge=mv.type?`<span class="badge" style="left:auto;right:10px">${mv.type.toUpperCase()}</span>`:'';
     card.innerHTML=`<div class="ticket-inner"><div class="poster"><img src="${mv.img||'https://via.placeholder.com/400'}" alt="${mv.title}" loading="lazy"><span class="badge">${cap}</span>${typeBadge}</div><div class="stub"><h4>${mv.title}</h4></div></div>`;
     card.onclick=()=>openModal(mv.title,mv.img,mv.url||mv.id,mv.imdb);
@@ -329,7 +330,7 @@ async function openModal(title,img,refId,imdb){
     if(data.success){
       ms.textContent='Pick an option:';currentMovieMeta={title,img,imdb,refId};
       const arr=isA?data.episodes:data.downloads;currentDownloads=arr;
-      const isS=arr.length>1&&(isA||['slcartoons','moviesublk','kdrama'].includes(currentSource)||data.isSeries||arr[0].meta?.toLowerCase().includes('episode')||arr[0].meta?.toLowerCase().includes('part')||arr[0].meta?.toLowerCase().startsWith('s'));
+      const isS=arr.length>1&&(isA||['slcartoons','moviesublk','kdrama','cinesubz2'].includes(currentSource)||data.isSeries||arr[0].meta?.toLowerCase().includes('episode')||arr[0].meta?.toLowerCase().includes('part')||arr[0].meta?.toLowerCase().startsWith('s'));
       if(isS){
         const ba=document.createElement('button');ba.className='qbtn all-btn';ba.innerHTML=`🚀 Queue ALL Episodes (${arr.length})`;
         ba.onclick=()=>isA?sendAllAnime(data):sendAllMovie(arr);
