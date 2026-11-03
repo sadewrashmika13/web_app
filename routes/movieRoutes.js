@@ -106,6 +106,26 @@ function isValidMovieImage(imgUrl) {
     }
 }
 
+let Jimp;
+try { Jimp = require('jimp'); } catch(_) {}
+
+async function ensureJpegBuffer(imgBuffer) {
+    if (!imgBuffer || !Buffer.isBuffer(imgBuffer) || imgBuffer.length < 20) return imgBuffer;
+    // Standard JPEG magic bytes: 0xFF 0xD8 0xFF
+    if (imgBuffer[0] === 0xFF && imgBuffer[1] === 0xD8 && imgBuffer[2] === 0xFF) {
+        return imgBuffer;
+    }
+    try {
+        if (Jimp && typeof Jimp.read === 'function') {
+            const image = await Jimp.read(imgBuffer);
+            return await image.getBufferAsync(Jimp.MIME_JPEG);
+        }
+    } catch (e) {
+        console.log("[IMAGE] Jpeg buffer conversion note:", e.message);
+    }
+    return imgBuffer;
+}
+
 function sanitizeText(str, maxLen = 80) {
     if (!str || typeof str !== 'string') return '';
     return str.replace(/[\r\n\t]+/g, ' ').replace(/[*_~`]/g, '').trim().substring(0, maxLen);
@@ -316,15 +336,15 @@ async function callGeminiDirect(key, model, prompt) {
         ],
         generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 600
+            maxOutputTokens: 800
         }
-    }, { timeout: 4500 });
+    }, { timeout: 10000 });
 
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (text && text.trim().length > 20) {
+    if (text && text.trim().length > 60) {
         return { text: text.trim(), model };
     }
-    throw new Error(`Empty response from ${model}`);
+    throw new Error(`Empty or truncated response from ${model}`);
 }
 
 async function getGeminiSummary(movieTitle) {
@@ -347,60 +367,40 @@ async function getGeminiSummary(movieTitle) {
 
 විශේෂ නීති:
 1. භාෂාව: ඉතාමත් ලස්සන, මිත්‍රශීලී කතා කරන සිංහලෙන් ලියන්න. Hero, Villain, Plot twist, Action, Suspense, Climax වැනි සුලභ සිනමා වචන අවශ්‍ය තැන්වලදී භාවිතා කරන්න.
-2. අන්තර්ගතය: කතාවේ ප්‍රධාන සිදුවීම, චරිතවල ස්වභාවය සහ කුතුහලය මනාව පැහැදිලි වන සේ වාක්‍ය 5-7 කින් යුතු ආකර්ෂණීය සවිස්තරාත්මක විස්තරයක් ලබාදෙන්න. කතාවේ අවසානය හෝ ප්‍රධාන රහස් (Major Spoilers) කිසිවිටෙක් හෙළි නොකරන්න.
+2. අන්තර්ගතය: කතාවේ ප්‍රධාන සිදුවීම, චරිතවල ස්වභාවය සහ කුතුහලය මනාව පැහැදිලි වන සේ වාක්‍ය 5-7 කින් යුතු සම්පූර්ණ විස්තරාත්මක සාරාංශයක් ලබාදෙන්න. කතාව අතරමග නතර නොකර සම්පූර්ණ කර අවසන් කරන්න. කතාවේ ප්‍රධාන රහස් (Major Spoilers) කිසිවිටෙක් හෙළි නොකරන්න.
 3. විලාසය: සිනමා රසිකයෙක් තවත් මිතුරෙකුට කතාවේ රසය කියාදෙන සුහද, උද්යෝගිමත් ශෛලියක් තිබිය යුතුය.
 4. Emojis: අන්තර්ගතයට ගැලපෙන ආකර්ෂණීය emojis (🎬🍿✨🔥💥 ආදී) යොදාගන්න.
 5. සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න (කිසිදු හැඳින්වීමක් හෝ අමතර වචන අනවශ්‍යයි).`;
 
     const effectiveKeys = GEMINI_KEYS.length > 0 ? GEMINI_KEYS : [];
+    if (effectiveKeys.length === 0) return "";
 
-    // 1. Google Generative Language API (Prioritizing gemini-3.6-flash, then blazing fast flash fallbacks)
-    if (effectiveKeys.length > 0) {
-        // Attempt 1: Priority model gemini-3.6-flash across all keys in parallel
-        try {
-            const p36 = effectiveKeys.map(k => callGeminiDirect(k, 'gemini-3.6-flash', prompt));
-            const res36 = await Promise.any(p36);
-            if (res36?.text) {
-                console.log(`[GEMINI] ✅ AI Summary generated with ${res36.model}`);
-                geminiSummaryCache.set(cacheKey, res36.text);
-                return res36.text;
-            }
-        } catch (_) {}
+    // 100% ONLY Official Google Generative Language API using GitHub Secrets (GEMINI_KEY_1..6)
+    // Attempt 1: Try user's requested gemini-3.6-flash across all keys
+    try {
+        const p36 = effectiveKeys.map(k => callGeminiDirect(k, 'gemini-3.6-flash', prompt));
+        const res36 = await Promise.any(p36);
+        if (res36?.text && res36.text.length > 60) {
+            console.log(`[GEMINI] ✅ AI Summary generated with ${res36.model}`);
+            geminiSummaryCache.set(cacheKey, res36.text);
+            return res36.text;
+        }
+    } catch (_) {}
 
-        // Attempt 2: High speed parallel fallback with gemini-2.0-flash & gemini-1.5-flash
-        try {
-            const fallbacks = [];
-            for (const k of effectiveKeys) {
-                fallbacks.push(callGeminiDirect(k, 'gemini-2.0-flash', prompt));
-                fallbacks.push(callGeminiDirect(k, 'gemini-1.5-flash', prompt));
-            }
-            const resFb = await Promise.any(fallbacks);
-            if (resFb?.text) {
-                console.log(`[GEMINI] ✅ AI Summary generated with ${resFb.model}`);
-                geminiSummaryCache.set(cacheKey, resFb.text);
-                return resFb.text;
-            }
-        } catch (_) {}
-    }
-
-    // 2. High-speed Multi-API Fallback (David Cyril API - free backup endpoints)
-    const fallbackEndpoints = [
-        `https://apis.davidcyril.name.ng/ai/gemini-3.1-flash-lite?prompt=${encodeURIComponent(prompt)}`,
-        `https://apis.davidcyril.name.ng/ai/gemini-3.1-pro?prompt=${encodeURIComponent(prompt)}`
-    ];
-
-    for (const ep of fallbackEndpoints) {
-        try {
-            const fbRes = await axios.get(ep, { timeout: 5000 });
-            const reply = fbRes.data?.data || fbRes.data?.result || fbRes.data?.message;
-            if (reply && typeof reply === 'string' && reply.trim().length > 20) {
-                const result = reply.trim();
-                console.log(`[GEMINI] ✅ AI Summary generated via fallback endpoint: ${ep}`);
-                geminiSummaryCache.set(cacheKey, result);
-                return result;
-            }
-        } catch (_) {}
-    }
+    // Attempt 2: Blazing fast official Google Gemini 2.0 & 1.5 Flash models across keys
+    try {
+        const fallbacks = [];
+        for (const k of effectiveKeys) {
+            fallbacks.push(callGeminiDirect(k, 'gemini-2.0-flash', prompt));
+            fallbacks.push(callGeminiDirect(k, 'gemini-1.5-flash', prompt));
+        }
+        const resFb = await Promise.any(fallbacks);
+        if (resFb?.text && resFb.text.length > 60) {
+            console.log(`[GEMINI] ✅ AI Summary generated with ${resFb.model}`);
+            geminiSummaryCache.set(cacheKey, resFb.text);
+            return resFb.text;
+        }
+    } catch (_) {}
 
     return ""; 
 }
@@ -610,6 +610,19 @@ router.post('/api/search', async (req, res) => {
                 }
             });
             if(results.length > 0) {
+                // Pre-fetch thumbnails for first 5 results in parallel so cards have posters
+                await Promise.allSettled(results.slice(0, 5).map(async (r) => {
+                    try {
+                        const pageRes = await axios.get(r.url, { headers: HEADERS, timeout: 3500 });
+                        const $p = cheerio.load(pageRes.data);
+                        let foundImg = null;
+                        $p('img.ipsImage, img.bbc_img, [data-role="commentContent"] img').each((_, el) => {
+                            let s = $p(el).attr('data-src') || $p(el).attr('src');
+                            if (s && s.startsWith('http') && !s.includes('data:image') && !foundImg) foundImg = s;
+                        });
+                        if (foundImg) r.img = foundImg;
+                    } catch(_) {}
+                }));
                 cacheVerifiedMovies(results);
                 return res.json({ success: true, results });
             }
@@ -1112,11 +1125,11 @@ router.post('/api/send-movie', async (req, res) => {
                         console.log("Inbox Notification Error (non-blocking):", e.message);
                     });
 
-                    // Quick AI summary with 14s max race (never hangs the queue, browser already received success)
+                    // Quick AI summary with 15s max race (never hangs the queue, browser already received success)
                     let aiSummary = "";
                     try {
                         const sumPromise = getGeminiSummary(verifiedTitle);
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 14000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 15000));
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
@@ -1136,16 +1149,25 @@ router.post('/api/send-movie', async (req, res) => {
 
                     let cardSent = false;
                     if (finalPoster) {
+                        let posterBuffer = null;
                         try {
                             const imgRes = await axios.get(finalPoster, { responseType: 'arraybuffer', timeout: 8000, headers: HEADERS });
-                            await sendMediaSafely(sock, dynamicGroupJid, { image: Buffer.from(imgRes.data), caption: cap }, 45000);
+                            if (imgRes.data && imgRes.data.length > 500) {
+                                posterBuffer = await ensureJpegBuffer(Buffer.from(imgRes.data));
+                            }
+                        } catch (fetchErr) {
+                            console.log("[SEND] Poster image buffer fetch note:", fetchErr.message);
+                        }
+
+                        try {
+                            const imgPayload = posterBuffer 
+                                ? { image: posterBuffer, caption: cap, mimetype: 'image/jpeg' } 
+                                : { image: { url: finalPoster }, caption: cap, mimetype: 'image/jpeg' };
+                            await sendMediaSafely(sock, dynamicGroupJid, imgPayload, 50000);
                             cardSent = true;
-                        } catch (imgErr) {
-                            console.log("[SEND] Poster image buffer fetch failed, trying url fallback:", imgErr.message);
-                            try {
-                                await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 35000);
-                                cardSent = true;
-                            } catch (e2) {}
+                        } catch (sendErr) {
+                            console.log("[SEND] Poster image send note:", sendErr.message);
+                            // Do NOT send another image in catch to guarantee ZERO duplicate thumbnails!
                         }
                     }
                     if (!cardSent && !finalPoster) {
