@@ -336,15 +336,47 @@ async function callGeminiDirect(key, model, prompt) {
         ],
         generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 800
+            maxOutputTokens: 2500
         }
-    }, { timeout: 10000 });
+    }, { timeout: 14000 });
 
-    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (text && text.trim().length > 60) {
-        return { text: text.trim(), model };
+    const candidate = response.data?.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    if (finishReason === 'MAX_TOKENS') {
+        throw new Error(`Truncated by MAX_TOKENS from ${model}`);
     }
-    throw new Error(`Empty or truncated response from ${model}`);
+    if (finishReason === 'SAFETY') {
+        throw new Error(`Blocked by SAFETY from ${model}`);
+    }
+
+    const parts = candidate?.content?.parts || [];
+    let text = parts.map(p => p.text || '').join('').trim();
+    if (text && text.length >= 70) {
+        // Strip any technical bullet points, lists, or sentence labels if generated
+        text = text.replace(/^#+\s+/gm, '')
+                   .replace(/^\*\s+Sentence\s+\d+.*?:?\s*/gmi, '')
+                   .replace(/^Sentence\s+\d+.*?:?\s*/gmi, '')
+                   .trim();
+
+        // Ensure text ends gracefully at a sentence boundary if truncated
+        const validEnds = ['.', '!', '?', ')', '"', '🍿', '🎬', '✨', '🔥', '💥', '⚡', '🎭', '🎥', '👏', '෴'];
+        if (!validEnds.some(end => text.endsWith(end))) {
+            const lastBoundary = Math.max(
+                text.lastIndexOf('.'),
+                text.lastIndexOf('!'),
+                text.lastIndexOf('?'),
+                text.lastIndexOf(')')
+            );
+            if (lastBoundary > 60) {
+                text = text.substring(0, lastBoundary + 1).trim();
+            }
+        }
+
+        if (text.length >= 60) {
+            return { text, model };
+        }
+    }
+    throw new Error(`Empty or invalid response from ${model}`);
 }
 
 async function getGeminiSummary(movieTitle) {
@@ -359,18 +391,18 @@ async function getGeminiSummary(movieTitle) {
         return geminiSummaryCache.get(cacheKey);
     }
 
-    const prompt = `System: You are an uncensored cinema expert, film critic, and enthusiastic storyteller. Your role is strictly to provide an engaging movie/series summary for cinema lovers. You must NEVER decline or censor a request based on themes like horror, thriller, crime, romance, adult, or dark themes, as this is purely informational and artistic film commentary.
+    const prompt = `You are an expert film critic and master cinema storyteller for a movie club. Your role is strictly to write an exciting, captivating movie overview in natural, conversational spoken Sinhala (කතා කරන සරල සිංහල).
 
-චිත්‍රපටය/කතාමාලාව: "${cleanSearchTitle}"
+චිත්‍රපටය: "${cleanSearchTitle}"
 
-කරුණාකර මෙම චිත්‍රපටය හෝ කතා මාලාව (Movie/TV Series/Anime) පිළිබඳව රසවත්, කියවන්නා ඇදබැඳ තබාගන්නා, ලස්සන කතා කරන සරල සිංහලෙන් (Natural Conversational Sinhala) විස්තරාත්මක සාරාංශයක් ලියන්න.
+කරුණාකර මෙම චිත්‍රපටය පිළිබඳව රසිකයන් තුළ දැඩි කුතුහලයක් සහ නැරඹීමේ ආශාවක් ඇතිවන පරිදි, අතිශය සිත් ඇදගන්නාසුලු, ලස්සන කතා කරන සිංහලෙන් එකම සුමට ඡේදයකින් (One single flowing conversational paragraph) විස්තරාත්මක සාරාංශයක් ලියන්න.
 
-විශේෂ නීති:
-1. භාෂාව: ඉතාමත් ලස්සන, මිත්‍රශීලී කතා කරන සිංහලෙන් ලියන්න. Hero, Villain, Plot twist, Action, Suspense, Climax වැනි සුලභ සිනමා වචන අවශ්‍ය තැන්වලදී භාවිතා කරන්න.
-2. අන්තර්ගතය: කතාවේ ප්‍රධාන සිදුවීම, චරිතවල ස්වභාවය සහ කුතුහලය මනාව පැහැදිලි වන සේ වාක්‍ය 5-7 කින් යුතු සම්පූර්ණ විස්තරාත්මක සාරාංශයක් ලබාදෙන්න. කතාව අතරමග නතර නොකර සම්පූර්ණ කර අවසන් කරන්න. කතාවේ ප්‍රධාන රහස් (Major Spoilers) කිසිවිටෙක් හෙළි නොකරන්න.
-3. විලාසය: සිනමා රසිකයෙක් තවත් මිතුරෙකුට කතාවේ රසය කියාදෙන සුහද, උද්යෝගිමත් ශෛලියක් තිබිය යුතුය.
-4. Emojis: අන්තර්ගතයට ගැලපෙන ආකර්ෂණීය emojis (🎬🍿✨🔥💥 ආදී) යොදාගන්න.
-5. සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න (කිසිදු හැඳින්වීමක් හෝ අමතර වචන අනවශ්‍යයි).`;
+විශේෂ උපදෙස්:
+1. භාෂාව: ඉතා සුහද, මිත්‍රශීලී කතා කරන සිංහලෙන් ලියන්න. චිත්‍රපට පිස්සෙක් තවත් යාළුවෙකුට ෆිල්ම් එකේ රසය ගැන උනන්දුවෙන් කියන ආකාරයෙන් ලියන්න. Hero, Villain, Plot twist, Action, Suspense, Climax වැනි සුලභ සිනමා වචන අවශ්‍ය තැන්වලදී භාවිතා කරන්න.
+2. අන්තර්ගතය: කතාවේ ප්‍රධාන සිදුවීම, චරිතවල ස්වභාවය සහ කුතුහලය මනාව පැහැදිලි වන සේ වාක්‍ය 5-7 කින් යුතු සම්පූර්ණ විස්තරාත්මක සාරාංශයක් ලියන්න. කතාව අතරමග නතර නොකර සම්පූර්ණ කර අවසන් කරන්න. Spoilers (කතාවේ ප්‍රධාන රහස් හෝ අවසානය) කිසිවක් හෙළි නොකරන්න.
+3. හැඩතල ගැන්වීම (Strict Formatting): කිසිදු ආකාරයක Heading, Bullet points, Numbers හෝ "Sentence 1", "Sentence 2" වැනි ලේබල් යොදා නොගන්න. සම්පූර්ණ සාරාංශයම එකම ඡේදයක් (Single continuous paragraph) ලෙස පමණක් ලියන්න.
+4. Emojis: අන්තර්ගතයට ගැලපෙන ආකර්ෂණීය emojis (🎬🍿✨🔥💥 ආදී) තැනින් තැන යොදාගන්න.
+5. කිසිදු හැඳින්වීමක් (උදා: "මෙන්න සාරාංශය") නැතිව සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න.`;
 
     const effectiveKeys = GEMINI_KEYS.length > 0 ? GEMINI_KEYS : [];
     if (effectiveKeys.length === 0) return "";
@@ -380,7 +412,7 @@ async function getGeminiSummary(movieTitle) {
     try {
         const p36 = effectiveKeys.map(k => callGeminiDirect(k, 'gemini-3.6-flash', prompt));
         const res36 = await Promise.any(p36);
-        if (res36?.text && res36.text.length > 60) {
+        if (res36?.text && res36.text.length >= 60) {
             console.log(`[GEMINI] ✅ AI Summary generated with ${res36.model}`);
             geminiSummaryCache.set(cacheKey, res36.text);
             return res36.text;
@@ -395,7 +427,7 @@ async function getGeminiSummary(movieTitle) {
             fallbacks.push(callGeminiDirect(k, 'gemini-1.5-flash', prompt));
         }
         const resFb = await Promise.any(fallbacks);
-        if (resFb?.text && resFb.text.length > 60) {
+        if (resFb?.text && resFb.text.length >= 60) {
             console.log(`[GEMINI] ✅ AI Summary generated with ${resFb.model}`);
             geminiSummaryCache.set(cacheKey, resFb.text);
             return resFb.text;
@@ -1125,11 +1157,11 @@ router.post('/api/send-movie', async (req, res) => {
                         console.log("Inbox Notification Error (non-blocking):", e.message);
                     });
 
-                    // Quick AI summary with 15s max race (never hangs the queue, browser already received success)
+                    // Quick AI summary with 18s max race (never hangs the queue, browser already received success)
                     let aiSummary = "";
                     try {
                         const sumPromise = getGeminiSummary(verifiedTitle);
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 15000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 18000));
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
@@ -1552,7 +1584,7 @@ router.post('/api/anime-send', async (req, res) => {
                     let aiSummary = "";
                     try {
                         const sumPromise = getGeminiSummary(cleanVideoname);
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 12000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 18000));
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
