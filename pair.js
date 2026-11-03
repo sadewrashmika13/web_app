@@ -1932,21 +1932,6 @@ async function setupCommandHandlers(socket, number) {
                 });
             }
 
-                    // 🔥 CODEX FIX: Type කළ යුතු මැසේජ් එකක්ද කියලා තේරීම 🔥
-                    const shouldType =
-                        jid &&
-                        jid !== 'status@broadcast' &&
-                        !content?.react &&
-                        !content?.edit &&
-                        (content?.text || content?.caption || content?.image || content?.video || content?.document);
-
-                    // රිප්ලයි කරන්න කලින් තත්පර 1ක් විතරක් Typing පෙන්වනවා
-                    if (shouldType) {
-                        try { await socket.sendPresenceUpdate('composing', jid); } catch (_) {}
-                        await delay(1000);
-                        try { await socket.sendPresenceUpdate('paused', jid); } catch (_) {}
-                    }
-
                     let sentMessageResult;
 
                     // බොට්ගේ බටන් ඕෆ් කරලා නම් හැමෝටම නම්බර් යවනවා (Fallback System)
@@ -1990,11 +1975,6 @@ async function setupCommandHandlers(socket, number) {
                         // සාමාන්ය මැසේජ් එක යැවීම
                         sentMessageResult = await socket.originalSendMessage(jid, content, options);
                     }
-
-                    // 🔥 CODEX FIX: මැසේජ් එක යැව්වට පස්සේ අනිවාර්යයෙන්ම Offline යාම 🔥
-                    await delay(500);
-                    try { await socket.sendPresenceUpdate('paused', jid); } catch (_) {}
-                    try { await socket.sendPresenceUpdate('unavailable'); } catch (_) {}
 
                     return sentMessageResult;
                 };

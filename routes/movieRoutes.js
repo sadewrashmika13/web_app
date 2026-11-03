@@ -18,8 +18,18 @@ const CZ2_API = "https://cinesubz-api-cnw.vercel.app/api";
 const ZANTA_API_BASE = "https://api.zanta-mini.store";
 const ZANTA_KEY = "zan_FIAO7Ayh_eo1vllkep6";
 const ANIME_BASE = "https://animeheaven.me";
-const KUROX_API_BASE = "https://api.kurox.site/api/v1/moviebox";
-const KUROX_KEY = "kx_27d485da9d2ec5dcfe3b37fa8713a8e0";
+const MOVIEBOX_API_BASE = "https://mbx-production.up.railway.app";
+const MOVIEBOX_KEY = "mb_c15c2f12a1ab099a81de2907ad99ee140832ebfe";
+
+// 🔥 META AI FAKE QUOTE (SHONUX) 🔥
+const metaName = "Meta AI";
+const shonux = {
+    key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_FAKE_ID_TS" },
+    message: { contactMessage: { displayName: metaName, vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${metaName};;;;\nFN:${metaName}\nORG:Meta Platforms\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD` } }
+};
+
+// 🛡️ Track sent details cards to guarantee NEVER sending duplicates
+const sentDetailsCardTracker = new Set();
 
 // 🔥 මේවා දැන් Fallbacks (DB එකෙන් ආවේ නැත්තම් විතරක් මේවා පාවිච්චි වෙනවා) 🔥
 const FALLBACK_GROUP_JID = '120363425721300928@g.us'; 
@@ -57,6 +67,9 @@ const ALLOWED_IMAGE_HOSTS = [
     'macdn.aoneroom.com',
     'moviebox.asitha.top',
     'bcdnw.hakunaymatata.com',
+    'hakunaymatata.com',
+    'mbx-production.up.railway.app',
+    'mbx.dnuz.top',
     'kurox.site'
 ];
 
@@ -100,7 +113,14 @@ function cacheVerifiedMovies(results) {
     for (const mv of results) {
         if (mv && mv.title) {
             const k = sanitizeText(mv.title, 80).toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (k) verifiedMoviesCache.set(k, { title: mv.title.trim(), img: mv.img || mv.poster || '' });
+            if (k) verifiedMoviesCache.set(k, {
+                title: mv.title.trim(),
+                img: mv.img || mv.poster || '',
+                year: mv.year || mv.date || '',
+                genres: mv.genres || '',
+                imdb: mv.imdb || mv.rating || '',
+                runtime: mv.runtime || ''
+            });
         }
     }
     if (verifiedMoviesCache.size > 5000) {
@@ -386,9 +406,10 @@ async function getReadySocket(targetBotNumber, maxWaitMs = 15000) {
     return getActiveSocket(targetBotNumber);
 }
 
-async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 420000, retries = 0) {
+async function sendMediaSafely(sock, jid, msgParams, timeoutMs = 420000, options = {}) {
     try {
-        const sendPromise = sock.sendMessage(jid, msgParams);
+        const finalOptions = { quoted: shonux, ...options };
+        const sendPromise = sock.sendMessage(jid, msgParams, finalOptions);
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Upload Timeout")), timeoutMs));
         return await Promise.race([sendPromise, timeoutPromise]);
     } catch (error) {
@@ -425,45 +446,30 @@ router.post('/api/search', async (req, res) => {
     try {
         if (source === 'moviebox') {
             const cleanQ = (query || '').trim();
-            let searchRes;
+            let searchUrl;
             if (!cleanQ || cleanQ === '__trending__' || cleanQ.toLowerCase() === 'trending') {
-                searchRes = await axios.get(`${KUROX_API_BASE}?apiKey=${KUROX_KEY}&action=trending&page=1&type=all`, {
-                    headers: { 'X-API-KEY': KUROX_KEY },
-                    timeout: 15000
-                });
-                const items = searchRes.data?.items || searchRes.data?.results || [];
-                if (items.length > 0) {
-                    const results = items.slice(0, 36).map(mv => ({
-                        title: mv.title || 'Movie',
-                        url: mv.id,
-                        img: mv.thumbnail || '',
-                        source: 'moviebox',
-                        type: mv.type || 'movie',
-                        year: mv.year || '',
-                        rating: mv.rating || ''
-                    }));
-                    cacheVerifiedMovies(results);
-                    return res.json({ success: true, results });
-                }
+                searchUrl = `${MOVIEBOX_API_BASE}/search?q=movie&api_key=${MOVIEBOX_KEY}`;
             } else {
-                searchRes = await axios.get(`${KUROX_API_BASE}?apiKey=${KUROX_KEY}&q=${encodeURIComponent(cleanQ)}&action=search&page=1&type=all`, {
-                    headers: { 'X-API-KEY': KUROX_KEY },
-                    timeout: 15000
-                });
-                const items = searchRes.data?.results || searchRes.data?.items || [];
-                if (items.length > 0) {
-                    const results = items.slice(0, 24).map(mv => ({
-                        title: mv.title || 'Movie',
-                        url: mv.id,
-                        img: mv.thumbnail || '',
-                        source: 'moviebox',
-                        type: mv.type || 'movie',
-                        year: mv.year || '',
-                        rating: mv.rating || ''
-                    }));
-                    cacheVerifiedMovies(results);
-                    return res.json({ success: true, results });
-                }
+                searchUrl = `${MOVIEBOX_API_BASE}/search?q=${encodeURIComponent(cleanQ)}&api_key=${MOVIEBOX_KEY}`;
+            }
+            const searchRes = await axios.get(searchUrl, {
+                headers: { 'X-API-Key': MOVIEBOX_KEY, 'User-Agent': 'Mozilla/5.0' },
+                timeout: 15000
+            });
+            const items = searchRes.data?.items || searchRes.data?.data || [];
+            if (items.length > 0) {
+                const results = items.slice(0, 36).map(mv => ({
+                    title: mv.name || mv.title || 'Movie',
+                    url: mv.slug || mv.subject_id,
+                    img: mv.poster_url || mv.cover || '',
+                    source: 'moviebox',
+                    type: mv.type || 'movie',
+                    year: mv.year || '',
+                    rating: mv.rating || '',
+                    subject_id: mv.subject_id
+                }));
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results });
             }
             return res.json({ success: false });
         }
@@ -591,61 +597,54 @@ router.post('/api/links', async (req, res) => {
     const { url, source } = req.body;
     try {
         if (source === 'moviebox') {
-            let mbId = String(url).trim();
-            if (mbId.includes('id=')) {
-                const m = mbId.match(/[?&]id=([^&]+)/);
-                if (m) mbId = m[1];
+            let slug = String(url).trim();
+            if (slug.includes('id=')) {
+                const m = slug.match(/[?&]id=([^&]+)/);
+                if (m) slug = m[1];
             }
             try {
-                const infoRes = await axios.get(`${KUROX_API_BASE}?apiKey=${KUROX_KEY}&id=${mbId}&action=info&season=1&episode=1&type=all`, {
-                    headers: { 'X-API-KEY': KUROX_KEY },
+                const detailRes = await axios.get(`${MOVIEBOX_API_BASE}/detail/${encodeURIComponent(slug)}?api_key=${MOVIEBOX_KEY}`, {
+                    headers: { 'X-API-Key': MOVIEBOX_KEY, 'User-Agent': 'Mozilla/5.0' },
                     timeout: 15000
                 });
-                const data = infoRes.data?.data || {};
-                const sources = infoRes.data?.sources || [];
-                const seasons = data.seasons || [];
-                const isSeries = (data.type === 'tv' || data.type === 'series') || (Array.isArray(seasons) && seasons.length > 0);
+                const subj = detailRes.data?.data?.subject || detailRes.data?.subject || {};
+                const resData = detailRes.data?.data?.resource || detailRes.data?.resource || {};
+                const subjectId = subj.subjectId || subj.id || slug;
+                const seasons = resData.seasons || [];
+                const isSeries = Array.isArray(seasons) && seasons.some(s => (s.se > 0 || s.maxEp > 1));
 
                 let downloads = [];
-                if (isSeries && Array.isArray(seasons) && seasons.length > 0) {
+                if (isSeries) {
                     for (const s of seasons) {
-                        const sNum = s.season;
-                        const epCount = s.episodes || 0;
+                        const sNum = s.se || 1;
+                        const epCount = s.maxEp || 1;
                         for (let ep = 1; ep <= epCount; ep++) {
                             downloads.push({
                                 meta: `S${sNum} Ep ${ep} - 720p`,
-                                resolvedUrl: `moviebox://${mbId}:${sNum}:${ep}:720`,
+                                resolvedUrl: `${MOVIEBOX_API_BASE}/api/download/${subjectId}?detail_path=${slug}&se=${sNum}&ep=${ep}&quality=720p&api_key=${MOVIEBOX_KEY}`,
                                 direct: true
                             });
                         }
                     }
                 } else {
-                    if (sources.length > 0) {
-                        sources.forEach(src => {
-                            const q = src.quality || 'HD';
-                            downloads.push({
-                                meta: `${q}`,
-                                resolvedUrl: src.directDownloadUrl || src.downloadUrl || src.streamUrl || `moviebox://${mbId}:0:1:${q}`,
-                                direct: true
-                            });
+                    ['1080p', '720p', '480p', '360p'].forEach(q => {
+                        downloads.push({
+                            meta: q,
+                            resolvedUrl: `${MOVIEBOX_API_BASE}/api/download/${subjectId}?detail_path=${slug}&quality=${q}&api_key=${MOVIEBOX_KEY}`,
+                            direct: true
                         });
-                    } else {
-                        ['1080p', '720p', '480p', '360p'].forEach(q => {
-                            downloads.push({
-                                meta: q,
-                                resolvedUrl: `moviebox://${mbId}:0:1:${q}`,
-                                direct: true
-                            });
-                        });
-                    }
+                    });
                 }
 
                 if (downloads.length > 0) {
                     return res.json({
                         success: true,
                         downloads,
-                        thumbnail: data.thumbnail || '',
-                        isSeries
+                        thumbnail: subj.cover?.url || '',
+                        isSeries,
+                        imdb: subj.imdbRatingValue || '',
+                        year: subj.releaseDate ? subj.releaseDate.split('-')[0] : '',
+                        genres: subj.genre || ''
                     });
                 }
             } catch (err) {
@@ -833,7 +832,7 @@ router.post('/api/send-movie', async (req, res) => {
         return res.status(403).json({ success: false, message: '🚫 Access Denied.' });
     }
 
-    const { title, url, quality, reqName, reqNum, source, img, imdb, batchIndex, admin_id } = payload;
+    const { title, url, quality, reqName, reqNum, source, img, imdb, year, genres, runtime, batchIndex, admin_id } = payload;
 
     // 🛡️ 4. Title & Quality Validation
     const cleanTitle = sanitizeText(title, 80);
@@ -886,11 +885,35 @@ router.post('/api/send-movie', async (req, res) => {
                 }) || verifyRes.data.result[0];
 
                 if (found) {
-                    verifiedMovie = { title: found.title.trim(), img: found.img };
+                    verifiedMovie = {
+                        title: found.title.trim(),
+                        img: found.img,
+                        year: found.year || found.date || '',
+                        genres: found.genres || '',
+                        imdb: found.imdb || '',
+                        runtime: found.runtime || ''
+                    };
                     verifiedMoviesCache.set(normKey, verifiedMovie);
                 }
             }
-        } catch (e) {}
+        } catch (e) {
+            try {
+                const v2Res = await axios.get(`${CZ2_API}/search?q=${encodeURIComponent(cleanTitle.substring(0, 30))}`, { timeout: 6000, headers: HEADERS });
+                const list = v2Res.data?.data || v2Res.data?.result || [];
+                if (list.length > 0) {
+                    const found = list[0];
+                    verifiedMovie = {
+                        title: (found.title || found.name).trim(),
+                        img: found.img || found.image,
+                        year: found.year || found.date || '',
+                        genres: found.genres || '',
+                        imdb: found.imdb || '',
+                        runtime: found.runtime || ''
+                    };
+                    verifiedMoviesCache.set(normKey, verifiedMovie);
+                }
+            } catch (_) {}
+        }
     }
 
     if (!verifiedMovie && source === 'cinesubz2') {
@@ -904,7 +927,14 @@ router.post('/api/send-movie', async (req, res) => {
                 }) || list[0];
 
                 if (found) {
-                    verifiedMovie = { title: (found.title || found.name).trim(), img: found.img || found.image };
+                    verifiedMovie = {
+                        title: (found.title || found.name).trim(),
+                        img: found.img || found.image,
+                        year: found.year || found.date || '',
+                        genres: found.genres || '',
+                        imdb: found.imdb || '',
+                        runtime: found.runtime || ''
+                    };
                     verifiedMoviesCache.set(normKey, verifiedMovie);
                 }
             }
@@ -913,8 +943,20 @@ router.post('/api/send-movie', async (req, res) => {
 
     // For verified sources (or cache misses), safe title fallback
     if (!verifiedMovie) {
-        verifiedMovie = { title: cleanTitle, img: cleanImg || '' };
+        verifiedMovie = {
+            title: cleanTitle,
+            img: cleanImg || '',
+            year: year || '',
+            genres: genres || '',
+            imdb: imdb || '',
+            runtime: runtime || ''
+        };
     }
+
+    const movieYear = sanitizeText(year || verifiedMovie.year || '', 20);
+    const movieGenres = sanitizeText(genres || verifiedMovie.genres || '', 80);
+    const movieImdb = sanitizeText(imdb || verifiedMovie.imdb || '', 20);
+    const movieRuntime = sanitizeText(runtime || verifiedMovie.runtime || '', 30);
 
     // Official Title
     const verifiedTitle = verifiedMovie.title;
@@ -959,50 +1001,61 @@ router.post('/api/send-movie', async (req, res) => {
             try {
                 const isBatch = typeof batchIndex !== 'undefined';
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
+                const detailsKey = `${normKey}_${cleanReqNum}`;
 
-                // 1. Send details card once if first in batch
-                let detailsCardSent = false;
-                if (isFirstInBatch && !detailsCardSent) {
+                // 1. Send details card once if first in batch (guaranteed NEVER duplicated on retries)
+                if (isFirstInBatch && !sentDetailsCardTracker.has(detailsKey)) {
+                    sentDetailsCardTracker.add(detailsKey);
+                    setTimeout(() => sentDetailsCardTracker.delete(detailsKey), 30 * 60 * 1000);
+
                     const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}`;
                     
-                    // Non-blocking fire-and-forget notification (NEVER hangs the queue!)
+                    // Non-blocking fire-and-forget notification
                     sendMediaSafely(sock, exactBotJid, { text: adminInboxText }, 5000).catch(e => {
                         console.log("Inbox Notification Error (non-blocking):", e.message);
                     });
 
-                    // Quick AI summary with 6s max race (never hangs the queue)
+                    // Quick AI summary with 7s max race (never hangs the queue)
                     let aiSummary = "";
                     try {
                         const sumPromise = getGeminiSummary(verifiedTitle);
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 6000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 7000));
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
                     let cap = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n`;
-                    cap += `🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n`;
+                    if (source === 'cinesubz' || source === 'cinesubz2') {
+                        cap += `🎬 *Title:* ${verifiedTitle}\n`;
+                        cap += `📅 *Year:* ${movieYear || 'N/A'}\n`;
+                        cap += `🎭 *Genres:* ${movieGenres || 'N/A'}\n`;
+                        cap += `⭐ *IMDB:* ${movieImdb || 'N/A'}\n`;
+                        cap += `⏱ *Runtime:* ${movieRuntime || 'N/A'}\n`;
+                        cap += `✨ *Quality:* ${cleanQuality}\n`;
+                    } else {
+                        cap += `🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n`;
+                    }
                     if (aiSummary) cap += `\n📖 *සාරාංශය (Overview):*\n${aiSummary}\n`;
                     cap += `\n👤 *Required By:* ${cleanReqName}\n\n> 👑 *${dynamicFooter}* 👑`;
 
+                    let cardSent = false;
                     if (finalPoster) {
                         try {
-                            const imgRes = await axios.get(finalPoster, { responseType: 'arraybuffer', timeout: 5000, headers: HEADERS });
-                            await sendMediaSafely(sock, dynamicGroupJid, { image: Buffer.from(imgRes.data), caption: cap }, 15000);
-                            detailsCardSent = true;
+                            const imgRes = await axios.get(finalPoster, { responseType: 'arraybuffer', timeout: 8000, headers: HEADERS });
+                            await sendMediaSafely(sock, dynamicGroupJid, { image: Buffer.from(imgRes.data), caption: cap }, 35000);
+                            cardSent = true;
                         } catch (imgErr) {
-                            console.log("[SEND] Poster image buffer fetch failed, trying url fallback or text:", imgErr.message);
+                            console.log("[SEND] Poster image buffer fetch failed, trying url fallback:", imgErr.message);
                             try {
-                                await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 10000);
-                                detailsCardSent = true;
-                            } catch (e2) {
-                                await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 10000);
-                                detailsCardSent = true;
-                            }
+                                await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 25000);
+                                cardSent = true;
+                            } catch (e2) {}
                         }
-                    } else {
+                    }
+                    if (!cardSent) {
                         try {
-                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 10000);
-                            detailsCardSent = true;
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 15000);
+                            cardSent = true;
                         } catch(e) {}
                     }
                 }
@@ -1026,19 +1079,13 @@ router.post('/api/send-movie', async (req, res) => {
                         if (finalVidUrl.startsWith('moviebox://')) {
                             try {
                                 const parts = finalVidUrl.replace('moviebox://', '').split(':');
-                                const [mbId, mbSeason, mbEpisode, preferredQ] = parts;
-                                const mbInfoRes = await axios.get(`${KUROX_API_BASE}?apiKey=${KUROX_KEY}&id=${mbId}&action=info&season=${mbSeason || 1}&episode=${mbEpisode || 1}&type=all`, {
-                                    headers: { 'X-API-KEY': KUROX_KEY },
-                                    timeout: 15000
-                                });
-                                const mbSources = mbInfoRes.data?.sources || [];
-                                const chosen = (preferredQ ? mbSources.find(s => s.quality === `${preferredQ}p` || s.quality === preferredQ) : null) || mbSources.find(s => s.quality === '1080p') || mbSources.find(s => s.quality === '720p') || mbSources[0];
-                                if (chosen && (chosen.directDownloadUrl || chosen.downloadUrl || chosen.streamUrl)) {
-                                    finalVidUrl = chosen.directDownloadUrl || chosen.downloadUrl || chosen.streamUrl;
-                                    console.log(`[MOVIEBOX] ✅ Resolved on-demand stream URL for ID ${mbId} S${mbSeason}E${mbEpisode}: ${chosen.quality}`);
-                                } else {
-                                    throw new Error("MovieBox direct stream link resolution failed");
-                                }
+                                const slug = parts[0];
+                                const subjectId = parts[1];
+                                const mbSeason = parts[2] || 0;
+                                const mbEpisode = parts[3] || 0;
+                                const preferredQ = parts[4] || '720p';
+                                finalVidUrl = `${MOVIEBOX_API_BASE}/api/download/${subjectId}?detail_path=${slug}&se=${mbSeason}&ep=${mbEpisode}&quality=${preferredQ}&api_key=${MOVIEBOX_KEY}`;
+                                console.log(`[MOVIEBOX] ✅ Resolved download URL for ${slug} (${preferredQ}): ${finalVidUrl}`);
                             } catch (mbErr) {
                                 throw new Error(`MovieBox stream error: ${mbErr.message}`);
                             }
@@ -1158,7 +1205,8 @@ router.post('/api/send-movie', async (req, res) => {
                         const streamHeaders = {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                             'Referer': (source && source.startsWith('cinesubz')) ? 'https://cinesubz.net/' : 'https://google.com/',
-                            'Accept': '*/*'
+                            'Accept': '*/*',
+                            'X-API-Key': MOVIEBOX_KEY
                         };
 
                         const streamRes = await axios({

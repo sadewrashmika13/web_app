@@ -288,7 +288,7 @@ function renderCards(list){
     const cap=mv.source?(mv.source==='moviebox'?'MovieBox Pro':(mv.source==='cinesubz2'?'CineSubz 2':mv.source.charAt(0).toUpperCase()+mv.source.slice(1))):'CineSubz';
     const typeBadge=mv.type?`<span class="badge" style="left:auto;right:10px">${mv.type.toUpperCase()}</span>`:'';
     card.innerHTML=`<div class="ticket-inner"><div class="poster"><img src="${mv.img||'https://via.placeholder.com/400'}" alt="${mv.title}" loading="lazy"><span class="badge">${cap}</span>${typeBadge}</div><div class="stub"><h4>${mv.title}</h4></div></div>`;
-    card.onclick=()=>openModal(mv.title,mv.img,mv.url||mv.id,mv.imdb);
+    card.onclick=()=>openModal(mv.title,mv.img,mv.url||mv.id,mv.imdb||mv.rating,mv.year||mv.date,mv.genres,mv.runtime);
     grid.appendChild(card);
   });
 }
@@ -317,7 +317,7 @@ async function searchMovie(){
   }catch(_){st.textContent='Search Error!';document.getElementById('movieGrid').innerHTML='';}
 }
 
-async function openModal(title,img,refId,imdb){
+async function openModal(title,img,refId,imdb,year,genres,runtime){
   const modal=document.getElementById('movieModal');modal.classList.add('open');
   document.getElementById('modalTitle').textContent=title;
   document.getElementById('modalImg').src=img||'https://via.placeholder.com/400';
@@ -328,7 +328,7 @@ async function openModal(title,img,refId,imdb){
     const res=await fetch(isA?'/api/anime-episodes':'/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isA?{id:refId}:{url:refId,source:currentSource})});
     const data=await res.json();
     if(data.success){
-      ms.textContent='Pick an option:';currentMovieMeta={title,img,imdb,refId};
+      ms.textContent='Pick an option:';currentMovieMeta={title,img,imdb:imdb||data.imdb,refId,year:year||data.year,genres:genres||data.genres,runtime:runtime||data.runtime};
       const arr=isA?data.episodes:data.downloads;currentDownloads=arr;
       const isS=arr.length>1&&(isA||['slcartoons','moviesublk','kdrama','cinesubz2'].includes(currentSource)||data.isSeries||arr[0].meta?.toLowerCase().includes('episode')||arr[0].meta?.toLowerCase().includes('part')||arr[0].meta?.toLowerCase().startsWith('s'));
       if(isS){
@@ -380,7 +380,7 @@ async function postQueue(url,payload){
 }
 async function sendMovie(url,quality){
   const req=getRequester();if(!req)return;
-  postQueue('/api/send-movie',{title:currentMovieMeta.title,url,quality,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img,admin_id:ADMIN_CONFIG.admin_id});
+  postQueue('/api/send-movie',{title:currentMovieMeta.title,url,quality,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img,year:currentMovieMeta.year,genres:currentMovieMeta.genres,imdb:currentMovieMeta.imdb,runtime:currentMovieMeta.runtime,admin_id:ADMIN_CONFIG.admin_id});
 }
 async function sendAnimeEpisode(apiData,ep){
   const req=getRequester();if(!req)return;
@@ -391,7 +391,7 @@ async function sendAllMovie(arr){
   closeModal();document.getElementById('uploadBanner').classList.add('show');
   document.getElementById('ubTitle').textContent=`Adding ${arr.length} videos to Queue...`;document.getElementById('ubSub').textContent='Please wait...';
   for(let i=0;i<arr.length;i++){
-    try{await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(encryptPayload({title:currentMovieMeta.title,url:arr[i].resolvedUrl,quality:arr[i].meta,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img,batchIndex:i,batchTotal:arr.length,admin_id:ADMIN_CONFIG.admin_id}))});}catch(e){}
+    try{await fetch('/api/send-movie',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(encryptPayload({title:currentMovieMeta.title,url:arr[i].resolvedUrl,quality:arr[i].meta,reqName:req.reqName,reqNum:req.reqNum,source:currentSource,img:currentMovieMeta.img,year:currentMovieMeta.year,genres:currentMovieMeta.genres,imdb:currentMovieMeta.imdb,runtime:currentMovieMeta.runtime,batchIndex:i,batchTotal:arr.length,admin_id:ADMIN_CONFIG.admin_id}))});}catch(e){}
   }
   startQueuePolling();
 }
