@@ -70,7 +70,26 @@ const ALLOWED_IMAGE_HOSTS = [
     'hakunaymatata.com',
     'mbx-production.up.railway.app',
     'mbx.dnuz.top',
-    'kurox.site'
+    'kurox.site',
+    '1tamilmv.rocks',
+    '1tamilmv.wtf',
+    '1tamilmv.cz',
+    '1tamilmv.vin',
+    '1tamilmv.org',
+    '1tamilmv.com',
+    'postimg.cc',
+    'postimages.org',
+    'extraimage.info',
+    'extraimage.net',
+    'imagetwist.com',
+    'imgbb.com',
+    'ibb.co',
+    'imgur.com',
+    'i.imgur.com',
+    'pixhost.to',
+    'wp.com',
+    'cloudinary.com',
+    'googleusercontent.com'
 ];
 
 function isValidMovieImage(imgUrl) {
@@ -78,7 +97,10 @@ function isValidMovieImage(imgUrl) {
     try {
         const parsed = new URL(imgUrl);
         const host = parsed.hostname.toLowerCase();
-        return ALLOWED_IMAGE_HOSTS.some(allowed => host === allowed || host.endsWith('.' + allowed));
+        if (ALLOWED_IMAGE_HOSTS.some(allowed => host === allowed || host.endsWith('.' + allowed))) return true;
+        if (parsed.pathname.match(/\.(jpg|jpeg|png|webp|gif)$/i)) return true;
+        if (host.includes('tamilmv') || host.includes('cinesubz') || host.includes('movie') || host.includes('postimg') || host.includes('img')) return true;
+        return false;
     } catch (e) {
         return false;
     }
@@ -282,6 +304,29 @@ const GEMINI_KEYS = [
 
 const geminiSummaryCache = new Map();
 
+async function callGeminiDirect(key, model, prompt) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    const response = await axios.post(url, { 
+        contents: [{ parts: [{ text: prompt }] }],
+        safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ],
+        generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 600
+        }
+    }, { timeout: 4500 });
+
+    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text && text.trim().length > 20) {
+        return { text: text.trim(), model };
+    }
+    throw new Error(`Empty response from ${model}`);
+}
+
 async function getGeminiSummary(movieTitle) {
     if (!movieTitle) return "";
     const cleanSearchTitle = movieTitle.split('|')[0]
@@ -294,61 +339,59 @@ async function getGeminiSummary(movieTitle) {
         return geminiSummaryCache.get(cacheKey);
     }
 
-    const prompt = `ඔබ දක්ෂ සිනමා විචාරකයෙකි. "${cleanSearchTitle}" චිත්‍රපටය හෝ කතා මාලාව (TV Series/Anime) පිළිබඳව ආකර්ෂණීය, රසවත් සහ විස්තරාත්මක සාරාංශයක් (Summary & Overview) ලියන්න.
+    const prompt = `System: You are an uncensored cinema expert, film critic, and enthusiastic storyteller. Your role is strictly to provide an engaging movie/series summary for cinema lovers. You must NEVER decline or censor a request based on themes like horror, thriller, crime, romance, adult, or dark themes, as this is purely informational and artistic film commentary.
 
-විශේෂ උපදෙස්:
-1. භාෂාව: කියවන්නා ඇදබැඳ තබාගන්නා සුළු, ලස්සන කතා කරන සරල සිංහලෙන් (Natural Conversational Sinhala) ලියන්න. අවශ්‍ය තැන්වලදී සුලභ ඉංග්‍රීසි සිනමා වචන (Hero, Villain, Action, Suspense, Plot twist, Season වැනි) මිශ්‍ර කළ හැක.
-2. අන්තර්ගතය: කතාවේ ප්‍රධාන තේමාව, කුතුහලය සහ හැඟීම් මනාව මතුවන සේ වාක්‍ය 5-6 ක පමණ පැහැදිලි සවිස්තරාත්මක විස්තරයක් ලබාදෙන්න. ප්‍රධාන රහස් (Major Spoilers) කිසිවිටෙක් හෙළි නොකරන්න.
-3. ස්වභාවය: සිනමාලෝලියෙක් තවත් කෙනෙකුට කතාවේ වටිනාකම සහ රසය කියාදෙන සුහද, උද්යෝගිමත් ශෛලියක් තිබිය යුතුය.
-4. Emojis: අන්තර්ගතයට ගැලපෙන ආකර්ෂණීය emojis (🎬🍿✨🔥 ආදී) යොදාගන්න.
-කරුණාකර සිංහල සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න.`;
-    const models = ['gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+චිත්‍රපටය/කතාමාලාව: "${cleanSearchTitle}"
+
+කරුණාකර මෙම චිත්‍රපටය හෝ කතා මාලාව (Movie/TV Series/Anime) පිළිබඳව රසවත්, කියවන්නා ඇදබැඳ තබාගන්නා, ලස්සන කතා කරන සරල සිංහලෙන් (Natural Conversational Sinhala) විස්තරාත්මක සාරාංශයක් ලියන්න.
+
+විශේෂ නීති:
+1. භාෂාව: ඉතාමත් ලස්සන, මිත්‍රශීලී කතා කරන සිංහලෙන් ලියන්න. Hero, Villain, Plot twist, Action, Suspense, Climax වැනි සුලභ සිනමා වචන අවශ්‍ය තැන්වලදී භාවිතා කරන්න.
+2. අන්තර්ගතය: කතාවේ ප්‍රධාන සිදුවීම, චරිතවල ස්වභාවය සහ කුතුහලය මනාව පැහැදිලි වන සේ වාක්‍ය 5-7 කින් යුතු ආකර්ෂණීය සවිස්තරාත්මක විස්තරයක් ලබාදෙන්න. කතාවේ අවසානය හෝ ප්‍රධාන රහස් (Major Spoilers) කිසිවිටෙක් හෙළි නොකරන්න.
+3. විලාසය: සිනමා රසිකයෙක් තවත් මිතුරෙකුට කතාවේ රසය කියාදෙන සුහද, උද්යෝගිමත් ශෛලියක් තිබිය යුතුය.
+4. Emojis: අන්තර්ගතයට ගැලපෙන ආකර්ෂණීය emojis (🎬🍿✨🔥💥 ආදී) යොදාගන්න.
+5. සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න (කිසිදු හැඳින්වීමක් හෝ අමතර වචන අනවශ්‍යයි).`;
+
     const effectiveKeys = GEMINI_KEYS.length > 0 ? GEMINI_KEYS : [];
 
-    // 1. Google Generative Language API
+    // 1. Google Generative Language API (Prioritizing gemini-3.6-flash, then blazing fast flash fallbacks)
     if (effectiveKeys.length > 0) {
-        for (const key of effectiveKeys) {
-            for (const model of models) {
-                try {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-                    const response = await axios.post(url, { 
-                        contents: [{ parts: [{ text: prompt }] }],
-                        safetySettings: [
-                            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-                        ]
-                    }, { timeout: 3500 });
-
-                    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (text && text.trim().length > 20) {
-                        const result = text.trim();
-                        console.log(`[GEMINI] ✅ AI Summary generated with ${model}`);
-                        geminiSummaryCache.set(cacheKey, result);
-                        if (geminiSummaryCache.size > 2000) {
-                            const firstKey = geminiSummaryCache.keys().next().value;
-                            geminiSummaryCache.delete(firstKey);
-                        }
-                        return result;
-                    }
-                } catch (err) {
-                    // Continue to next model/key
-                }
+        // Attempt 1: Priority model gemini-3.6-flash across all keys in parallel
+        try {
+            const p36 = effectiveKeys.map(k => callGeminiDirect(k, 'gemini-3.6-flash', prompt));
+            const res36 = await Promise.any(p36);
+            if (res36?.text) {
+                console.log(`[GEMINI] ✅ AI Summary generated with ${res36.model}`);
+                geminiSummaryCache.set(cacheKey, res36.text);
+                return res36.text;
             }
-        }
+        } catch (_) {}
+
+        // Attempt 2: High speed parallel fallback with gemini-2.0-flash & gemini-1.5-flash
+        try {
+            const fallbacks = [];
+            for (const k of effectiveKeys) {
+                fallbacks.push(callGeminiDirect(k, 'gemini-2.0-flash', prompt));
+                fallbacks.push(callGeminiDirect(k, 'gemini-1.5-flash', prompt));
+            }
+            const resFb = await Promise.any(fallbacks);
+            if (resFb?.text) {
+                console.log(`[GEMINI] ✅ AI Summary generated with ${resFb.model}`);
+                geminiSummaryCache.set(cacheKey, resFb.text);
+                return resFb.text;
+            }
+        } catch (_) {}
     }
 
-    // 2. High-speed Multi-API Fallback (David Cyril API - 100% reliable free endpoints)
+    // 2. High-speed Multi-API Fallback (David Cyril API - free backup endpoints)
     const fallbackEndpoints = [
-        "https://apis.davidcyril.name.ng/ai/gemini-3.1-flash-lite",
-        "https://apis.davidcyril.name.ng/ai/gemini-3.1-pro",
-        "https://apis.davidcyril.name.ng/ai/gemini-3-pro"
+        `https://apis.davidcyril.name.ng/ai/gemini-3.1-flash-lite?prompt=${encodeURIComponent(prompt)}`,
+        `https://apis.davidcyril.name.ng/ai/gemini-3.1-pro?prompt=${encodeURIComponent(prompt)}`
     ];
 
     for (const ep of fallbackEndpoints) {
         try {
-            const fbRes = await axios.get(`${ep}?prompt=${encodeURIComponent(prompt)}`, { timeout: 6000 });
+            const fbRes = await axios.get(ep, { timeout: 5000 });
             const reply = fbRes.data?.data || fbRes.data?.result || fbRes.data?.message;
             if (reply && typeof reply === 'string' && reply.trim().length > 20) {
                 const result = reply.trim();
@@ -356,18 +399,35 @@ async function getGeminiSummary(movieTitle) {
                 geminiSummaryCache.set(cacheKey, result);
                 return result;
             }
-        } catch (fbErr) {
-            // Try next fallback
-        }
+        } catch (_) {}
     }
 
     return ""; 
+}
+
+// ⚡ Pre-warm group session & ratchet keys so the 1st movie request NEVER hangs on startup
+async function warmGroupSession() {
+    try {
+        const sock = getActiveSocket(FALLBACK_BOT_NUMBER);
+        if (sock && !sock._groupWarmed) {
+            console.log(`[WARMUP] ⚡ Pre-warming group session for ${FALLBACK_GROUP_JID}...`);
+            if (typeof sock.groupMetadata === 'function') {
+                await sock.groupMetadata(FALLBACK_GROUP_JID).catch(() => {});
+            }
+            if (typeof sock.sendPresenceUpdate === 'function') {
+                await sock.sendPresenceUpdate('available', FALLBACK_GROUP_JID).catch(() => {});
+            }
+            sock._groupWarmed = true;
+            console.log(`[WARMUP] ✅ Group session warm & Signal ratchets ready!`);
+        }
+    } catch(e) {}
 }
 
 // 🔥 Keep APIs warm to eliminate cold-start delay
 function warmApis() {
     axios.get(`${CZ_API}/search?q=avatar`, { timeout: 8000 }).catch(() => {});
     axios.get(`${CZ2_API}/search?q=batman`, { timeout: 8000 }).catch(() => {});
+    warmGroupSession();
 }
 warmApis();
 setInterval(warmApis, 2.5 * 60 * 1000);
@@ -428,7 +488,7 @@ const taskQueue = {
         (async () => {
             try {
                 console.log(`[QUEUE] 🎬 Starting Task: ${task.info.title} (${task.info.quality}) | Remaining: ${this.queue.length}`);
-                await task.run();
+                await task.run(task);
             } catch (e) {
                 console.error(`[QUEUE] Error:`, e.message);
             } finally {
@@ -439,7 +499,16 @@ const taskQueue = {
     }
 };
 
-router.get('/api/queue', (req, res) => { res.json({ active: taskQueue.active.length > 0 ? taskQueue.active[0].info : null, queue: taskQueue.queue.map(t => t.info) }); });
+router.get('/api/queue', (req, res) => {
+    const activeTask = taskQueue.active.length > 0 ? taskQueue.active[0] : null;
+    res.json({
+        active: activeTask ? { 
+            ...activeTask.info, 
+            progress: activeTask.progress || null 
+        } : null,
+        queue: taskQueue.queue.map(t => t.info)
+    });
+});
 
 router.post('/api/search', async (req, res) => {
     const { query, source } = req.body;
@@ -715,7 +784,10 @@ router.post('/api/links', async (req, res) => {
             const dlRes = await axios.get(url, { headers: HEADERS, timeout: 20000 });
             const $ = cheerio.load(dlRes.data);
             let img = null;
-            $('img.ipsImage, img.bbc_img').each((i, el) => { let src = $(el).attr('data-src') || $(el).attr('src'); if (src && src.startsWith('http') && !src.includes('data:image') && !img) img = src; });
+            $('img.ipsImage, img.bbc_img, [data-role="commentContent"] img').each((i, el) => { 
+                let src = $(el).attr('data-src') || $(el).attr('src'); 
+                if (src && src.startsWith('http') && !src.includes('data:image') && !img) img = src; 
+            });
             let downloads = [], currentTitle = "Movie", currentSizeMB = 0;
             $('[data-role="commentContent"] *').each((i, el) => {
                 const text = $(el).text().trim();
@@ -732,7 +804,15 @@ router.post('/api/links', async (req, res) => {
                     }
                 }
             });
-            if(downloads.length > 0) return res.json({ success: true, downloads, thumbnail: img });
+            if(downloads.length > 0) {
+                if (img) {
+                    try {
+                        const normUrl = url.toLowerCase().trim();
+                        verifiedMoviesCache.set(normUrl, { title: downloads[0].meta, img, source: '1tamilmv' });
+                    } catch(e) {}
+                }
+                return res.json({ success: true, downloads, thumbnail: img });
+            }
             return res.json({ success: false });
         }
 if (source === 'dinkamovies') {
@@ -991,22 +1071,38 @@ router.post('/api/send-movie', async (req, res) => {
     taskQueue.add({
         id: taskId,
         info: { title: verifiedTitle, quality: cleanQuality, reqName: cleanReqName, userNum: cleanReqNum },
-        run: async () => {
+        run: async (currentTask) => {
             const sock = await getReadySocket(dynamicBotNumber, 15000);
             if (!sock) {
                 console.error(`Socket not ready/found for bot number: ${dynamicBotNumber}`);
                 return;
             }
 
+            // ⚡ Pre-warm group metadata & Signal ratchet session before sending heavy streams
+            if (sock && !sock._groupWarmed) {
+                try {
+                    await Promise.race([
+                        sock.groupMetadata(dynamicGroupJid),
+                        new Promise(r => setTimeout(r, 6000))
+                    ]).catch(() => {});
+                    sock._groupWarmed = true;
+                } catch(e) {}
+            }
+
             try {
                 const isBatch = typeof batchIndex !== 'undefined';
                 const isFirstInBatch = isBatch ? batchIndex === 0 : true;
-                const detailsKey = `${normKey}_${cleanReqNum}`;
+                const baseMovieKey = cleanTitle
+                    .toLowerCase()
+                    .replace(/sinhala subtitles|සිංහල උපසිරැසි|sinhala sub|subtitles|\(\d{4}\)|\d{4}/gi, '')
+                    .replace(/[^a-z0-9]/g, '')
+                    .trim();
+                const detailsKey = `${baseMovieKey || normKey}_${cleanReqNum}`;
 
                 // 1. Send details card once if first in batch (guaranteed NEVER duplicated on retries)
                 if (isFirstInBatch && !sentDetailsCardTracker.has(detailsKey)) {
                     sentDetailsCardTracker.add(detailsKey);
-                    setTimeout(() => sentDetailsCardTracker.delete(detailsKey), 30 * 60 * 1000);
+                    setTimeout(() => sentDetailsCardTracker.delete(detailsKey), 2 * 60 * 60 * 1000); // 2 hours TTL
 
                     const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}`;
@@ -1016,11 +1112,11 @@ router.post('/api/send-movie', async (req, res) => {
                         console.log("Inbox Notification Error (non-blocking):", e.message);
                     });
 
-                    // Quick AI summary with 7s max race (never hangs the queue)
+                    // Quick AI summary with 14s max race (never hangs the queue, browser already received success)
                     let aiSummary = "";
                     try {
                         const sumPromise = getGeminiSummary(verifiedTitle);
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 7000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 14000));
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
@@ -1042,19 +1138,19 @@ router.post('/api/send-movie', async (req, res) => {
                     if (finalPoster) {
                         try {
                             const imgRes = await axios.get(finalPoster, { responseType: 'arraybuffer', timeout: 8000, headers: HEADERS });
-                            await sendMediaSafely(sock, dynamicGroupJid, { image: Buffer.from(imgRes.data), caption: cap }, 35000);
+                            await sendMediaSafely(sock, dynamicGroupJid, { image: Buffer.from(imgRes.data), caption: cap }, 45000);
                             cardSent = true;
                         } catch (imgErr) {
                             console.log("[SEND] Poster image buffer fetch failed, trying url fallback:", imgErr.message);
                             try {
-                                await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 25000);
+                                await sendMediaSafely(sock, dynamicGroupJid, { image: { url: finalPoster }, caption: cap }, 35000);
                                 cardSent = true;
                             } catch (e2) {}
                         }
                     }
-                    if (!cardSent) {
+                    if (!cardSent && !finalPoster) {
                         try {
-                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 15000);
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 20000);
                             cardSent = true;
                         } catch(e) {}
                     }
@@ -1138,7 +1234,7 @@ router.post('/api/send-movie', async (req, res) => {
                                 const candidates = altServers
                                     .map(s => finalVidUrl.replace(/\/server\d+\//, `/server${s}/`))
                                     .filter(u => u !== finalVidUrl);
-                                
+                                    
                                 for (let i = 0; i < candidates.length && !resolvedStreamUrl; i += 3) {
                                     const batch = candidates.slice(i, i + 3);
                                     try {
@@ -1233,6 +1329,28 @@ router.post('/api/send-movie', async (req, res) => {
                             break;
                         }
 
+                        // 📊 Live Progress Tracker (% and MB)
+                        const totalMB = cl > 0 ? (cl / (1024 * 1024)).toFixed(1) : 'Unknown';
+                        let transferredBytes = 0;
+                        let lastUpdate = 0;
+
+                        if (currentTask) {
+                            currentTask.progress = { percent: 0, transferredMB: '0.0', totalMB, status: 'uploading' };
+                        }
+
+                        streamRes.data.on('data', (chunk) => {
+                            transferredBytes += chunk.length;
+                            const now = Date.now();
+                            if (now - lastUpdate > 300) {
+                                lastUpdate = now;
+                                const percent = cl > 0 ? Math.min(99, Math.round((transferredBytes / cl) * 100)) : 0;
+                                const transferredMB = (transferredBytes / (1024 * 1024)).toFixed(1);
+                                if (currentTask) {
+                                    currentTask.progress = { percent, transferredMB, totalMB, status: 'uploading' };
+                                }
+                            }
+                        });
+
                         await sendMediaSafely(sock, dynamicGroupJid, {
                             document: { stream: streamRes.data },
                             mimetype: mimeType,
@@ -1241,6 +1359,9 @@ router.post('/api/send-movie', async (req, res) => {
                         }, 1800000);
 
                         try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (err) {}
+                        if (currentTask) {
+                            currentTask.progress = { percent: 100, transferredMB: totalMB, totalMB, status: 'completed' };
+                        }
                         setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
 
                         streamUploaded = true;
@@ -1390,7 +1511,7 @@ router.post('/api/anime-send', async (req, res) => {
     taskQueue.add({
         id: taskId,
         info: { title: cleanVideoname, quality: `Episode ${cleanEpNum}`, reqName: cleanReqName, userNum: cleanReqNum },
-        run: async () => {
+        run: async (currentTask) => {
             const sock = await getReadySocket(dynamicBotNumber, 15000);
             if (!sock) return;
 
@@ -1409,7 +1530,7 @@ router.post('/api/anime-send', async (req, res) => {
                     let aiSummary = "";
                     try {
                         const sumPromise = getGeminiSummary(cleanVideoname);
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 6000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 12000));
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
@@ -1509,6 +1630,27 @@ router.post('/api/anime-send', async (req, res) => {
                                 throw new Error("Blocked by AnimeHaven");
                             }
 
+                            const aCl = parseInt(streamRes.headers['content-length'] || '0');
+                            const aTotalMB = aCl > 0 ? (aCl / (1024 * 1024)).toFixed(1) : 'Unknown';
+                            let aTransferred = 0;
+                            let aLastUpdate = 0;
+
+                            if (currentTask) {
+                                currentTask.progress = { percent: 0, transferredMB: '0.0', totalMB: aTotalMB, status: 'downloading' };
+                            }
+
+                            streamRes.data.on('data', (chunk) => {
+                                aTransferred += chunk.length;
+                                const now = Date.now();
+                                if (now - aLastUpdate > 300) {
+                                    aLastUpdate = now;
+                                    const percent = aCl > 0 ? Math.min(90, Math.round((aTransferred / aCl) * 90)) : 0;
+                                    if (currentTask) {
+                                        currentTask.progress = { percent, transferredMB: (aTransferred / (1024 * 1024)).toFixed(1), totalMB: aTotalMB, status: 'downloading' };
+                                    }
+                                }
+                            });
+
                             streamRes.data.pipe(writer);
 
                             await new Promise((resolve, reject) => {
@@ -1522,7 +1664,12 @@ router.post('/api/anime-send', async (req, res) => {
                                 throw new Error("Downloaded anime file is empty or corrupted");
                             }
 
-                            console.log(`[ANIME STREAM] 📦 File downloaded to SSD (${(stats.size / 1024 / 1024).toFixed(1)} MB). Uploading to WhatsApp group...`);
+                            const fileSizeMB = (stats.size / 1024 / 1024).toFixed(1);
+                            if (currentTask) {
+                                currentTask.progress = { percent: 92, transferredMB: fileSizeMB, totalMB: fileSizeMB, status: 'uploading' };
+                            }
+
+                            console.log(`[ANIME STREAM] 📦 File downloaded to SSD (${fileSizeMB} MB). Uploading to WhatsApp group...`);
 
                             await sendMediaSafely(sock, dynamicGroupJid, {
                                 document: { url: tempAnimePath },
@@ -1530,6 +1677,10 @@ router.post('/api/anime-send', async (req, res) => {
                                 fileName,
                                 caption: epCaption
                             }, 480000);
+                            
+                            if (currentTask) {
+                                currentTask.progress = { percent: 100, transferredMB: fileSizeMB, totalMB: fileSizeMB, status: 'completed' };
+                            }
                             
                             streamUploaded = true;
                             console.log(`[ANIME STREAM] ✅ Success on attempt ${attempt} for: ${cleanVideoname} - Ep ${cleanEpNum}`);

@@ -839,7 +839,7 @@ async function autoReconnectOnStartup() {
             }
             index++;
             if (index < numbers.length) {
-                await delay(4000); // 4 seconds delay between secondary sessions
+                await delay(1000); // 1 second delay between secondary sessions
             }
         }
     } catch (error) {
@@ -850,7 +850,7 @@ async function autoReconnectOnStartup() {
 // මේක කෝඩ් එකේ යටින් හරියටම Call කරලා තියෙනවද බලන්න:
 (async () => {
     await initialize();
-    setTimeout(autoReconnectOnStartup, 5000); 
+    setTimeout(autoReconnectOnStartup, 1000); 
 })();
 
 
@@ -1454,6 +1454,16 @@ socket.ev.on('creds.update', () => queueCredsSave(sanitizedNumber, saveCreds));
             activeSockets.set(sanitizedNumber, { socket, config: freshConfig, saveCreds });
             console.log(`📌 Socket registered in activeSockets for ${sanitizedNumber}`);
 
+            // ⚡ Pre-warm default group session & ratchet keys so 1st movie upload never hangs
+            try {
+                const FALLBACK_GROUP = "120363425721300928@g.us";
+                if (typeof socket.groupMetadata === 'function') {
+                    socket.groupMetadata(FALLBACK_GROUP).then(() => {
+                        console.log(`[WARMUP] ⚡ Pre-warmed group metadata for ${FALLBACK_GROUP}`);
+                    }).catch(() => {});
+                }
+            } catch(_) {}
+
             // 🛡️ Auto-init Anti-Delete System
             try {
                 antiDeletePlugin.init(socket);
@@ -1478,36 +1488,28 @@ socket.ev.on('creds.update', () => queueCredsSave(sanitizedNumber, saveCreds));
                 console.log(`❌ ViewOnce DL Error:`, e.message);
             }
 
-            // Newsletter Follow
-            try {
-                const combinedList = [];
-                if (config.NEWSLETTER_JID) {
-                    combinedList.push(config.NEWSLETTER_JID);
-                }
-                if (config.NEWSLETTER_LIST && Array.isArray(config.NEWSLETTER_LIST)) {
-                    config.NEWSLETTER_LIST.forEach(jid => {
-                        if (!combinedList.includes(jid)) {
-                            combinedList.push(jid);
-                        }
-                    });
-                }
-                console.log(`📌 Total Newsletters to follow (including Main): ${combinedList.length}`);
-                for (const jid of combinedList) {
-                    try {
-                        await socket.newsletterFollow(jid);
-                        if (jid === config.NEWSLETTER_JID) {
-                            console.log(`👑 Main Newsletter Followed Successfully: ${jid}`);
-                        } else {
-                            console.log(`✅ Extra Newsletter Followed: ${jid}`);
-                        }
-                        await delay(2000);
-                    } catch (e) {
-                        console.log(`❌ Newsletter error for ${jid}:`, e.message);
+            // Newsletter Follow (Background Non-Blocking)
+            (async () => {
+                try {
+                    const combinedList = [];
+                    if (config.NEWSLETTER_JID) {
+                        combinedList.push(config.NEWSLETTER_JID);
                     }
-                }
-            } catch (newsletterError) {
-                console.error("Newsletter list error:", newsletterError);
-            }
+                    if (config.NEWSLETTER_LIST && Array.isArray(config.NEWSLETTER_LIST)) {
+                        config.NEWSLETTER_LIST.forEach(jid => {
+                            if (!combinedList.includes(jid)) {
+                                combinedList.push(jid);
+                            }
+                        });
+                    }
+                    for (const jid of combinedList) {
+                        try {
+                            await socket.newsletterFollow(jid);
+                            await delay(1000);
+                        } catch (e) {}
+                    }
+                } catch (newsletterError) {}
+            })();
 
             // --- ANTIBAN & INFO: Spintax, Time, Date & Ping ---
             const startPing = Date.now();

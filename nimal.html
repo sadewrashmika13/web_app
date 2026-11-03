@@ -262,10 +262,18 @@ function startQueuePolling(){
         hasSeenActive=true;
         const mn=document.getElementById('reqNum').value.trim(),im=data.active.userNum===mn;
         tEl.textContent=im?`🚀 Sending: ${data.active.title} (${data.active.quality})`:`⏳ Queue... (Pos: ${data.queue.length+1})`;
-        sEl.textContent=im?'Uploading to WhatsApp...':`Processing: ${data.active.title}`;
+        const prog=data.active.progress;
+        const bar=banner.querySelector('.ub-bar');
+        if(prog&&prog.percent!==undefined){
+          sEl.textContent=im?`Uploading: ${prog.percent}% (${prog.transferredMB} MB / ${prog.totalMB} MB)`:`Processing: ${data.active.title} (${prog.percent}%)`;
+          if(bar){bar.style.animation='none';bar.style.width=Math.max(5,prog.percent)+'%';}
+        }else{
+          sEl.textContent=im?'Uploading to WhatsApp...':`Processing: ${data.active.title}`;
+          if(bar){bar.style.animation='';bar.style.width='30%';}
+        }
       }
     }catch(_){}
-  },2500);
+  },1000);
 }
 
 function setSource(src,btn){
@@ -328,7 +336,10 @@ async function openModal(title,img,refId,imdb,year,genres,runtime){
     const res=await fetch(isA?'/api/anime-episodes':'/api/links',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isA?{id:refId}:{url:refId,source:currentSource})});
     const data=await res.json();
     if(data.success){
-      ms.textContent='Pick an option:';currentMovieMeta={title,img,imdb:imdb||data.imdb,refId,year:year||data.year,genres:genres||data.genres,runtime:runtime||data.runtime};
+      ms.textContent='Pick an option:';
+      const finalImg=(data.thumbnail&&typeof data.thumbnail==='string'&&data.thumbnail.startsWith('http'))?data.thumbnail:(img||'');
+      if(finalImg&&(!img||img.includes('placeholder'))){const mi=document.getElementById('modalImg');if(mi)mi.src=finalImg;}
+      currentMovieMeta={title,img:finalImg,imdb:imdb||data.imdb,refId,year:year||data.year,genres:genres||data.genres,runtime:runtime||data.runtime};
       const arr=isA?data.episodes:data.downloads;currentDownloads=arr;
       const isS=arr.length>1&&(isA||['slcartoons','moviesublk','kdrama','cinesubz2'].includes(currentSource)||data.isSeries||arr[0].meta?.toLowerCase().includes('episode')||arr[0].meta?.toLowerCase().includes('part')||arr[0].meta?.toLowerCase().startsWith('s'));
       if(isS){
