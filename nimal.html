@@ -52,6 +52,7 @@ h1 em{font-style:normal;background:linear-gradient(90deg,#22d3ee,#2563eb,#7c3aed
 .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 22px;color:rgba(160,180,220,.55);font-size:13px}
 .chips span:first-letter{color:var(--a)}
 .source-toggle-container{display:flex;flex-direction:column;gap:8px;margin:0 auto;width:min(1100px,100%)}
+.source-toggle-container{display:flex;flex-direction:column;gap:8px;margin:0 auto;width:min(1100px,100%)}
 .source-toggle{display:flex;gap:6px;overflow-x:auto;padding:6px;width:100%;scrollbar-width:none;border-radius:999px;background:rgba(10,18,46,.5);border:1px solid rgba(120,150,255,.1)}
 .source-toggle::-webkit-scrollbar{display:none}
 .src-btn{white-space:nowrap;padding:12px 22px;border-radius:999px;font-weight:700;font-size:14px;background:transparent;color:#a7b3d1;border:1px solid transparent;cursor:pointer;transition:.3s;flex-shrink:0;font-family:inherit}
@@ -143,21 +144,26 @@ footer{text-align:center;margin:30px auto 24px;padding:22px 16px;max-width:1100p
     <h1 id="pageHeading">Deshan <em>Movie Hub</em></h1>
     <p class="sub">Movies, TV, cartoons සහ anime — source එකක් තෝරලා search කරන්න.</p>
     <div class="chips"><span>◈ Multi source</span><span>CC Sinhala sub</span><span>⚡ Fast search</span></div>
-    <div class="source-toggle" id="sourceToggle">
-      <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz',this)">🎬 CineSubz</button>
-      <button class="src-btn" data-source="cinesubz2" onclick="setSource('cinesubz2',this)">🎬 CineSubz 2 (V2)</button>
-      <button class="src-btn" data-source="moviebox" onclick="setSource('moviebox',this)">🎬 MovieBox Pro</button>
-      <button class="src-btn" data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">🎬 SinhalaSub</button>
-      <button class="src-btn" data-source="piratelk" onclick="setSource('piratelk',this)">🏴‍☠️ PirateLK</button>
-      <button class="src-btn" data-source="helaflix" onclick="setSource('helaflix',this)">🎬 HelaFlix</button>
-      <button class="src-btn" data-source="slcartoons" onclick="setSource('slcartoons',this)">🧸 Cartoons</button>
-      <button class="src-btn" data-source="kdrama" onclick="setSource('kdrama',this)">🌸 KDrama</button>
-      <button class="src-btn" data-source="animost" onclick="setSource('animost',this)">⚡ AnimostLK</button>
-      <button class="src-btn" data-source="1tamilmv" onclick="setSource('1tamilmv',this)">🎥 1TamilMV</button>
-      <button class="src-btn" data-source="animeheaven" onclick="setSource('animeheaven',this)">AnimeHaven</button>
-      <button class="src-btn" data-source="baiscopes" onclick="setSource('baiscopes',this)">Baiscopes</button>
-      <button class="src-btn" data-source="sublk" onclick="setSource('sublk',this)">Sub.lk</button>
-      <button class="src-btn" data-source="dinkamovies" onclick="setSource('dinkamovies',this)">🎬 DinkaMovies</button>
+    <div class="source-toggle-container">
+      <div class="source-toggle" id="sourceToggle1">
+        <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz',this)">🎬 CineSubz</button>
+        <button class="src-btn" data-source="cinesubz2" onclick="setSource('cinesubz2',this)">🎬 CineSubz 2 (V2)</button>
+        <button class="src-btn" data-source="moviebox" onclick="setSource('moviebox',this)">🎬 MovieBox Pro</button>
+        <button class="src-btn" data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">🎬 SinhalaSub</button>
+        <button class="src-btn" data-source="piratelk" onclick="setSource('piratelk',this)">🏴‍☠️ PirateLK</button>
+        <button class="src-btn" data-source="helaflix" onclick="setSource('helaflix',this)">🎬 HelaFlix</button>
+        <button class="src-btn" data-source="1tamilmv" onclick="setSource('1tamilmv',this)">🎥 1TamilMV</button>
+      </div>
+      <div class="source-toggle" id="sourceToggle2">
+        <button class="src-btn" data-source="slcartoons" onclick="setSource('slcartoons',this)">🧸 SinhalaCartoons</button>
+        <button class="src-btn" data-source="cartoonslk" onclick="setSource('cartoonslk',this)">🧸 Cartoons.lk</button>
+        <button class="src-btn" data-source="kdrama" onclick="setSource('kdrama',this)">🌸 Thenkiri KDrama</button>
+        <button class="src-btn" data-source="animost" onclick="setSource('animost',this)">⚡ AnimostLK</button>
+        <button class="src-btn" data-source="animeheaven" onclick="setSource('animeheaven',this)">⛩️ AnimeHaven</button>
+        <button class="src-btn" data-source="baiscopes" onclick="setSource('baiscopes',this)">🎬 Baiscopes</button>
+        <button class="src-btn" data-source="sublk" onclick="setSource('sublk',this)">🎬 Sub.lk</button>
+        <button class="src-btn" data-source="dinkamovies" onclick="setSource('dinkamovies',this)">🎬 DinkaMovies</button>
+      </div>
     </div>
     <div class="search-wrap">
       <input type="text" id="movieName" class="search-box" placeholder="Movie name එක දෙන්න…" onkeydown="if(event.key==='Enter')searchMovie()">
@@ -345,7 +351,7 @@ async function openModal(title,img,refId,imdb,year,genres,runtime){
       if(finalImg&&(!img||img.includes('placeholder'))){const mi=document.getElementById('modalImg');if(mi)mi.src=finalImg;}
       currentMovieMeta={title,img:finalImg,imdb:imdb||data.imdb,refId,year:year||data.year,genres:genres||data.genres,runtime:runtime||data.runtime};
       const arr=isA?data.episodes:data.downloads;currentDownloads=arr;
-      const isS=arr.length>1&&(isA||['slcartoons','cartoonslk','moviesublk','kdrama','cinesubz2','cinesubz','sinhalasub2','animost','helaflix'].includes(currentSource)||data.isSeries||arr[0].meta?.toLowerCase().includes('episode')||arr[0].meta?.toLowerCase().includes('part')||arr[0].meta?.toLowerCase().startsWith('s'));
+      const isS = arr.length > 1 && (isA || data.isSeries === true || (arr[0].meta && /ep|episode|season|part|^s\d+/i.test(arr[0].meta)) || (arr[1] && arr[1].meta && /ep|episode|season|part|^s\d+/i.test(arr[1].meta)));
       if(isS){
         const ba=document.createElement('button');ba.className='qbtn all-btn';ba.innerHTML=`🚀 Queue ALL Episodes (${arr.length})`;
         ba.onclick=()=>isA?sendAllAnime(data):sendAllMovie(arr);

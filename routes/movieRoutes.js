@@ -917,11 +917,24 @@ async function searchPirateLK(query) {
     const searchResults = [];
 
     $('article, .post, .result-item, .item, .entry').each((i, el) => {
-        const titleEl = $(el).find('h2 a, h3 a, .title a, a').first();
+        let titleEl = $(el).find('h2.post-box-title a, h2.entry-title a, h2 a, h3 a, .entry-title a, .title a').first();
         let title = titleEl.text().replace(/^DOWNLOAD\s+/i, '').trim();
         let link = titleEl.attr('href');
-        let img = $(el).find('img').first().attr('data-src') || $(el).find('img').first().attr('src');
+        let img = $(el).find('.post-thumbnail img, img').first().attr('data-src') || 
+                  $(el).find('.post-thumbnail img, img').first().attr('src') ||
+                  $(el).find('img').first().attr('data-lazy-src');
         if (img && img.startsWith('data:')) img = null;
+
+        if (!title) {
+            $(el).find('a').each((_, aEl) => {
+                const txt = $(aEl).text().replace(/^DOWNLOAD\s+/i, '').trim();
+                const hr = $(aEl).attr('href');
+                if (txt && hr && hr.includes('piratelk.com') && !hr.includes('/category/') && !hr.includes('/tag/') && !title) {
+                    title = txt;
+                    link = hr;
+                }
+            });
+        }
 
         if (title && link && link.includes('piratelk.com') && !searchResults.some(r => r.url === link)) {
             if (!link.includes('/category/') && !link.includes('/tag/') && !link.includes('/author/')) {
@@ -1062,23 +1075,6 @@ async function resolveUniversalDownloadHela(bridgeUrl) {
 // ════════════════════════════════════════════════════════
 // 🌐 7. CARTOONS SCRAPER (SINHALACARTOONS & CARTOONS.LK)
 // ════════════════════════════════════════════════════════
-async function searchCartoons(query) {
-    const url = `https://sinhalacartoons.com/wp-json/wp/v2/posts?search=${encodeURIComponent(query)}&per_page=15`;
-    const res = await axios.get(url, { headers: HEADERS, timeout: 15000 });
-    return res.data.map(post => {
-        let title = (post.title?.rendered || 'Untitled')
-            .replace(/&#8217;/g, "'")
-            .replace(/&amp;/g, '&')
-            .replace(/&quot;/g, '"');
-        return {
-            title,
-            url: post.link,
-            img: 'https://sinhalacartoons.com/favicon.ico',
-            source: 'slcartoons'
-        };
-    });
-}
-
 function decodeScData(rawScData) {
     if (!rawScData) return null;
     try {
@@ -1089,6 +1085,252 @@ function decodeScData(rawScData) {
     } catch (_) {
         return null;
     }
+}
+
+async function searchSinhalaCartoons(query) {
+    try {
+        const cleanQuery = (query || '').trim();
+        const url = !cleanQuery || cleanQuery.toLowerCase() === 'all'
+            ? 'https://sinhalacartoons.com/wp-json/wp/v2/posts?per_page=20&_embed'
+            : `https://sinhalacartoons.com/wp-json/wp/v2/posts?search=${encodeURIComponent(cleanQuery)}&per_page=20&_embed`;
+        const res = await axios.get(url, { headers: HEADERS, timeout: 15000 });
+        if (Array.isArray(res.data)) {
+            return res.data.map(post => {
+                let title = (post.title?.rendered || 'Untitled')
+                    .replace(/&#8217;/g, "'")
+                    .replace(/&#8216;/g, "'")
+                    .replace(/&amp;/g, '&')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#038;/g, '&');
+                let img = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || 
+                          post.featured_media_src_url || 
+                          '';
+                return {
+                    title,
+                    url: post.link,
+                    img,
+                    source: 'slcartoons'
+                };
+            });
+        }
+    } catch (e) {
+        console.warn("[SINHALACARTOONS SEARCH ERROR]:", e.message);
+    }
+    return [];
+}
+
+async function getSinhalaCartoonsDetails(postUrl) {
+    const res = await axios.get(postUrl, { headers: HEADERS, timeout: 15000 });
+    const html = res.data;
+    const $ = cheerio.load(html);
+
+    let title = $('h1.movie-title').text().trim() || $('meta[property="og:title"]').attr('content') || '';
+    title = title.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8216;/g, "'");
+
+    const image = $('.info-poster img').attr('src') || $('meta[property="og:image"]').attr('content') || '';
+    const isSeries = $('.episode-row').length > 0;
+
+    const downloads = [];
+    if (isSeries) {
+        $('.episode-row').each((i, el) => {
+            const rawDlUrl = $(el).attr('data-download-url') || '';
+            const epNum = $(el).find('.ep-number').text().trim() || `${i + 1}`;
+            let directDownload = '';
+            let epTitle = '';
+            const scMatch = rawDlUrl.match(/sc_data=([^"'\s&]+)/);
+            if (scMatch) {
+                const parsed = decodeScData(scMatch[1]);
+                if (parsed) {
+                    directDownload = parsed.direct || '';
+                    epTitle = parsed.title || '';
+                }
+            }
+            if (directDownload) {
+                downloads.push({
+                    meta: epTitle || `Episode ${epNum}`,
+                    resolvedUrl: directDownload,
+                    direct: true
+                });
+            }
+        });
+    } else {
+        const scBtn = $('.sc-download-links-btn').attr('href') || '';
+        const scMatch = (scBtn + html).match(/sc_data=([^"'\s&]+)/);
+        if (scMatch) {
+            const parsed = decodeScData(scMatch[1]);
+            if (parsed && parsed.direct) {
+                downloads.push({
+                    meta: 'Direct HD Download',
+                    resolvedUrl: parsed.direct,
+                    direct: true
+                });
+            }
+        }
+        if (downloads.length === 0) {
+            $('a[href*=".mp4"], a[href*=".mkv"], a[href*="download"]').each((i, el) => {
+                const href = $(el).attr('href');
+                if (href && (href.startsWith('http') || href.endsWith('.mp4'))) {
+                    downloads.push({ meta: $(el).text().trim() || `Download HD`, resolvedUrl: href, direct: true });
+                }
+            });
+        }
+    }
+
+    return { title, poster: image, isSeries, downloads };
+}
+
+async function searchCartoonsLk(query) {
+    const cleanQuery = (query || '').trim();
+    try {
+        const url = !cleanQuery || cleanQuery.toLowerCase() === 'all'
+            ? 'https://cartoons.lk/wp-json/wp/v2/posts?per_page=20&_embed'
+            : `https://cartoons.lk/wp-json/wp/v2/posts?search=${encodeURIComponent(cleanQuery)}&_embed`;
+        const res = await axios.get(url, { headers: HEADERS, timeout: 20000 });
+        if (Array.isArray(res.data) && res.data.length > 0) {
+            return res.data.map(p => {
+                const fullTitle = p.title?.rendered || 'Untitled';
+                const title = fullTitle.replace(/&#8217;/g, "'").replace(/&#8216;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+                const img = p._embedded?.['wp:featuredmedia']?.[0]?.source_url || p.featured_media_src_url || '';
+                return {
+                    title,
+                    url: p.link,
+                    img,
+                    source: 'cartoonslk'
+                };
+            });
+        }
+    } catch (_) {}
+
+    try {
+        const searchRes = await axios.get(`https://cartoons.lk/?s=${encodeURIComponent(cleanQuery)}`, { headers: HEADERS, timeout: 20000 });
+        const $ = cheerio.load(searchRes.data);
+        const results = [];
+        const seen = new Set();
+        $('article, .post, .item, .entry, .card').each((i, el) => {
+            const a = $(el).find('a').first();
+            const href = a.attr('href');
+            if (!href || seen.has(href)) return;
+            seen.add(href);
+            let rawTitle = $(el).find('h2, h3, .title, .entry-title').text().trim() || a.attr('title') || '';
+            if (!rawTitle) return;
+            let img = $(el).find('img').attr('data-src') || $(el).find('img').attr('src') || '';
+            results.push({
+                title: rawTitle.replace(/&#8217;/g, "'").replace(/&amp;/g, '&'),
+                url: href,
+                img,
+                source: 'cartoonslk'
+            });
+        });
+        return results;
+    } catch (_) {
+        return [];
+    }
+}
+
+async function getCartoonsLkDetails(pageUrl) {
+    const res = await axios.get(pageUrl, { headers: HEADERS, timeout: 25000 });
+    const html = res.data;
+    const $ = cheerio.load(html);
+
+    const mNonce = html.match(/nonce:\s*["']([a-zA-Z0-9]+)["']/i);
+    const nonce = mNonce ? mNonce[1] : null;
+
+    let postId = $('.movie-download-container').attr('data-post-id') ||
+                 $('button.direct-download-btn').first().attr('data-post-id') ||
+                 $('button[data-post-id]').first().attr('data-post-id');
+    if (!postId) {
+        const mEpId = html.match(/id=["']episodes-data-(\d+)["']/i);
+        if (mEpId) postId = mEpId[1];
+    }
+    if (!postId) {
+        const mPostId = html.match(/post-(\d+)/i);
+        if (mPostId) postId = mPostId[1];
+    }
+
+    const title = $('h1').text().trim() || $('title').text().trim();
+    const poster = $('meta[property="og:image"]').attr('content') || $('.movie-poster img, .entry-content img').first().attr('src') || '';
+
+    const epScript = $(`script[id^="episodes-data-"]`);
+    let isSeries = false;
+    let downloads = [];
+
+    if (epScript.length > 0) {
+        try {
+            const episodes = JSON.parse(epScript.html());
+            if (Array.isArray(episodes) && episodes.length > 0) {
+                isSeries = true;
+                downloads = episodes.map((ep, idx) => ({
+                    meta: ep.title || `Episode ${idx + 1}`,
+                    resolvedUrl: `cartoonslk://${postId}?nonce=${nonce || ''}&type=episode&episodeIndex=${idx}&linkIndex=0&pageUrl=${encodeURIComponent(pageUrl)}`,
+                    direct: false
+                }));
+            }
+        } catch (_) {}
+    }
+
+    if (!isSeries) {
+        $('button.direct-download-btn, a.direct-download-btn, [data-action-type="download"]').each((i, el) => {
+            const pId = $(el).attr('data-post-id') || postId;
+            const lIndex = $(el).attr('data-link-index') || '0';
+            let label = $(el).text().trim() || 'HD Download';
+            downloads.push({
+                meta: label,
+                resolvedUrl: `cartoonslk://${pId}?nonce=${nonce || ''}&type=single&linkIndex=${lIndex}&pageUrl=${encodeURIComponent(pageUrl)}`,
+                direct: false
+            });
+        });
+        if (downloads.length === 0 && postId) {
+            downloads.push({
+                meta: 'Direct HD Download',
+                resolvedUrl: `cartoonslk://${postId}?nonce=${nonce || ''}&type=single&linkIndex=0&pageUrl=${encodeURIComponent(pageUrl)}`,
+                direct: false
+            });
+        }
+    }
+
+    return { title, poster, isSeries, downloads };
+}
+
+async function resolveCartoonsLkStream({ pageUrl, postId, nonce, type, episodeIndex, linkIndex }) {
+    if (!nonce || !postId) {
+        const pageRes = await axios.get(pageUrl, { headers: HEADERS, timeout: 20000 });
+        const m = pageRes.data.match(/nonce:\s*["']([a-zA-Z0-9]+)["']/i);
+        if (m) nonce = m[1];
+        if (!postId) {
+            const mPost = pageRes.data.match(/data-post-id=["'](\d+)["']/i) || pageRes.data.match(/id=["']episodes-data-(\d+)["']/i);
+            if (mPost) postId = mPost[1];
+        }
+    }
+    const params = new URLSearchParams();
+    params.append('action', 'get_movie_link');
+    params.append('nonce', nonce);
+    params.append('post_id', postId);
+    params.append('type', type || 'single');
+    params.append('action_type', 'download');
+    if (type === 'episode') {
+        params.append('episode_index', String(episodeIndex || 0));
+    }
+    params.append('link_index', String(linkIndex || 0));
+
+    const ajaxRes = await axios.post('https://cartoons.lk/wp-admin/admin-ajax.php', params.toString(), {
+        headers: {
+            ...HEADERS,
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Referer': pageUrl,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        timeout: 25000
+    });
+    const dlUrl = ajaxRes.data?.data?.url;
+    if (!dlUrl) throw new Error("cartoons.lk did not return a download url");
+
+    // Follow 302 redirect
+    const headRes = await axios.get(dlUrl, {
+        headers: HEADERS,
+        maxRedirects: 0,
+        validateStatus: s => s >= 200 && s < 400
+    });
+    return headRes.headers.location || dlUrl;
 }
 
 // ════════════════════════════════════════════════════════
@@ -1256,227 +1498,15 @@ router.post('/api/search', async (req, res) => {
         }
 
         if (source === 'kdrama') {
-            const results = await searchThenkiri(query);
-            if (results.length > 0) {
-                cacheVerifiedMovies(results);
-                return res.json({ success: true, results: results.slice(0, 15) });
-            }
-            return res.json({ success: false });
-        }
-
-        if (source === 'animost') {
-            const results = await searchAnimost(query);
-            if (results.length > 0) {
-                cacheVerifiedMovies(results);
-                return res.json({ success: true, results: results.slice(0, 15) });
-            }
-            return res.json({ success: false });
-        }
-
-        if (source === 'piratelk') {
-            const results = await searchPirateLK(query);
-            if (results.length > 0) {
-                cacheVerifiedMovies(results);
-                return res.json({ success: true, results: results.slice(0, 15) });
-            }
-            return res.json({ success: false });
-        }
-
-        if (source === 'helaflix') {
-            const results = await getHelaflixPosts(query);
-            if (results.length > 0) {
-                cacheVerifiedMovies(results);
-                return res.json({ success: true, results: results.slice(0, 15) });
-            }
-            return res.json({ success: false });
-        }
-
-        if (source === 'slcartoons') {
-            const results = await searchCartoons(query);
-            if (results.length > 0) {
-                cacheVerifiedMovies(results);
-                return res.json({ success: true, results: results.slice(0, 15) });
-            }
-            return res.json({ success: false });
-        }
-
-        if (source === '1tamilmv') {
-            const searchUrl = `https://www.1tamilmv.rocks/index.php?/search/&q=${encodeURIComponent(query)}`;
-            const searchRes = await axios.get(searchUrl, { headers: HEADERS, timeout: 20000 });
-            const $ = cheerio.load(searchRes.data);
-            let results = [];
-            $('a').each((i, el) => {
-                let href = $(el).attr('href') || '';
-                const text = $(el).text().trim();
-                if (href.includes('forums/topic/') && text.length > 5 && !text.includes('Languages') && !href.includes('?do=findComment')) {
-                    href = href.split('&do=findComment')[0].split('?do=findComment')[0].split('#comment')[0];
-                    if (!results.find(r => r.url === href) && results.length < 8) results.push({ title: text, url: href, img: '', source: '1tamilmv' });
-                }
-            });
-            if(results.length > 0) {
-                await Promise.allSettled(results.slice(0, 5).map(async (r) => {
-                    try {
-                        const pageRes = await axios.get(r.url, { headers: { ...HEADERS, 'Referer': 'https://www.1tamilmv.rocks/' }, timeout: 4000 });
-                        const $p = cheerio.load(pageRes.data);
-                        let foundImg = null;
-                        $p('img.ipsImage, img.bbc_img, [data-role="commentContent"] img').each((_, el) => {
-                            let s = $p(el).attr('data-src') || $p(el).attr('src');
-                            if (s && s.startsWith('http') && !s.includes('data:image') && !foundImg) foundImg = s;
-                        });
-                        if (foundImg) r.img = foundImg;
-                    } catch(_) {}
-                }));
-                cacheVerifiedMovies(results);
-                return res.json({ success: true, results });
-            }
-            return res.json({ success: false });
-        }
-
-        if (source === 'dinkamovies') {
-            const searchRes = await axios.get(`https://kavindu-download-web.vercel.app/api/dinkamovies/movie/search?q=${encodeURIComponent(query)}`);
-            if (searchRes.data?.status && searchRes.data.data?.length > 0) {
-                const results = searchRes.data.data.slice(0, 8).map(mv => ({
-                    title: mv.title || "Unknown",
-                    url: mv.link || mv.url,
-                    img: mv.poster || '', 
-                    source: 'dinkamovies'
-                }));
-                cacheVerifiedMovies(results);
-                return res.json({ success: true, results });
-            }
-            return res.json({ success: false });
-        }
-
-        // Default: CINESUBZ Pure Native Scraper
-        const results = await scrapeSearchDirect(query);
-        if (results.length > 0) {
-            cacheVerifiedMovies(results);
-            return res.json({ success: true, results: results.slice(0, 10) });
-        }
-        res.json({ success: false });
-
-    } catch (error) {
-        console.error("[SEARCH ERROR]:", error.message);
-        res.json({ success: false });
-    }
-});
-
-// ════════════════════════════════════════════════════════
-// 🔗 2. DOWNLOAD LINKS & EPISODES API ROUTE
-// ════════════════════════════════════════════════════════
-router.post('/api/links', async (req, res) => {
-    const { url, source = 'cinesubz' } = req.body;
-    try {
-        if (source === 'moviebox') {
-            try {
-                let detailUrl;
-                if (url.startsWith('http')) {
-                    detailUrl = url;
-                } else if (url.includes('/') || url.includes('-')) {
-                    detailUrl = `${MOVIEBOX_API_BASE}/detail/${url}?api_key=${MOVIEBOX_KEY}`;
-                } else {
-                    detailUrl = `${MOVIEBOX_API_BASE}/detail/${url}?api_key=${MOVIEBOX_KEY}`;
-                }
-
-                const dRes = await axios.get(detailUrl, {
-                    headers: { 'X-API-Key': MOVIEBOX_KEY, 'User-Agent': 'Mozilla/5.0' },
-                    timeout: 15000
-                });
-                const detail = dRes.data?.data || dRes.data?.detail || dRes.data || {};
-                const subjectId = detail.subject_id || detail.id || url;
-                const isSeries = detail.type === 'tv' || detail.type === 'tvshows' || (detail.episodes && detail.episodes.length > 0);
-
-                if (isSeries && Array.isArray(detail.episodes) && detail.episodes.length > 0) {
-                    const downloads = detail.episodes.map(ep => ({
-                        meta: `S${ep.season || 1} E${ep.episode || ep.episode_number}: ${ep.title || ''}`.trim(),
-                        resolvedUrl: `moviebox://${subjectId}/${ep.episode_id || ep.id || ep.episode}`,
-                        direct: false
-                    }));
-                    return res.json({ success: true, downloads, isSeries: true, thumbnail: detail.poster_url || detail.cover });
-                }
-
-                const qualities = ['1080p', '720p', '480p'];
-                const downloads = qualities.map(q => ({
-                    meta: `MovieBox ${q}`,
-                    resolvedUrl: `moviebox://${subjectId}?quality=${q}`,
-                    direct: false
-                }));
-                return res.json({ success: true, downloads, thumbnail: detail.poster_url || detail.cover });
-            } catch (err) {
-                console.error("[MOVIEBOX LINKS ERROR]:", err.message);
-            }
-            return res.json({ success: false });
-        }
-
-        if (source === 'cinesubz2') {
-            try {
-                const dlRes = await axios.get(`${CZ2_API}/dl-links?url=${encodeURIComponent(url)}`, { timeout: 20000, headers: HEADERS });
-                const dlData = dlRes.data || {};
-
-                if (dlData.allEpisodes && Array.isArray(dlData.allEpisodes) && dlData.allEpisodes.length > 0) {
-                    const downloads = dlData.allEpisodes.map(ep => ({
-                        meta: `Episode ${ep.episode}: ${ep.title || ''}`.trim(),
-                        resolvedUrl: ep.url,
-                        direct: false
-                    }));
-                    return res.json({ success: true, downloads, isSeries: true });
-                }
-
-                const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
-                let downloads = [];
-                arr.forEach(item => {
-                    let resolvedUrl = item.direct_mp4_url || item.url || item.link;
-                    if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
-                        resolvedUrl = resolvedUrl.replace('avatarzone.online', 'terracloud2.site');
-                        let q = item.quality || item.resolution || item.name || '';
-                        if (!q) {
-                            if (resolvedUrl.includes('480p')) q = '480p';
-                            else if (resolvedUrl.includes('720p')) q = '720p';
-                            else if (resolvedUrl.includes('1080p')) q = '1080p';
-                            else q = 'HD';
-                        }
-                        const sizeStr = item.fileSize || item.size;
-                        const metaLabel = `${q} ${sizeStr && sizeStr !== 'Unknown' ? `(${sizeStr})` : ''}`.trim();
-                        downloads.push({ meta: metaLabel, resolvedUrl: resolvedUrl, direct: true });
-                    }
-                });
-                if (downloads.length > 0) {
-                    return res.json({ success: true, downloads });
-                }
-            } catch (cz2DlErr) {
-                console.error("[CZ2] Links API error:", cz2DlErr.message);
-            }
-            return res.json({ success: false });
-        }
-
-        if (source === 'sinhalasub2') {
-            if (url.includes('/tvshows/')) {
-                const tvData = await getSinhalasubTvEpisodes(url);
-                const downloads = tvData.episodes.map(ep => ({
-                    meta: ep.title,
-                    resolvedUrl: ep.url,
-                    direct: false
-                }));
-                return res.json({ success: downloads.length > 0, downloads, thumbnail: tvData.poster, isSeries: true });
-            } else {
-                const details = await getSinhalasubDetails(url);
-                const downloads = details.downloadOptions.map(opt => ({
-                    meta: `${opt.quality} (${opt.server} - ${opt.size})`,
-                    resolvedUrl: opt.linkPageUrl,
-                    direct: true
-                }));
-                return res.json({ success: downloads.length > 0, downloads, thumbnail: details.poster });
-            }
-        }
-
-        if (source === 'kdrama') {
             const data = await getThenkiriDetails(url);
-            return res.json({ success: data.downloads.length > 0, downloads: data.downloads, thumbnail: data.poster });
+            const isSeries = data.downloads.length > 1;
+            return res.json({ success: data.downloads.length > 0, downloads: data.downloads, thumbnail: data.poster, isSeries });
         }
 
         if (source === 'animost') {
             const data = await getAnimostDownloadOptions(url);
-            return res.json({ success: data.downloads.length > 0, downloads: data.downloads, thumbnail: data.poster });
+            const isSeries = data.downloads.length > 1;
+            return res.json({ success: data.downloads.length > 0, downloads: data.downloads, thumbnail: data.poster, isSeries });
         }
 
         if (source === 'piratelk') {
@@ -1495,15 +1525,13 @@ router.post('/api/links', async (req, res) => {
         }
 
         if (source === 'slcartoons') {
-            const resData = await axios.get(url, { headers: HEADERS, timeout: 15000 });
-            const $ = cheerio.load(resData.data);
-            const downloads = [];
-            $('a[href*=".mp4"], a[href*=".mkv"], a[href*="download"]').each((i, el) => {
-                const href = $(el).attr('href');
-                if (href) downloads.push({ meta: $(el).text().trim() || `Link ${i + 1}`, resolvedUrl: href, direct: true });
-            });
-            const poster = $("meta[property='og:image']").attr('content') || '';
-            return res.json({ success: downloads.length > 0, downloads, thumbnail: poster });
+            const data = await getSinhalaCartoonsDetails(url);
+            return res.json({ success: data.downloads.length > 0, downloads: data.downloads, isSeries: data.isSeries, thumbnail: data.poster });
+        }
+
+        if (source === 'cartoonslk') {
+            const data = await getCartoonsLkDetails(url);
+            return res.json({ success: data.downloads.length > 0, downloads: data.downloads, isSeries: data.isSeries, thumbnail: data.poster });
         }
 
         if (source === '1tamilmv') {
@@ -1600,18 +1628,18 @@ router.post('/api/send-movie', async (req, res) => {
         return res.status(403).json({ success: false, message: 'Too many suspicious requests. Try again later.' });
     }
 
+    const payload = decryptPayload(req.body) || {};
     const { 
-        title, url, quality, userNum, userName, img, botNumber, groupJid, batchIndex,
-        year, genres, imdb, runtime, source 
-    } = req.body;
+        title, url, quality, userNum, userName, reqNum, reqName, img, botNumber, groupJid, batchIndex, batchTotal,
+        year, genres, imdb, runtime, source, admin_id 
+    } = payload;
 
     const cleanTitle = sanitizeText(title, 80);
     const cleanQuality = formatQuality(quality);
-    const cleanReqNum = sanitizeText(userNum, 20);
-    const cleanReqName = sanitizeText(userName, 40) || 'Anonymous';
+    const cleanReqNum = sanitizeText(reqNum || userNum, 20);
+    const cleanReqName = sanitizeText(reqName || userName, 40) || 'Anonymous';
 
     if (!cleanTitle || cleanTitle.length < 2) {
-        recordSuspiciousRequest(clientIp);
         return res.status(400).json({ success: false, message: 'Invalid movie title.' });
     }
 
@@ -1883,10 +1911,54 @@ router.post('/api/send-movie', async (req, res) => {
                         }
 
                         // 3. SINHALASUB NATIVE RESOLUTION
-                        if (source === 'sinhalasub2' || finalVidUrl.includes('sinhalasub.lk/links/')) {
+                        if (source === 'sinhalasub2' || finalVidUrl.includes('sinhalasub.lk')) {
                             try {
-                                const resolved = await resolveSinhalasubLink(finalVidUrl);
-                                if (resolved) finalVidUrl = resolved;
+                                if (finalVidUrl.includes('/episodes/') || finalVidUrl.includes('/movies/')) {
+                                    const det = await getSinhalasubDetails(finalVidUrl);
+                                    if (det.downloadOptions && det.downloadOptions.length > 0) {
+                                        const pref = det.downloadOptions.find(o => o.linkPageUrl.includes('pixeldrain') || o.server.toLowerCase().includes('pixel')) || det.downloadOptions[0];
+                                        finalVidUrl = pref.linkPageUrl;
+                                    }
+                                }
+                                if (finalVidUrl.includes('/links/')) {
+                                    const resolved = await resolveSinhalasubLink(finalVidUrl);
+                                    if (resolved) finalVidUrl = resolved;
+                                }
+                            } catch (_) {}
+                        }
+
+                        // CARTOONS.LK RESOLUTION
+                        if (source === 'cartoonslk' || finalVidUrl.startsWith('cartoonslk://')) {
+                            try {
+                                const parsedU = new URL(finalVidUrl);
+                                const pId = parsedU.hostname || parsedU.pathname.replace(/^\/\//, '');
+                                const nonce = parsedU.searchParams.get('nonce');
+                                const type = parsedU.searchParams.get('type') || 'single';
+                                const epIdx = parsedU.searchParams.get('episodeIndex') || '0';
+                                const lIdx = parsedU.searchParams.get('linkIndex') || '0';
+                                const pUrl = parsedU.searchParams.get('pageUrl') || 'https://cartoons.lk/';
+
+                                const streamUrl = await resolveCartoonsLkStream({
+                                    pageUrl: decodeURIComponent(pUrl),
+                                    postId: pId,
+                                    nonce,
+                                    type,
+                                    episodeIndex: parseInt(epIdx),
+                                    linkIndex: parseInt(lIdx)
+                                });
+                                if (streamUrl) finalVidUrl = streamUrl;
+                            } catch (clkErr) {
+                                console.error("[STREAM CARTOONSLK ERROR]:", clkErr.message);
+                            }
+                        }
+
+                        // SINHALACARTOONS RESOLUTION
+                        if (source === 'slcartoons' && !finalVidUrl.match(/\.(mp4|mkv)(\?|$)/i)) {
+                            try {
+                                const scDet = await getSinhalaCartoonsDetails(finalVidUrl);
+                                if (scDet.downloads.length > 0) {
+                                    finalVidUrl = scDet.downloads[0].resolvedUrl;
+                                }
                             } catch (_) {}
                         }
 
@@ -2074,12 +2146,13 @@ router.post('/api/anime-send', async (req, res) => {
         return res.status(403).json({ success: false, message: 'Too many suspicious requests. Try again later.' });
     }
 
-    const { id, epNum, hash, videoname, userNum, userName, botNumber, groupJid } = req.body;
+    const payload = decryptPayload(req.body) || {};
+    const { id, epNum, hash, videoname, userNum, userName, reqNum, reqName, botNumber, groupJid, thumbnail, batchIndex, admin_id } = payload;
 
     const cleanVideoname = sanitizeText(videoname, 80);
     const cleanEpNum = parseInt(epNum) || 1;
-    const cleanReqNum = sanitizeText(userNum, 20);
-    const cleanReqName = sanitizeText(userName, 40) || 'Anonymous';
+    const cleanReqNum = sanitizeText(reqNum || userNum, 20);
+    const cleanReqName = sanitizeText(reqName || userName, 40) || 'Anonymous';
 
     if (!cleanVideoname || cleanVideoname.length < 2) {
         return res.status(400).json({ success: false, message: 'Invalid anime title.' });
