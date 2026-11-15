@@ -586,13 +586,31 @@
         }
 
         /* ────────────────────────────────────────
-           INIT — populate admin ID on load
+           LOAD EXISTING SETTINGS
+        ──────────────────────────────────────── */
+        async function loadExistingSettings(adminId) {
+            try {
+                const res = await fetch(`/api/admin/settings/${encodeURIComponent(adminId)}`);
+                const data = await res.json();
+                if (data.success) {
+                    if (data.bot_number)  document.getElementById('botNumberInput').value  = data.bot_number;
+                    if (data.group_jid)   document.getElementById('groupJidInput').value   = data.group_jid;
+                    if (data.footer_text) document.getElementById('footerTextInput').value = data.footer_text;
+                }
+            } catch (err) {
+                console.warn('Could not load existing settings:', err);
+            }
+        }
+
+        /* ────────────────────────────────────────
+           INIT — populate admin ID on load & load settings
         ──────────────────────────────────────── */
         (function init() {
             const adminId = getAdminIdFromUrl();
             document.getElementById('adminIdInput').value      = adminId;
             document.getElementById('adminIdBadge').textContent = adminId.toUpperCase();
             document.title = `SADEW-MINI | ${adminId.toUpperCase()}`;
+            loadExistingSettings(adminId);
         })();
 
         /* ────────────────────────────────────────

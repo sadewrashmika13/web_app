@@ -156,34 +156,77 @@ app.post('/api/login', async (req, res) => {
         res.json({ success: false, message: 'Server error!' });
     }
 });
-// ════════════ SAVE ADMIN SETTINGS API ════════════
+// ════════════ ADMIN SETTINGS APIS (GET & SAVE) ════════════
+app.get('/api/admin/settings/:admin_id?', async (req, res) => {
+    const rawId = req.params.admin_id || req.query.admin || req.query.admin_id;
+    if (!rawId) {
+        return res.status(400).json({ success: false, message: 'Admin ID is required!' });
+    }
+
+    try {
+        const cleanId = rawId.trim();
+        const safeRegex = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const admin = await Admin.findOne({
+            $or: [
+                { username: cleanId },
+                { username: new RegExp('^' + safeRegex + '$', 'i') }
+            ]
+        });
+
+        if (admin) {
+            return res.json({
+                success: true,
+                admin_id: admin.username,
+                bot_number: admin.bot_number || '',
+                group_jid: admin.group_jid || '',
+                footer_text: admin.footer_text || ''
+            });
+        } else {
+            return res.json({
+                success: true,
+                admin_id: cleanId,
+                bot_number: '',
+                group_jid: '',
+                footer_text: ''
+            });
+        }
+    } catch (e) {
+        console.error('Fetch Settings Error:', e);
+        return res.status(500).json({ success: false, message: 'Server error fetching settings' });
+    }
+});
+
 app.post('/api/admin/save', async (req, res) => {
     const { admin_id, bot_number, group_jid, footer_text } = req.body;
 
     try {
-        // Admin ID එක අනිවාර්යයි
         if (!admin_id) {
             return res.json({ success: false, message: 'Admin ID is required!' });
         }
 
-        // Database එකේ අදාළ Admin ව හොයලා අලුත් ඩේටා ටික Update කරනවා
-        const updatedAdmin = await Admin.findOneAndUpdate(
-            { username: admin_id }, // හොයන්නේ මේ නමෙන් (උදා: admin_01)
-            { 
-                $set: { 
-                    bot_number: bot_number, 
-                    group_jid: group_jid, 
-                    footer_text: footer_text 
-                } 
-            },
-            { new: true } // Update කරපු අලුත් ඩේටා එකම රිටර්න් කරන්න
-        );
+        const cleanId = String(admin_id).trim();
+        const safeRegex = cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let admin = await Admin.findOne({
+            $or: [
+                { username: cleanId },
+                { username: new RegExp('^' + safeRegex + '$', 'i') }
+            ]
+        });
 
-        if (updatedAdmin) {
-            return res.json({ success: true, message: '✅ Settings saved successfully!' });
-        } else {
-            return res.json({ success: false, message: '❌ Admin account not found!' });
+        if (!admin) {
+            admin = new Admin({
+                username: cleanId,
+                password: 'sub_' + Math.random().toString(36).slice(2, 8),
+                role: 'sub_admin'
+            });
         }
+
+        if (bot_number !== undefined) admin.bot_number = String(bot_number).trim();
+        if (group_jid !== undefined) admin.group_jid = String(group_jid).trim();
+        if (footer_text !== undefined) admin.footer_text = String(footer_text).trim();
+
+        await admin.save();
+        return res.json({ success: true, message: '✅ Settings saved successfully!' });
 
     } catch (error) {
         console.error('Save Settings Error:', error);

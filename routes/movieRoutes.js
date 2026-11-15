@@ -176,7 +176,7 @@ async function ensureJpegBuffer(imgBuffer) {
     return imgBuffer;
 }
 
-function sanitizeText(str, maxLen = 80) {
+function sanitizeText(str, maxLen = 1000) {
     if (!str || typeof str !== 'string') return '';
     return str.replace(/[\r\n\t]+/g, ' ').replace(/[*_~`]/g, '').trim().substring(0, maxLen);
 }
@@ -1344,7 +1344,11 @@ async function getCartoonsLkDetails(pageUrl) {
         if (mEpId) postId = mEpId[1];
     }
     if (!postId) {
-        const mPostId = html.match(/post-(\d+)/i);
+        const mSeries = html.match(/data-cl-series=["'](\d+)["']/i);
+        if (mSeries) postId = mSeries[1];
+    }
+    if (!postId) {
+        const mPostId = html.match(/data-post-id=["'](\d+)["']/i) || html.match(/post-(\d+)/i);
         if (mPostId) postId = mPostId[1];
     }
 
@@ -1359,9 +1363,9 @@ async function getCartoonsLkDetails(pageUrl) {
         try {
             const episodes = JSON.parse(epScript.html());
             if (Array.isArray(episodes) && episodes.length > 0) {
-                isSeries = true;
+                isSeries = episodes.length > 1;
                 downloads = episodes.map((ep, idx) => ({
-                    meta: ep.title || `Episode ${idx + 1}`,
+                    meta: ep.title || (isSeries ? `Episode ${idx + 1}` : (ep.resolution || 'HD Download')),
                     resolvedUrl: `cartoonslk://${postId}?nonce=${nonce || ''}&type=episode&episodeIndex=${idx}&linkIndex=0&pageUrl=${encodeURIComponent(pageUrl)}`,
                     direct: false
                 }));
@@ -1369,7 +1373,7 @@ async function getCartoonsLkDetails(pageUrl) {
         } catch (_) {}
     }
 
-    if (!isSeries) {
+    if (!isSeries && downloads.length === 0) {
         $('button.direct-download-btn, a.direct-download-btn, [data-action-type="download"]').each((i, el) => {
             const pId = $(el).attr('data-post-id') || postId;
             const lIndex = $(el).attr('data-link-index') || '0';
@@ -1398,40 +1402,88 @@ async function resolveCartoonsLkStream({ pageUrl, postId, nonce, type, episodeIn
         const m = pageRes.data.match(/nonce:\s*["']([a-zA-Z0-9]+)["']/i);
         if (m) nonce = m[1];
         if (!postId) {
-            const mPost = pageRes.data.match(/data-post-id=["'](\d+)["']/i) || pageRes.data.match(/id=["']episodes-data-(\d+)["']/i);
+            const mPost = pageRes.data.match(/id=["']episodes-data-(\d+)["']/i) ||
+                          pageRes.data.match(/data-cl-series=["'](\d+)["']/i) ||
+                          pageRes.data.match(/data-post-id=["'](\d+)["']/i);
             if (mPost) postId = mPost[1];
         }
     }
     const params = new URLSearchParams();
     params.append('action', 'get_movie_link');
-    params.append('nonce', nonce);
-    params.append('post_id', postId);
+    params.append('nonce', nonce || '');
+    params.append('post_id', postId || '');
     params.append('type', type || 'single');
     params.append('action_type', 'download');
     if (type === 'episode') {
-        params.append('episode_index', String(episodeIndex || 0));
+        params.append('episode_index', String(episodeIndex !== undefined ? episodeIndex : 0));
     }
-    params.append('link_index', String(linkIndex || 0));
+    params.append('link_index', String(linkIndex !== undefined ? linkIndex : 0));
 
-    const ajaxRes = await axios.post('https://cartoons.lk/wp-admin/admin-ajax.php', params.toString(), {
-        headers: {
-            ...HEADERS,
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Referer': pageUrl,
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        timeout: 25000
-    });
-    const dlUrl = ajaxRes.data?.data?.url;
-    if (!dlUrl) throw new Error("cartoons.lk did not return a download url");
+    let ajaxRes;
+    try {
+        ajaxRes = await axios.post('https://cartoons.lk/wp-admin/admin-ajax.php', params.toString(), {
+            headers: {
+                ...HEADERS,
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Referer': pageUrl,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            timeout: 25000
+        });
+    } catch (err) {
+        // Retry once with a fresh nonce in case of timeout or stale nonce
+        try {
+            const pageRes = await axios.get(pageUrl, { headers: HEADERS, timeout: 20000 });
+            const m = pageRes.data.match(/nonce:\s*["']([a-zA-Z0-9]+)["']/i);
+            if (m) {
+                params.set('nonce', m[1]);
+                ajaxRes = await axios.post('https://cartoons.lk/wp-admin/admin-ajax.php', params.toString(), {
+                    headers: {
+                        ...HEADERS,
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'Referer': pageUrl,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    timeout: 25000
+                });
+            }
+        } catch (_) {}
+    }
 
-    // Follow 302 redirect
-    const headRes = await axios.get(dlUrl, {
-        headers: HEADERS,
-        maxRedirects: 0,
-        validateStatus: s => s >= 200 && s < 400
-    });
-    return headRes.headers.location || dlUrl;
+    let dlUrl = ajaxRes?.data?.data?.url;
+    if (!dlUrl) {
+        // Also try switching type between single and episode as fallback
+        const altType = type === 'episode' ? 'single' : 'episode';
+        params.set('type', altType);
+        try {
+            const altRes = await axios.post('https://cartoons.lk/wp-admin/admin-ajax.php', params.toString(), {
+                headers: {
+                    ...HEADERS,
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'Referer': pageUrl,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                timeout: 20000
+            });
+            dlUrl = altRes?.data?.data?.url;
+        } catch (_) {}
+    }
+
+    if (!dlUrl) throw new Error("Cartoons.lk did not return a download url");
+
+    // Follow 302 redirect to Cloudflare worker or final download link
+    try {
+        const headRes = await axios.get(dlUrl, {
+            headers: HEADERS,
+            maxRedirects: 0,
+            validateStatus: () => true,
+            timeout: 15000
+        });
+        const redirLoc = headRes.headers.location || (headRes.headers.get ? headRes.headers.get('location') : null);
+        return redirLoc || dlUrl;
+    } catch (_) {
+        return dlUrl;
+    }
 }
 
 // ════════════════════════════════════════════════════════
@@ -1955,10 +2007,10 @@ router.post('/api/send-movie', async (req, res) => {
         year, genres, imdb, runtime, source, admin_id 
     } = payload;
 
-    const cleanTitle = sanitizeText(title, 80);
+    const cleanTitle = sanitizeText(title, 1000);
     const cleanQuality = formatQuality(quality);
-    const cleanReqNum = sanitizeText(reqNum || userNum, 20);
-    const cleanReqName = sanitizeText(reqName || userName, 40) || 'Anonymous';
+    const cleanReqNum = sanitizeText(reqNum || userNum, 30);
+    const cleanReqName = sanitizeText(reqName || userName, 1000) || 'Anonymous';
 
     if (!cleanTitle || cleanTitle.length < 2) {
         return res.status(400).json({ success: false, message: 'Invalid movie title.' });
@@ -2005,13 +2057,13 @@ router.post('/api/send-movie', async (req, res) => {
     }
 
     const movieYear = sanitizeText(year || verifiedMovie.year || '', 20);
-    const movieGenres = sanitizeText(genres || verifiedMovie.genres || '', 80);
+    const movieGenres = sanitizeText(genres || verifiedMovie.genres || '', 1000);
     const movieImdb = sanitizeText(imdb || verifiedMovie.imdb || '', 20);
     const movieRuntime = sanitizeText(runtime || verifiedMovie.runtime || '', 30);
     const verifiedTitle = verifiedMovie.title;
     const finalPoster = isValidMovieImage(verifiedMovie.img) ? verifiedMovie.img : (cleanImg || null);
 
-    if (!url || typeof url !== 'string' || (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('moviebox://'))) {
+    if (!url || typeof url !== 'string' || (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('moviebox://') && !url.startsWith('cartoonslk://'))) {
         recordSuspiciousRequest(clientIp);
         return res.status(400).json({ success: false, message: 'Invalid download URL format.' });
     }
@@ -2019,27 +2071,44 @@ router.post('/api/send-movie', async (req, res) => {
     const taskId = crypto.randomBytes(4).toString('hex');
     let dynamicBotNumber = FALLBACK_BOT_NUMBER;
     let dynamicGroupJid = FALLBACK_GROUP_JID;
-    let dynamicFooter = "SADEW X MINI MOVIES";
+    let dynamicFooter = "";
 
-    try {
-        const adminData = await Admin.findOne({ admin_id: "sade" });
-        if (adminData) {
-            if (adminData.bot_number) dynamicBotNumber = adminData.bot_number;
-            if (adminData.group_jid) dynamicGroupJid = adminData.group_jid;
-            if (adminData.footer_text) dynamicFooter = adminData.footer_text;
+    const targetAdminId = (admin_id || '').trim();
+    let adminData = null;
+    if (targetAdminId) {
+        try {
+            adminData = await Admin.findOne({
+                $or: [
+                    { username: targetAdminId },
+                    { username: new RegExp(`^${targetAdminId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+                ]
+            });
+        } catch(err) {
+            console.log(`[DB] Error fetching admin ${targetAdminId}:`, err.message);
         }
-    } catch(err) {
-        console.log("DB Fetch Error (Using Fallbacks):", err.message);
+    }
+    if (!adminData) {
+        try {
+            adminData = await Admin.findOne({ username: 'sade' }) || await Admin.findOne({});
+        } catch(err) {
+            console.log("[DB] Fallback admin fetch error:", err.message);
+        }
+    }
+
+    if (adminData) {
+        if (adminData.bot_number) dynamicBotNumber = adminData.bot_number.replace(/[^0-9]/g, '');
+        if (adminData.group_jid) dynamicGroupJid = adminData.group_jid.trim();
+        if (adminData.footer_text) dynamicFooter = adminData.footer_text.trim();
     }
 
     if (groupJid && typeof groupJid === 'string' && (groupJid.endsWith('@g.us') || groupJid.endsWith('@s.whatsapp.net'))) {
-        dynamicGroupJid = groupJid;
+        dynamicGroupJid = groupJid.trim();
     }
     if (botNumber && typeof botNumber === 'string') {
         dynamicBotNumber = botNumber.replace(/[^0-9]/g, '');
     }
 
-    console.log(`[ROUTE] Target Group JID: ${dynamicGroupJid} | Target Bot: ${dynamicBotNumber}`);
+    console.log(`[ROUTE] Target Group JID: ${dynamicGroupJid} | Target Bot: ${dynamicBotNumber} | Footer: ${dynamicFooter}`);
 
     taskQueue.add({
         id: taskId,
@@ -2107,7 +2176,11 @@ router.post('/api/send-movie', async (req, res) => {
                     if (movieRuntime && movieRuntime !== 'N/A') cap += `⏱ *Runtime:* ${movieRuntime}\n`;
                     cap += `✨ *Quality:* ${cleanQuality}\n`;
                     if (aiSummary) cap += `\n📖 *සාරාංශය (Overview):*\n${aiSummary}\n`;
-                    cap += `\n👤 *Required By:* ${cleanReqName}\n\n> 👑 *${dynamicFooter}* 👑`;
+                    if (dynamicFooter) {
+                        cap += `\n👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
+                    } else {
+                        cap += `\n👤 *Required By:* ${cleanReqName}`;
+                    }
 
                     let cardSent = false;
                     if (finalPoster) {
@@ -2271,6 +2344,9 @@ router.post('/api/send-movie', async (req, res) => {
                             } catch (clkErr) {
                                 console.error("[STREAM CARTOONSLK ERROR]:", clkErr.message);
                             }
+                            if (finalVidUrl.startsWith('cartoonslk://')) {
+                                throw new Error('Cartoons.lk stream link could not be resolved');
+                            }
                         }
 
                         // SINHALACARTOONS RESOLUTION
@@ -2324,7 +2400,9 @@ router.post('/api/send-movie', async (req, res) => {
                         const safeMovieTitle = verifiedTitle.substring(0, 35).replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Movie';
                         const safeQualityForFile = cleanQuality.replace(/[^a-zA-Z0-9\-.]/g, ' ').replace(/\s+/g, ' ').trim() || 'HD';
                         let fileName = `${safeMovieTitle} - ${safeQualityForFile}.${fileExt}`;
-                        let smallCaption = isBatch && !isFirstInBatch ? `🎬 *${cleanQuality}*\n👤 *Required By:* ${cleanReqName}\n> *${dynamicFooter}*` : `🎬 *${verifiedTitle}*\n> *${dynamicFooter}*`;
+                        let smallCaption = isBatch && !isFirstInBatch 
+                            ? `🎬 *${cleanQuality}*\n👤 *Required By:* ${cleanReqName}${dynamicFooter ? `\n> *${dynamicFooter}*` : ''}` 
+                            : `🎬 *${verifiedTitle}*${dynamicFooter ? `\n> *${dynamicFooter}*` : ''}`;
 
                         console.log(`[STREAM] 🚀 Live streaming to WhatsApp: ${fileName}`);
                         const streamHeaders = {
@@ -2470,10 +2548,10 @@ router.post('/api/anime-send', async (req, res) => {
     const payload = decryptPayload(req.body) || {};
     const { id, epNum, hash, videoname, userNum, userName, reqNum, reqName, botNumber, groupJid, thumbnail, batchIndex, admin_id } = payload;
 
-    const cleanVideoname = sanitizeText(videoname, 80);
+    const cleanVideoname = sanitizeText(videoname, 1000);
     const cleanEpNum = parseInt(epNum) || 1;
-    const cleanReqNum = sanitizeText(reqNum || userNum, 20);
-    const cleanReqName = sanitizeText(reqName || userName, 40) || 'Anonymous';
+    const cleanReqNum = sanitizeText(reqNum || userNum, 30);
+    const cleanReqName = sanitizeText(reqName || userName, 1000) || 'Anonymous';
 
     if (!cleanVideoname || cleanVideoname.length < 2) {
         return res.status(400).json({ success: false, message: 'Invalid anime title.' });
@@ -2482,21 +2560,38 @@ router.post('/api/anime-send', async (req, res) => {
     const taskId = crypto.randomBytes(4).toString('hex');
     let dynamicBotNumber = FALLBACK_BOT_NUMBER;
     let dynamicGroupJid = FALLBACK_GROUP_JID;
-    let dynamicFooter = "SADEW X MINI MOVIES";
+    let dynamicFooter = "";
 
-    try {
-        const adminData = await Admin.findOne({ admin_id: "sade" });
-        if (adminData) {
-            if (adminData.bot_number) dynamicBotNumber = adminData.bot_number;
-            if (adminData.group_jid) dynamicGroupJid = adminData.group_jid;
-            if (adminData.footer_text) dynamicFooter = adminData.footer_text;
+    const targetAdminId = (admin_id || '').trim();
+    let adminData = null;
+    if (targetAdminId) {
+        try {
+            adminData = await Admin.findOne({
+                $or: [
+                    { username: targetAdminId },
+                    { username: new RegExp(`^${targetAdminId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+                ]
+            });
+        } catch(err) {
+            console.log(`[DB] Anime Error fetching admin ${targetAdminId}:`, err.message);
         }
-    } catch(err) {
-        console.log("DB Fetch Error (Using Fallbacks):", err.message);
+    }
+    if (!adminData) {
+        try {
+            adminData = await Admin.findOne({ username: 'sade' }) || await Admin.findOne({});
+        } catch(err) {
+            console.log("[DB] Fallback admin fetch error:", err.message);
+        }
+    }
+
+    if (adminData) {
+        if (adminData.bot_number) dynamicBotNumber = adminData.bot_number.replace(/[^0-9]/g, '');
+        if (adminData.group_jid) dynamicGroupJid = adminData.group_jid.trim();
+        if (adminData.footer_text) dynamicFooter = adminData.footer_text.trim();
     }
 
     if (groupJid && typeof groupJid === 'string' && (groupJid.endsWith('@g.us') || groupJid.endsWith('@s.whatsapp.net'))) {
-        dynamicGroupJid = groupJid;
+        dynamicGroupJid = groupJid.trim();
     }
     if (botNumber && typeof botNumber === 'string') {
         dynamicBotNumber = botNumber.replace(/[^0-9]/g, '');
@@ -2534,7 +2629,7 @@ router.post('/api/anime-send', async (req, res) => {
 
                 let cardText = `🎬 *${cleanVideoname}*\n\n`;
                 if (aiSummary) { cardText += `📖 *Summary:*\n${aiSummary}\n\n`; }
-                cardText += `👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
+                cardText += `👤 *Required By:* ${cleanReqName}${dynamicFooter ? `\n\n> *${dynamicFooter}*` : ''}`;
 
                 let streamUploaded = false;
                 let lastError = null;
