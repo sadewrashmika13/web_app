@@ -51,7 +51,8 @@ h1 em{font-style:normal;background:linear-gradient(90deg,#22d3ee,#2563eb,#7c3aed
 .sub{text-align:center;max-width:620px;color:var(--mute);font-size:clamp(15px,4vw,19px);line-height:1.6}
 .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 22px;color:rgba(160,180,220,.55);font-size:13px}
 .chips span:first-letter{color:var(--a)}
-.source-toggle{display:flex;gap:6px;overflow-x:auto;padding:6px;width:min(1100px,100%);scrollbar-width:none;border-radius:999px;background:rgba(10,18,46,.5);border:1px solid rgba(120,150,255,.1)}
+.source-toggle-container{display:flex;flex-direction:column;gap:8px;margin:0 auto;width:min(1100px,100%)}
+.source-toggle{display:flex;gap:6px;overflow-x:auto;padding:6px;width:100%;scrollbar-width:none;border-radius:999px;background:rgba(10,18,46,.5);border:1px solid rgba(120,150,255,.1)}
 .source-toggle::-webkit-scrollbar{display:none}
 .src-btn{white-space:nowrap;padding:12px 22px;border-radius:999px;font-weight:700;font-size:14px;background:transparent;color:#a7b3d1;border:1px solid transparent;cursor:pointer;transition:.3s;flex-shrink:0;font-family:inherit}
 .src-btn:hover{color:#fff}
@@ -197,7 +198,7 @@ footer{text-align:center;margin:30px auto 24px;padding:22px 16px;max-width:1100p
   <div class="modal-card">
     <div class="modal-head">
       <button class="close-btn" onclick="closeModal()">×</button>
-      <img id="modalImg" src="">
+      <img id="modalImg" src="" referrerpolicy="no-referrer">
       <div class="modal-title" id="modalTitle"></div>
     </div>
     <div class="modal-body">
@@ -296,9 +297,9 @@ function renderCards(list){
   const grid=document.getElementById('movieGrid');grid.innerHTML='';
   list.forEach((mv,idx)=>{
     const card=document.createElement('div');card.className='ticket';card.style.animationDelay=Math.min(idx*60,700)+'ms';
-    const cap=mv.source?(mv.source==='moviebox'?'MovieBox Pro':(mv.source==='cinesubz2'?'CineSubz 2':mv.source.charAt(0).toUpperCase()+mv.source.slice(1))):'CineSubz';
+    const cap=mv.source?(mv.source==='moviebox'?'MovieBox Pro':(mv.source==='cinesubz2'?'CineSubz 2':(mv.source==='slcartoons'?'SinhalaCartoons':(mv.source==='cartoonslk'?'Cartoons.lk':mv.source.charAt(0).toUpperCase()+mv.source.slice(1))))):'CineSubz';
     const typeBadge=mv.type?`<span class="badge" style="left:auto;right:10px">${mv.type.toUpperCase()}</span>`:'';
-    card.innerHTML=`<div class="ticket-inner"><div class="poster"><img src="${mv.img||'https://via.placeholder.com/400'}" alt="${mv.title}" loading="lazy"><span class="badge">${cap}</span>${typeBadge}</div><div class="stub"><h4>${mv.title}</h4></div></div>`;
+    card.innerHTML=`<div class="ticket-inner"><div class="poster"><img src="${mv.img||'https://via.placeholder.com/400'}" alt="${mv.title}" loading="lazy" referrerpolicy="no-referrer"><span class="badge">${cap}</span>${typeBadge}</div><div class="stub"><h4>${mv.title}</h4></div></div>`;
     card.onclick=()=>openModal(mv.title,mv.img,mv.url||mv.id,mv.imdb||mv.rating,mv.year||mv.date,mv.genres,mv.runtime);
     grid.appendChild(card);
   });
@@ -344,7 +345,7 @@ async function openModal(title,img,refId,imdb,year,genres,runtime){
       if(finalImg&&(!img||img.includes('placeholder'))){const mi=document.getElementById('modalImg');if(mi)mi.src=finalImg;}
       currentMovieMeta={title,img:finalImg,imdb:imdb||data.imdb,refId,year:year||data.year,genres:genres||data.genres,runtime:runtime||data.runtime};
       const arr=isA?data.episodes:data.downloads;currentDownloads=arr;
-      const isS=arr.length>1&&(isA||['slcartoons','moviesublk','kdrama','cinesubz2'].includes(currentSource)||data.isSeries||arr[0].meta?.toLowerCase().includes('episode')||arr[0].meta?.toLowerCase().includes('part')||arr[0].meta?.toLowerCase().startsWith('s'));
+      const isS=arr.length>1&&(isA||['slcartoons','cartoonslk','moviesublk','kdrama','cinesubz2','cinesubz','sinhalasub2','animost','helaflix'].includes(currentSource)||data.isSeries||arr[0].meta?.toLowerCase().includes('episode')||arr[0].meta?.toLowerCase().includes('part')||arr[0].meta?.toLowerCase().startsWith('s'));
       if(isS){
         const ba=document.createElement('button');ba.className='qbtn all-btn';ba.innerHTML=`🚀 Queue ALL Episodes (${arr.length})`;
         ba.onclick=()=>isA?sendAllAnime(data):sendAllMovie(arr);

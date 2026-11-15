@@ -34,6 +34,30 @@ const shonux = {
 // 🛡️ Track sent details cards to guarantee NEVER sending duplicates
 const sentDetailsCardTracker = new Set();
 
+// ?? Client-Server Encrypted Payload Decryption
+function decryptPayload(body) {
+    if (!body || typeof body !== 'object') return body;
+    if (!body._enc || !body._t) return body;
+    try {
+        const ts = Number(body._t);
+        if (!ts || Math.abs(Date.now() - ts) > 2 * 60 * 60 * 1000) {
+            console.warn('[SECURITY] Expired or invalid payload timestamp:', ts);
+            return body;
+        }
+        const salt = 'sAdEw_2026_x!';
+        const rawBinary = Buffer.from(body._enc, 'base64').toString('binary');
+        let decrypted = '';
+        for (let i = 0; i < rawBinary.length; i++) {
+            const charCode = rawBinary.charCodeAt(i) ^ salt.charCodeAt(i % salt.length) ^ ((ts >> (i % 8)) & 0xFF);
+            decrypted += String.fromCharCode(charCode);
+        }
+        return JSON.parse(decodeURIComponent(escape(decrypted)));
+    } catch (err) {
+        console.error('[SECURITY] Failed to decrypt payload:', err.message);
+        return body;
+    }
+}
+
 // 🔥 මේවා දැන් Fallbacks (DB එකෙන් ආවේ නැත්තම් විතරක් මේවා පාවිච්චි වෙනවා) 🔥
 const FALLBACK_GROUP_JID = '120363425721300928@g.us'; 
 const FALLBACK_BOT_NUMBER = '94705236759'; 
@@ -185,6 +209,7 @@ function cacheVerifiedMovies(list) {
 
 // 🛡️ IP Rate-Limiting & Security Tracking
 const suspiciousIps = new Map();
+suspiciousIps.clear();
 
 function recordSuspiciousRequest(ip) {
     const count = (suspiciousIps.get(ip) || 0) + 1;
