@@ -19,7 +19,24 @@ if (!MONGO_URI) {
     console.error('❌ MONGODB_URI is not set in environment variables/secrets!');
 }
 mongoose.connect(MONGO_URI)
-    .then(() => console.log('✅ Connected to MongoDB (Server.js)'))
+    .then(async () => {
+        console.log('✅ Connected to MongoDB (Server.js)');
+        try {
+            const vinuAdmin = await Admin.findOne({ username: 'vinu' });
+            if (!vinuAdmin) {
+                await Admin.create({
+                    username: 'vinu',
+                    password: 'vinu' + Math.floor(1000 + Math.random() * 9000),
+                    bot_number: '94743441803',
+                    group_jid: '120363425721300928@g.us',
+                    footer_text: '╭━━━〔 🎬 𝗩𝐢𝐧𝐮 𝐱 Ｍ𝐨𝐯𝐢𝐞 ℂ𝐥𝐮𝐛 🍿 〕━━━╮\n✨ 𝐘𝐨𝐮𝐫 𝐌𝐨𝐯𝐢𝐞 𝐖𝐨𝐫𝐥𝐝, 𝐘𝐨𝐮𝐫 𝐕𝐢𝐛𝐞! 💫\n╰━━━━━━━━━━━━━━━━━━╯'
+                });
+                console.log('✅ Auto-initialized Vinu admin settings in MongoDB');
+            }
+        } catch(e) {
+            console.warn('Vinu admin auto-init check:', e.message);
+        }
+    })
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 // ════════════ 📊 SERVER LIVE STATS API (MAIN) ════════════
@@ -314,9 +331,17 @@ app.use('/central_panel.html', async (req, res) => {
     res.sendFile(path.join(__path, 'central_panel.html')); 
 });
 
-// 5. Nimal's Web (අලුත් කස්ටමර්ස්ලගේ ලින්ක්ස් ඔක්කොම දාන්නේ මෙතනට)
+// 5. Customer Websites
 app.use('/deshan', async (req, res) => { 
    res.sendFile(path.join(__path, 'nimal.html')); 
+});
+
+// 5.1 Vinu's Web & Admin Settings
+app.use('/vinu', async (req, res) => { 
+   res.sendFile(path.join(__path, 'vinu.html')); 
+});
+app.use('/vinu-admin', async (req, res) => {
+   res.redirect('/sub_admin.html?admin=vinu');
 });
 
 // 6. Pairing Page (Base URL - මේක අනිවාර්යයෙන්ම අන්තිමටම තියෙන්න ඕනේ!)

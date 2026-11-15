@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>𝗩𝐢𝐧𝐮 𝐱 Ｍ𝐨𝐯𝐢𝐞 ℂ𝐥𝐮𝐛 🎬🍿🌍</title>
+  <meta name="description" content="Vinu x Movie Club - Stream and download high quality Sinhala subtitled movies, cartoons, TV series, anime and KDramas.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #070314;
+      --bg-card: rgba(18, 9, 44, 0.72);
+      --pink-neon: #ff007f;
+      --pink-glow: #ff2a85;
+      --pink-soft: #f43f5e;
+      --cyan-neon: #00f0ff;
+      --cyan-glow: #0ea5e9;
+      --cyan-soft: #38bdf8;
+      --text: #f3e8ff;
+      --text-muted: rgba(220, 205, 255, 0.65);
+      --border: rgba(0, 240, 255, 0.18);
+      --border-pink: rgba(255, 0, 127, 0.28);
+      --radius: 18px;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', 'Space Grotesk', sans-serif;
+      overflow-x: hidden;
+      position: relative;
+      scroll-behavior: smooth;
+    }
+
+    /* ─── CYBER SAKURA AMBIENT BACKGROUND ─── */
+    #bg-scene {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    #bg-scene::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 20% 20%, rgba(255, 0, 127, 0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 65% 55% at 80% 80%, rgba(0, 240, 255, 0.15) 0%, transparent 65%),
+        radial-gradient(ellipse 40% 40% at 50% 50%, rgba(139, 92, 246, 0.12) 0%, transparent 70%),
+        var(--bg);
+      animation: bgPulse 12s ease-in-out infinite alternate;
+    }
+    @keyframes bgPulse {
+      0% { opacity: 0.8; transform: scale(1); }
+      100% { opacity: 1; transform: scale(1.05); }
+    }
+
+    .grid-overlay {
+      position: absolute;
+      inset: -40px;
+      background-image: 
+        radial-gradient(circle, rgba(0, 240, 255, 0.10) 1px, transparent 1px),
+        radial-gradient(circle, rgba(255, 0, 127, 0.08) 1px, transparent 1px);
+      background-size: 44px 44px, 88px 88px;
+      background-position: 0 0, 22px 22px;
+      animation: gridFloat 30s linear infinite;
+    }
+    @keyframes gridFloat {
+      from { transform: translate(0, 0); }
+      to { transform: translate(44px, 44px); }
+    }
+
+    .sakura-drift {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: linear-gradient(135deg, rgba(255, 110, 180, 0.8), rgba(255, 0, 127, 0.3));
+      border-radius: 12px 2px 12px 2px;
+      filter: blur(0.5px);
+      animation: sakuraFall linear infinite;
+      opacity: 0.5;
+    }
+    @keyframes sakuraFall {
+      0% { transform: translate(0, -50px) rotate(0deg); opacity: 0; }
+      10% { opacity: 0.8; }
+      90% { opacity: 0.8; }
+      100% { transform: translate(200px, 110vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* ─── APP WRAPPER ─── */
+    .app-wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 0 20px 80px;
+    }
+
+    /* ─── NAVBAR ─── */
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 0 20px;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.12);
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--pink-neon);
+      box-shadow: 0 0 15px rgba(255, 0, 127, 0.5), inset 0 0 8px rgba(0, 240, 255, 0.3);
+      object-fit: cover;
+    }
+    .logo-text {
+      display: flex;
+      flex-direction: column;
+    }
+    .logo-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(1.3rem, 3.5vw, 1.85rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      background: linear-gradient(120deg, #ffffff 0%, #00f0ff 45%, #ff007f 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 25px rgba(255, 0, 127, 0.3);
+    }
+    .logo-subtitle {
+      font-size: 0.76rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--cyan-soft);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 10px #22c55e;
+      animation: pulseDot 2s infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-wa-header {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 10px 18px;
+      border-radius: 999px;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+      transition: all 0.25s;
+    }
+    .btn-wa-header:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(16, 185, 129, 0.55);
+    }
+    .btn-settings-header {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 0, 127, 0.12);
+      border: 1px solid rgba(255, 0, 127, 0.35);
+      color: #fbcfe8;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 10px 18px;
+      border-radius: 999px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.25s;
+    }
+    .btn-settings-header:hover {
+      background: rgba(255, 0, 127, 0.25);
+      border-color: var(--pink-neon);
+      box-shadow: 0 0 25px rgba(255, 0, 127, 0.4);
+      transform: translateY(-2px);
+    }
+
+    /* ─── WHATSAPP HERO BANNER ─── */
+    .hero-banner {
+      background: linear-gradient(145deg, rgba(25, 12, 60, 0.65) 0%, rgba(10, 4, 30, 0.85) 100%);
+      border: 1px solid rgba(0, 240, 255, 0.22);
+      border-radius: 28px;
+      padding: 32px 36px;
+      margin-bottom: 36px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 15px 50px rgba(7, 3, 20, 0.8), 0 0 40px rgba(255, 0, 127, 0.12);
+      backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+    .hero-banner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan-neon) 30%, var(--pink-neon) 70%, transparent);
+    }
+    .banner-left {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      flex: 1;
+      min-width: 300px;
+    }
+    .avatar-stage {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      flex-shrink: 0;
+    }
+    .avatar-ring-outer {
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 2px dashed rgba(0, 240, 255, 0.5);
+      animation: rotateRing 20s linear infinite;
+    }
+    .avatar-ring-inner {
+      position: absolute;
+      inset: -14px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 0, 127, 0.4);
+      animation: rotateRingRev 16s linear infinite;
+    }
+    @keyframes rotateRing {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes rotateRingRev {
+      from { transform: rotate(360deg); }
+      to { transform: rotate(0deg); }
+    }
+    .avatar-img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #fff;
+      box-shadow: 0 0 35px rgba(255, 0, 127, 0.6), 0 0 60px rgba(0, 240, 255, 0.35);
+      position: relative;
+      z-index: 2;
+    }
+    .avatar-crown {
+      position: absolute;
+      top: -12px;
+      right: 2px;
+      z-index: 3;
+      font-size: 1.5rem;
+      filter: drop-shadow(0 0 10px #f59e0b);
+      animation: crownBounce 3s ease-in-out infinite alternate;
+    }
+    @keyframes crownBounce {
+      from { transform: translateY(0); }
+      to { transform: translateY(-4px); }
+    }
+    .banner-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .banner-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 0, 127, 0.16);
+      border: 1px solid rgba(255, 0, 127, 0.35);
+      color: #ff99cc;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 999px;
+      width: fit-content;
+    }
+    .banner-title {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(1.4rem, 3.2vw, 2.2rem);
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.15;
+      text-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+    }
+    .banner-desc {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      max-width: 550px;
+      line-height: 1.5;
+    }
+    .banner-contact {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--cyan-soft);
+      font-weight: 600;
+    }
+
+    .banner-right {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .btn-join-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 50%, #059669 100%);
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 1.05rem;
+      padding: 16px 28px;
+      border-radius: 18px;
+      box-shadow: 0 0 35px rgba(34, 197, 94, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transition: all 0.3s cubic-bezier(.22,.8,.37,1);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-join-group::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+      animation: btnShimmer 3s infinite;
+    }
+    @keyframes btnShimmer {
+      0% { left: -100%; }
+      50%, 100% { left: 160%; }
+    }
+    .btn-join-group:hover {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 0 50px rgba(34, 197, 94, 0.75);
+    }
+
+    /* ─── TWO-ROW SOURCE TOGGLE ─── */
+    .source-wrapper {
+      margin-bottom: 28px;
+    }
+    .source-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .source-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      margin-bottom: 10px;
+    }
+    .source-row::-webkit-scrollbar { display: none; }
+
+    .src-btn {
+      background: rgba(18, 9, 44, 0.6);
+      border: 1px solid rgba(0, 240, 255, 0.15);
+      color: rgba(230, 215, 255, 0.75);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.84rem;
+      font-weight: 600;
+      padding: 9px 16px;
+      border-radius: 12px;
+      white-space: nowrap;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: all 0.22s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .src-btn:hover {
+      background: rgba(255, 0, 127, 0.12);
+      border-color: rgba(255, 0, 127, 0.4);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .src-btn.active {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.22), rgba(255, 0, 127, 0.25));
+      border: 1px solid var(--cyan-neon);
+      color: #ffffff;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.35), inset 0 0 10px rgba(255, 0, 127, 0.2);
+    }
+
+    /* ─── SEARCH BOX ─── */
+    .search-section {
+      margin-bottom: 34px;
+    }
+    .search-bar {
+      display: flex;
+      gap: 12px;
+      background: rgba(15, 6, 38, 0.75);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      border-radius: 20px;
+      padding: 8px 10px 8px 24px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 0 35px rgba(0, 0, 0, 0.6);
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .search-bar:focus-within {
+      border-color: var(--pink-neon);
+      box-shadow: 0 0 40px rgba(255, 0, 127, 0.3), inset 0 0 15px rgba(0, 240, 255, 0.15);
+    }
+    .search-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 500;
+    }
+    .search-input::placeholder {
+      color: rgba(200, 185, 235, 0.4);
+    }
+    .search-btn {
+      background: linear-gradient(135deg, var(--cyan-neon) 0%, var(--pink-neon) 100%);
+      border: none;
+      color: #fff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 12px 28px;
+      border-radius: 14px;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(255, 0, 127, 0.45);
+      transition: all 0.25s;
+    }
+    .search-btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 35px rgba(0, 240, 255, 0.6);
+    }
+    .search-btn:active { transform: scale(0.98); }
+
+    .search-status {
+      font-size: 0.88rem;
+      color: var(--cyan-soft);
+      font-weight: 600;
+      margin-top: 10px;
+      padding-left: 6px;
+      min-height: 22px;
+    }
+
+    /* ─── MOVIE GRID ─── */
+    .movie-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 22px;
+      margin-bottom: 60px;
+    }
+    @media (max-width: 540px) {
+      .movie-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 14px;
+      }
+    }
+
+    .movie-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(0, 240, 255, 0.12);
+      border-radius: 18px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(.22,.8,.37,1);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .movie-card:hover {
+      transform: translateY(-8px) scale(1.02);
+      border-color: var(--pink-neon);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 0, 127, 0.4);
+    }
+    .card-poster {
+      width: 100%;
+      aspect-ratio: 2 / 3;
+      position: relative;
+      overflow: hidden;
+      background: #110826;
+    }
+    .card-poster img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s ease;
+    }
+    .movie-card:hover .card-poster img {
+      transform: scale(1.06);
+    }
+    .card-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(8, 3, 20, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      color: var(--cyan-neon);
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+      z-index: 2;
+    }
+    .card-year {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(255, 0, 127, 0.85);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+      z-index: 2;
+    }
+    .card-body {
+      padding: 14px 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .card-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      line-height: 1.35;
+      color: #ede9ff;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* Skeleton Loading */
+    .skeleton-card {
+      background: linear-gradient(90deg, rgba(25, 12, 55, 0.6) 25%, rgba(45, 20, 90, 0.8) 50%, rgba(25, 12, 55, 0.6) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 18px;
+      aspect-ratio: 2 / 3.4;
+    }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* ─── DOWNLOAD MODAL ─── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 1, 15, 0.88);
+      backdrop-filter: blur(12px);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      width: 100%;
+      max-width: 520px;
+      background: linear-gradient(150deg, rgba(22, 10, 50, 0.95), rgba(10, 4, 25, 0.98));
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 26px;
+      overflow: hidden;
+      box-shadow: 0 0 60px rgba(0, 240, 255, 0.2), 0 0 100px rgba(255, 0, 127, 0.15);
+      position: relative;
+      animation: modalSlide 0.35s cubic-bezier(.22,.8,.37,1);
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+    @keyframes modalSlide {
+      from { transform: translateY(30px) scale(0.96); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .modal-header {
+      display: flex;
+      gap: 16px;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.25);
+      position: relative;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.12);
+    }
+    .modal-close {
+      position: absolute;
+      top: 16px; right: 16px;
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #fff;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .modal-close:hover {
+      background: var(--pink-neon);
+      transform: rotate(90deg);
+    }
+    .modal-thumb {
+      width: 85px;
+      height: 120px;
+      border-radius: 12px;
+      object-fit: cover;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      flex-shrink: 0;
+    }
+    .modal-header-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+    }
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.3;
+    }
+    .modal-meta-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .meta-tag {
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      color: var(--cyan-soft);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .input-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: block;
+    }
+    .modal-input {
+      width: 100%;
+      background: rgba(12, 4, 30, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #fff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.92rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .modal-input:focus {
+      border-color: var(--pink-neon);
+      box-shadow: 0 0 15px rgba(255, 0, 127, 0.25);
+    }
+    .modal-status-text {
+      font-size: 0.88rem;
+      font-weight: 600;
+      min-height: 20px;
+    }
+
+    .quality-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .qbtn {
+      width: 100%;
+      background: linear-gradient(135deg, rgba(25, 12, 60, 0.9), rgba(15, 6, 40, 0.9));
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      color: #ede9ff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 0.92rem;
+      padding: 13px 18px;
+      border-radius: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.25s;
+    }
+    .qbtn:hover {
+      background: linear-gradient(135deg, rgba(255, 0, 127, 0.25), rgba(0, 240, 255, 0.25));
+      border-color: var(--pink-neon);
+      box-shadow: 0 0 25px rgba(255, 0, 127, 0.4);
+      transform: translateY(-2px);
+    }
+    .qbtn.all-btn {
+      background: linear-gradient(135deg, #7c3aed 0%, #db2777 50%, #ea580c 100%);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-size: 0.98rem;
+      box-shadow: 0 0 25px rgba(219, 39, 119, 0.5);
+      margin-bottom: 6px;
+    }
+    .qbtn.all-btn:hover {
+      box-shadow: 0 0 40px rgba(219, 39, 119, 0.8);
+      transform: scale(1.02);
+    }
+
+    /* ─── LIVE UPLOAD BANNER ─── */
+    .upload-banner {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(120px);
+      width: min(92vw, 560px);
+      background: linear-gradient(135deg, rgba(20, 8, 48, 0.95), rgba(8, 2, 22, 0.98));
+      border: 1px solid var(--cyan-neon);
+      border-radius: 20px;
+      padding: 16px 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85), 0 0 30px rgba(0, 240, 255, 0.3);
+      backdrop-filter: blur(20px);
+      z-index: 9990;
+      transition: transform 0.4s cubic-bezier(.22,.8,.37,1);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .upload-banner.show {
+      transform: translateX(-50%) translateY(0);
+    }
+    .ub-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .ub-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .ub-sub {
+      font-size: 0.78rem;
+      color: var(--cyan-soft);
+      font-weight: 600;
+    }
+    .ub-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .ub-bar {
+      height: 100%;
+      width: 20%;
+      background: linear-gradient(90deg, var(--cyan-neon), var(--pink-neon));
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+
+    /* ─── EMBEDDED SETTINGS MODAL (VINU ADMIN) ─── */
+    .settings-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 1, 14, 0.92);
+      backdrop-filter: blur(16px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .settings-modal.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .settings-card {
+      width: 100%;
+      max-width: 480px;
+      background: linear-gradient(150deg, rgba(20, 9, 46, 0.95), rgba(8, 3, 20, 0.98));
+      border: 1px solid rgba(255, 0, 127, 0.35);
+      border-radius: 26px;
+      padding: 32px 28px;
+      box-shadow: 0 0 60px rgba(255, 0, 127, 0.25), 0 0 100px rgba(0, 240, 255, 0.15);
+      position: relative;
+      animation: modalSlide 0.35s cubic-bezier(.22,.8,.37,1);
+    }
+    .settings-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .settings-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      background: linear-gradient(120deg, #fff, var(--pink-neon));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .field-group {
+      margin-bottom: 18px;
+    }
+    .btn-save-settings {
+      width: 100%;
+      background: linear-gradient(135deg, var(--cyan-neon) 0%, var(--pink-neon) 100%);
+      border: none;
+      color: #fff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 14px;
+      border-radius: 14px;
+      cursor: pointer;
+      box-shadow: 0 0 30px rgba(255, 0, 127, 0.4);
+      transition: all 0.25s;
+      margin-top: 10px;
+    }
+    .btn-save-settings:hover {
+      box-shadow: 0 0 45px rgba(0, 240, 255, 0.6);
+      transform: translateY(-2px);
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-60px);
+      background: rgba(15, 5, 35, 0.95);
+      border: 1px solid var(--cyan-neon);
+      border-radius: 999px;
+      padding: 12px 24px;
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 700;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 240, 255, 0.4);
+      z-index: 10001;
+      opacity: 0;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      padding: 24px 0;
+      border-top: 1px solid rgba(0, 240, 255, 0.12);
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    footer a { color: var(--pink-soft); text-decoration: none; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <!-- ─── BACKGROUND SCENE ─── -->
+  <div id="bg-scene">
+    <div class="grid-overlay"></div>
+    <div class="sakura-drift" style="left: 10%; animation-duration: 14s; animation-delay: 0s;"></div>
+    <div class="sakura-drift" style="left: 30%; animation-duration: 18s; animation-delay: 3s; width: 14px; height: 14px;"></div>
+    <div class="sakura-drift" style="left: 60%; animation-duration: 12s; animation-delay: 1s; width: 10px; height: 10px;"></div>
+    <div class="sakura-drift" style="left: 85%; animation-duration: 16s; animation-delay: 5s;"></div>
+  </div>
+
+  <div class="app-wrap">
+
+    <!-- ─── NAVBAR ─── -->
+    <nav>
+      <div class="logo-container">
+        <img class="logo-avatar" src="https://res.cloudinary.com/p6lu5bpe/image/upload/v1794735533/aho8rvwve9hl0jw1xxo2.jpg" alt="Vinu Avatar">
+        <div class="logo-text">
+          <div class="logo-title">VINU · MOVIE CLUB ✦ 🍿</div>
+          <div class="logo-subtitle"><span class="live-dot"></span> 15+ HIGH-SPEED SCRAPING ENGINES ACTIVE</div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button class="btn-settings-header" onclick="openSettingsModal()">⚙️ Admin Settings</button>
+        <a class="btn-wa-header" href="https://chat.whatsapp.com/I4McToP4rIZL2kOFQf7KYQ?s=sw&p=a&mlu=4&ilr=4&iam=2" target="_blank">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          Join Group
+        </a>
+      </div>
+    </nav>
+
+    <!-- ─── HERO WHATSAPP BANNER ─── -->
+    <div class="hero-banner">
+      <div class="banner-left">
+        <div class="avatar-stage">
+          <div class="avatar-ring-outer"></div>
+          <div class="avatar-ring-inner"></div>
+          <span class="avatar-crown">👑</span>
+          <img class="avatar-img" src="https://res.cloudinary.com/p6lu5bpe/image/upload/v1794735533/aho8rvwve9hl0jw1xxo2.jpg" alt="Vinu x Movie Club">
+        </div>
+        <div class="banner-info">
+          <span class="banner-tag">🌟 Official Movie Portal</span>
+          <h1 class="banner-title">𝗩𝐢𝐧𝐮 𝐱 Ｍ𝐨𝐯𝐢𝐞 ℂ𝐥𝐮𝐛🎬🍿🌍</h1>
+          <p class="banner-desc">අලුත්ම Sinhala Subtitled Movies, Cartoons, TV Series, KDramas සහ Anime ඉක්මනින්ම WhatsApp වෙත ලබාගන්න අපගේ Movie Group එකට එකතු වන්න!</p>
+          <div class="banner-contact">
+            <span>📞 Official Bot: +94 74 344 1803</span>
+            <span>·</span>
+            <span>⚡ Ultra-Fast Streaming</span>
+          </div>
+        </div>
+      </div>
+      <div class="banner-right">
+        <a class="btn-join-group" href="https://chat.whatsapp.com/I4McToP4rIZL2kOFQf7KYQ?s=sw&p=a&mlu=4&ilr=4&iam=2" target="_blank">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+          Join WhatsApp Group ✦
+        </a>
+      </div>
+    </div>
+
+    <!-- ─── TWO-ROW SOURCE SELECTION ─── -->
+    <div class="source-wrapper">
+      <div class="source-label"><span>🌐 Choose Scraper Source:</span></div>
+      <!-- Row 1 -->
+      <div class="source-row" id="sourceRow1">
+        <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz', this)">🎬 CineSubz</button>
+        <button class="src-btn" data-source="cinesubz2" onclick="setSource('cinesubz2', this)">🎬 CineSubz 2 (V2)</button>
+        <button class="src-btn" data-source="moviebox" onclick="setSource('moviebox', this)">🍿 MovieBox Pro</button>
+        <button class="src-btn" data-source="sinhalasub2" onclick="setSource('sinhalasub2', this)">🎬 SinhalaSub</button>
+        <button class="src-btn" data-source="piratelk" onclick="setSource('piratelk', this)">🏴‍☠️ PirateLK</button>
+        <button class="src-btn" data-source="helaflix" onclick="setSource('helaflix', this)">🎬 HelaFlix</button>
+        <button class="src-btn" data-source="1tamilmv" onclick="setSource('1tamilmv', this)">🎥 1TamilMV</button>
+      </div>
+      <!-- Row 2 -->
+      <div class="source-row" id="sourceRow2">
+        <button class="src-btn" data-source="slcartoons" onclick="setSource('slcartoons', this)">🧸 SinhalaCartoons</button>
+        <button class="src-btn" data-source="cartoonslk" onclick="setSource('cartoonslk', this)">🧸 Cartoons.lk</button>
+        <button class="src-btn" data-source="kdrama" onclick="setSource('kdrama', this)">🌸 Thenkiri KDrama</button>
+        <button class="src-btn" data-source="animost" onclick="setSource('animost', this)">⚡ AnimostLK</button>
+        <button class="src-btn" data-source="animeheaven" onclick="setSource('animeheaven', this)">⛩️ AnimeHaven</button>
+        <button class="src-btn" data-source="baiscopes" onclick="setSource('baiscopes', this)">🎬 Baiscopes</button>
+        <button class="src-btn" data-source="sublk" onclick="setSource('sublk', this)">🎬 Sub.lk</button>
+        <button class="src-btn" data-source="dinkamovies" onclick="setSource('dinkamovies', this)">🎬 DinkaMovies</button>
+      </div>
+    </div>
+
+    <!-- ─── SEARCH SECTION ─── -->
+    <div class="search-section">
+      <div class="search-bar">
+        <input type="text" id="movieName" class="search-input" placeholder="Movie, cartoon හෝ series නම මෙතන type කරන්න…" onkeydown="if(event.key==='Enter')searchMovie()">
+        <button class="search-btn" onclick="searchMovie()">🔍 Search</button>
+      </div>
+      <div class="search-status" id="statusMsg"></div>
+    </div>
+
+    <!-- ─── MOVIES GRID ─── -->
+    <div class="movie-grid" id="movieGrid"></div>
+
+    <!-- ─── FOOTER ─── -->
+    <footer>
+      © 2026 𝗩𝐢𝐧𝐮 𝐱 Ｍ𝐨𝐯𝐢𝐞 ℂ𝐥𝐮𝐛🎬🍿🌍 · Powered by <a href="#" onclick="openSettingsModal(); return false;">Vinu Tech</a>
+    </footer>
+
+  </div>
+
+  <!-- ─── DOWNLOAD / EPISODE MODAL ─── -->
+  <div class="modal-overlay" id="movieModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <button class="modal-close" onclick="closeModal()">×</button>
+        <img class="modal-thumb" id="modalImg" src="" alt="Poster" referrerpolicy="no-referrer">
+        <div class="modal-header-info">
+          <h3 class="modal-title" id="modalTitle">Loading Title...</h3>
+          <div class="modal-meta-row" id="modalMetaRow"></div>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div>
+          <label class="input-label" for="reqName">👤 Your Name (ඔබේ නම)</label>
+          <input type="text" id="reqName" class="modal-input" placeholder="e.g. Kasun">
+        </div>
+        <div>
+          <label class="input-label" for="reqNum">📞 WhatsApp Number (දුරකථන අංකය)</label>
+          <input type="text" id="reqNum" class="modal-input" placeholder="0771234567">
+        </div>
+        <div class="modal-status-text" id="modalStatus">Fetching download links...</div>
+        <div class="quality-grid" id="qualityButtons"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── FLOATING UPLOAD PROGRESS BANNER ─── -->
+  <div class="upload-banner" id="uploadBanner">
+    <div class="ub-top">
+      <span class="ub-title" id="ubTitle">⏳ Adding to WhatsApp Queue...</span>
+      <span class="ub-sub" id="ubSub">Please wait...</span>
+    </div>
+    <div class="ub-track">
+      <div class="ub-bar" id="ubBar"></div>
+    </div>
+  </div>
+
+  <!-- ─── EMBEDDED VINU ADMIN SETTINGS MODAL ─── -->
+  <div class="settings-modal" id="settingsModal">
+    <div class="settings-card">
+      <div class="settings-head">
+        <h3 class="settings-title">⚙️ Vinu's Bot Settings</h3>
+        <button class="modal-close" onclick="closeSettingsModal()">×</button>
+      </div>
+
+      <div class="field-group">
+        <label class="input-label">📞 Bot WhatsApp Number</label>
+        <input type="text" id="setBotNumber" class="modal-input" placeholder="94743441803">
+      </div>
+
+      <div class="field-group">
+        <label class="input-label">🔗 WhatsApp Group JID</label>
+        <input type="text" id="setGroupJid" class="modal-input" placeholder="120363425721300928@g.us">
+      </div>
+
+      <div class="field-group">
+        <label class="input-label">📝 Custom Caption Footer Text</label>
+        <textarea id="setFooterText" class="modal-input" rows="3" placeholder="Vinu x Movie Club"></textarea>
+      </div>
+
+      <button class="btn-save-settings" id="btnSaveSet" onclick="saveVinuSettings()">
+        💾 Save Settings to Database
+      </button>
+
+      <div style="margin-top: 14px; text-align: center;">
+        <a href="/sub_admin.html?admin=vinu" target="_blank" style="color: var(--cyan-soft); font-size: 0.8rem; text-decoration: none;">
+          Open Full Sub-Admin Portal →
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TOAST NOTIFICATION ─── -->
+  <div class="toast" id="toastMsg"></div>
+
+  <!-- ─── SCRIPT ENGINE ─── -->
+  <script>
+    const ADMIN_CONFIG = {
+      admin_id: "vinu",
+      defaultBotNumber: "94743441803",
+      defaultGroupJid: "120363425721300928@g.us",
+      defaultFooter: "╭━━━〔 🎬 𝗩𝐢𝐧𝐮 𝐱 Ｍ𝐨𝐯𝐢𝐞 ℂ𝐥𝐮𝐛 🍿 〕━━━╮\n✨ 𝐘𝐨𝐮𝐫 𝐌𝐨𝐯𝐢𝐞 𝐖𝐨𝐫𝐥𝐝, 𝐘𝐨𝐮𝐫 𝐕𝐢𝐛𝐞! 💫\n╰━━━━━━━━━━━━━━━━━━╯"
+    };
+
+    let currentSource = 'cinesubz';
+    let currentMovieMeta = {};
+    let currentDownloads = [];
+    let pollInterval = null;
+    let hasSeenActive = false;
+    let emptyPollCount = 0;
+    let isSendingMovie = false;
+
+    // Load saved requester from localStorage
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedName = localStorage.getItem('vinu_req_name');
+      const savedNum = localStorage.getItem('vinu_req_num');
+      if (savedName) document.getElementById('reqName').value = savedName;
+      if (savedNum) document.getElementById('reqNum').value = savedNum;
+    });
+
+    function showToast(msg) {
+      const t = document.getElementById('toastMsg');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3500);
+    }
+
+    function setSource(src, btn) {
+      currentSource = src;
+      document.querySelectorAll('.src-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      if (src === 'moviebox') loadMovieBoxTrending();
+    }
+
+    function showSkeleton() {
+      const g = document.getElementById('movieGrid');
+      g.innerHTML = '';
+      for (let i = 0; i < 8; i++) {
+        const s = document.createElement('div');
+        s.className = 'skeleton-card';
+        g.appendChild(s);
+      }
+    }
+
+    function renderCards(list) {
+      const grid = document.getElementById('movieGrid');
+      grid.innerHTML = '';
+      list.forEach((mv, idx) => {
+        const card = document.createElement('div');
+        card.className = 'movie-card';
+        const cap = mv.source ? (
+          mv.source === 'moviebox' ? 'MovieBox Pro' :
+          mv.source === 'cinesubz2' ? 'CineSubz 2' :
+          mv.source === 'slcartoons' ? 'SinhalaCartoons' :
+          mv.source === 'cartoonslk' ? 'Cartoons.lk' :
+          mv.source.charAt(0).toUpperCase() + mv.source.slice(1)
+        ) : 'CineSubz';
+        const yearTag = mv.year ? `<span class="card-year">${mv.year}</span>` : '';
+        card.innerHTML = `
+          <div class="card-poster">
+            <img src="${mv.img || 'https://via.placeholder.com/400'}" alt="${mv.title}" loading="lazy" referrerpolicy="no-referrer">
+            <span class="card-badge">${cap}</span>
+            ${yearTag}
+          </div>
+          <div class="card-body">
+            <h4 class="card-title">${mv.title}</h4>
+          </div>
+        `;
+        card.onclick = () => openModal(mv.title, mv.img, mv.url || mv.id, mv.imdb || mv.rating, mv.year || mv.date, mv.genres, mv.runtime);
+        grid.appendChild(card);
+      });
+    }
+
+    async function loadMovieBoxTrending() {
+      const st = document.getElementById('statusMsg');
+      st.textContent = 'Fetching MovieBox Pro trending movies & TV series…';
+      showSkeleton();
+      try {
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: '', source: 'moviebox' })
+        });
+        const data = await res.json();
+        if (data.success && data.results?.length) {
+          st.textContent = `🔥 MovieBox Pro Trending (${data.results.length} titles)`;
+          renderCards(data.results);
+        } else {
+          st.textContent = 'No trending titles found. Type in search box to find titles!';
+        }
+      } catch (_) {
+        st.textContent = 'Error loading trending!';
+        document.getElementById('movieGrid').innerHTML = '';
+      }
+    }
+
+    async function searchMovie() {
+      const q = document.getElementById('movieName').value.trim();
+      if (!q) {
+        if (currentSource === 'moviebox') { loadMovieBoxTrending(); return; }
+        return;
+      }
+      const st = document.getElementById('statusMsg');
+      st.textContent = 'Searching…';
+      showSkeleton();
+      try {
+        const ep = currentSource === 'animeheaven' ? '/api/anime-search' : '/api/search';
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, source: currentSource })
+        });
+        const data = await res.json();
+        if (data.success && data.results?.length) {
+          st.textContent = `Found ${data.results.length} results for "${q}"`;
+          renderCards(data.results);
+        } else {
+          st.textContent = 'No results found. Please check spelling or try another source.';
+          document.getElementById('movieGrid').innerHTML = '';
+        }
+      } catch (_) {
+        st.textContent = 'Search Error! Please try again.';
+        document.getElementById('movieGrid').innerHTML = '';
+      }
+    }
+
+    async function openModal(title, img, refId, imdb, year, genres, runtime) {
+      const modal = document.getElementById('movieModal');
+      modal.classList.add('open');
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('modalImg').src = img || 'https://via.placeholder.com/400';
+      document.getElementById('qualityButtons').innerHTML = '';
+      const metaRow = document.getElementById('modalMetaRow');
+      metaRow.innerHTML = '';
+      if (year) metaRow.innerHTML += `<span class="meta-tag">📅 ${year}</span>`;
+      if (imdb) metaRow.innerHTML += `<span class="meta-tag">⭐ IMDB ${imdb}</span>`;
+      if (runtime) metaRow.innerHTML += `<span class="meta-tag">⏱ ${runtime}</span>`;
+
+      const ms = document.getElementById('modalStatus');
+      ms.textContent = 'Fetching links…';
+      ms.style.color = 'var(--cyan-soft)';
+      currentDownloads = [];
+
+      try {
+        const isA = currentSource === 'animeheaven';
+        const res = await fetch(isA ? '/api/anime-episodes' : '/api/links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(isA ? { id: refId } : { url: refId, source: currentSource })
+        });
+        const data = await res.json();
+        if (data.success) {
+          ms.textContent = 'Select download quality or episode:';
+          const finalImg = (data.thumbnail && typeof data.thumbnail === 'string' && data.thumbnail.startsWith('http')) ? data.thumbnail : (img || '');
+          if (finalImg && (!img || img.includes('placeholder'))) {
+            const mi = document.getElementById('modalImg');
+            if (mi) mi.src = finalImg;
+          }
+          currentMovieMeta = { title, img: finalImg, imdb: imdb || data.imdb, refId, year: year || data.year, genres: genres || data.genres, runtime: runtime || data.runtime };
+          const arr = isA ? data.episodes : data.downloads;
+          currentDownloads = arr;
+
+          const isS = arr.length > 1 && (isA || data.isSeries === true || (arr[0].meta && /ep|episode|season|part|^s\d+/i.test(arr[0].meta)) || (arr[1] && arr[1].meta && /ep|episode|season|part|^s\d+/i.test(arr[1].meta)));
+
+          if (isS) {
+            const ba = document.createElement('button');
+            ba.className = 'qbtn all-btn';
+            ba.innerHTML = `<span>🚀 Queue ALL Episodes (${arr.length})</span> <span>Fast All</span>`;
+            ba.onclick = () => isA ? sendAllAnime(data) : sendAllMovie(arr);
+            document.getElementById('qualityButtons').appendChild(ba);
+          }
+
+          arr.forEach(item => {
+            const b = document.createElement('button');
+            b.className = 'qbtn';
+            const label = isA ? `Episode ${item.num}` : item.meta;
+            b.innerHTML = `<span>🎬 ${label}</span> <span>Download ▾</span>`;
+            b.onclick = () => isA ? sendAnimeEpisode(data, item) : sendMovie(item.resolvedUrl, item.meta);
+            document.getElementById('qualityButtons').appendChild(b);
+          });
+        } else {
+          ms.textContent = 'No download links found for this title.';
+          ms.style.color = '#f87171';
+        }
+      } catch (_) {
+        document.getElementById('modalStatus').textContent = 'Error loading download links.';
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('movieModal').classList.remove('open');
+    }
+
+    function encryptPayload(d) {
+      const s = 'sAdEw_2026_x!';
+      const ts = Date.now();
+      const j = unescape(encodeURIComponent(JSON.stringify(d)));
+      let e = '';
+      for (let i = 0; i < j.length; i++) {
+        e += String.fromCharCode(j.charCodeAt(i) ^ s.charCodeAt(i % s.length) ^ ((ts >> (i % 8)) & 0xFF));
+      }
+      return { _enc: btoa(e), _t: ts };
+    }
+
+    function validateSLPhone(p) {
+      if (!p || typeof p !== 'string') return null;
+      let c = p.replace(/[\s\-\+]/g, '');
+      if (c.startsWith('94')) c = '0' + c.slice(2);
+      else if (c.length === 9 && c.startsWith('7')) c = '0' + c;
+      if (!/^07[01245678]\d{7}$/.test(c)) return null;
+      const l7 = c.slice(3);
+      if (/^(\d)\1{6}$/.test(l7)) return null;
+      if (['0000000', '1111111', '7654321', '0123456'].includes(l7)) return null;
+      return c;
+    }
+
+    function getRequester() {
+      const n = document.getElementById('reqName').value.trim();
+      const r = document.getElementById('reqNum').value.trim();
+      const s = document.getElementById('modalStatus');
+      if (!n) {
+        s.textContent = '❌ කරුණාකර ඔබගේ නම ඇතුළත් කරන්න!';
+        s.style.color = '#f87171';
+        return null;
+      }
+      const c = validateSLPhone(r);
+      if (!c) {
+        s.textContent = '❌ වලංගු නොවන දුරකථන අංකයකි! (උදා: 0772345678)';
+        s.style.color = '#f87171';
+        return null;
+      }
+      s.style.color = '';
+      localStorage.setItem('vinu_req_name', n);
+      localStorage.setItem('vinu_req_num', c);
+      return { reqName: n, reqNum: c };
+    }
+
+    function startQueuePolling() {
+      if (pollInterval) clearInterval(pollInterval);
+      hasSeenActive = false;
+      emptyPollCount = 0;
+      const banner = document.getElementById('uploadBanner');
+      banner.classList.add('show');
+      document.getElementById('ubTitle').textContent = '⏳ Preparing Task...';
+      document.getElementById('ubSub').textContent = 'Connecting to bot and WhatsApp queue...';
+
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/queue');
+          const data = await res.json();
+          const tEl = document.getElementById('ubTitle');
+          const sEl = document.getElementById('ubSub');
+          const bar = document.getElementById('ubBar');
+
+          if (!data.active && data.queue.length === 0) {
+            if (hasSeenActive) {
+              tEl.textContent = '✅ All Tasks Completed!';
+              sEl.textContent = 'Your video has been sent to the WhatsApp group.';
+              setTimeout(() => banner.classList.remove('show'), 4000);
+              clearInterval(pollInterval);
+            } else {
+              emptyPollCount++;
+              if (emptyPollCount >= 6) {
+                tEl.textContent = '✅ Queue is Ready!';
+                sEl.textContent = 'Waiting for tasks.';
+                setTimeout(() => banner.classList.remove('show'), 3000);
+                clearInterval(pollInterval);
+              }
+            }
+            return;
+          }
+
+          if (data.active) {
+            hasSeenActive = true;
+            const mn = document.getElementById('reqNum').value.trim();
+            const im = data.active.userNum === mn;
+            tEl.textContent = im ? `🚀 Uploading: ${data.active.title} (${data.active.quality})` : `⏳ Queue Running... (Pos: ${data.queue.length + 1})`;
+            const prog = data.active.progress;
+            if (prog && prog.percent !== undefined) {
+              sEl.textContent = im ? `Progress: ${prog.percent}% (${prog.transferredMB} MB / ${prog.totalMB} MB)` : `Processing: ${data.active.title} (${prog.percent}%)`;
+              if (bar) bar.style.width = Math.max(5, prog.percent) + '%';
+            } else {
+              sEl.textContent = im ? 'Uploading directly to WhatsApp...' : `Processing: ${data.active.title}`;
+              if (bar) bar.style.width = '35%';
+            }
+          }
+        } catch (_) {}
+      }, 1000);
+    }
+
+    async function sendMovie(url, quality) {
+      if (isSendingMovie) return;
+      const req = getRequester();
+      if (!req) return;
+      isSendingMovie = true;
+      const ms = document.getElementById('modalStatus');
+      ms.textContent = 'Adding to Queue...';
+      ms.style.color = '#fef08a';
+
+      try {
+        const res = await fetch('/api/send-movie', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(encryptPayload({
+            title: currentMovieMeta.title,
+            url,
+            quality,
+            reqName: req.reqName,
+            reqNum: req.reqNum,
+            source: currentSource,
+            img: currentMovieMeta.img,
+            year: currentMovieMeta.year,
+            genres: currentMovieMeta.genres,
+            imdb: currentMovieMeta.imdb,
+            runtime: currentMovieMeta.runtime,
+            admin_id: ADMIN_CONFIG.admin_id
+          }))
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          ms.textContent = '❌ ' + (data.message || 'Request rejected by server.');
+          ms.style.color = '#f87171';
+          isSendingMovie = false;
+          return;
+        }
+        closeModal();
+        startQueuePolling();
+      } catch (_) {
+        ms.textContent = '❌ Connection error. Please check your internet.';
+        ms.style.color = '#f87171';
+      } finally {
+        setTimeout(() => { isSendingMovie = false; }, 3000);
+      }
+    }
+
+    async function sendAnimeEpisode(apiData, ep) {
+      const req = getRequester();
+      if (!req) return;
+      const ms = document.getElementById('modalStatus');
+      ms.textContent = 'Adding to Queue...';
+      ms.style.color = '#fef08a';
+
+      try {
+        const res = await fetch('/api/anime-send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(encryptPayload({
+            id: currentMovieMeta.refId,
+            hash: ep.hash,
+            epNum: ep.num,
+            videoname: apiData.videoname,
+            thumbnail: apiData.thumbnail,
+            reqName: req.reqName,
+            reqNum: req.reqNum,
+            admin_id: ADMIN_CONFIG.admin_id
+          }))
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          ms.textContent = '❌ ' + (data.message || 'Request rejected.');
+          ms.style.color = '#f87171';
+          return;
+        }
+        closeModal();
+        startQueuePolling();
+      } catch (_) {
+        ms.textContent = '❌ Connection error.';
+      }
+    }
+
+    async function sendAllMovie(arr) {
+      const req = getRequester();
+      if (!req) return;
+      closeModal();
+      const banner = document.getElementById('uploadBanner');
+      banner.classList.add('show');
+      document.getElementById('ubTitle').textContent = `Adding ${arr.length} episodes to Queue...`;
+      document.getElementById('ubSub').textContent = 'Please wait...';
+
+      for (let i = 0; i < arr.length; i++) {
+        try {
+          await fetch('/api/send-movie', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(encryptPayload({
+              title: currentMovieMeta.title,
+              url: arr[i].resolvedUrl,
+              quality: arr[i].meta,
+              reqName: req.reqName,
+              reqNum: req.reqNum,
+              source: currentSource,
+              img: currentMovieMeta.img,
+              year: currentMovieMeta.year,
+              genres: currentMovieMeta.genres,
+              imdb: currentMovieMeta.imdb,
+              runtime: currentMovieMeta.runtime,
+              batchIndex: i,
+              batchTotal: arr.length,
+              admin_id: ADMIN_CONFIG.admin_id
+            }))
+          });
+        } catch (_) {}
+      }
+      startQueuePolling();
+    }
+
+    async function sendAllAnime(apiData) {
+      const req = getRequester();
+      if (!req) return;
+      closeModal();
+      const banner = document.getElementById('uploadBanner');
+      banner.classList.add('show');
+      document.getElementById('ubTitle').textContent = `Adding ${apiData.episodes.length} episodes to Queue...`;
+      document.getElementById('ubSub').textContent = 'Please wait...';
+
+      for (let i = 0; i < apiData.episodes.length; i++) {
+        try {
+          await fetch('/api/anime-send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(encryptPayload({
+              id: currentMovieMeta.refId,
+              hash: apiData.episodes[i].hash,
+              epNum: apiData.episodes[i].num,
+              videoname: apiData.videoname,
+              thumbnail: apiData.thumbnail,
+              reqName: req.reqName,
+              reqNum: req.reqNum,
+              batchIndex: i,
+              admin_id: ADMIN_CONFIG.admin_id
+            }))
+          });
+        } catch (_) {}
+      }
+      startQueuePolling();
+    }
+
+    /* ─── VINU SETTINGS FUNCTIONS ─── */
+    async function openSettingsModal() {
+      const modal = document.getElementById('settingsModal');
+      modal.classList.add('open');
+      try {
+        const res = await fetch(`/api/admin/settings/${ADMIN_CONFIG.admin_id}`);
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('setBotNumber').value = data.bot_number || ADMIN_CONFIG.defaultBotNumber;
+          document.getElementById('setGroupJid').value = data.group_jid || ADMIN_CONFIG.defaultGroupJid;
+          document.getElementById('setFooterText').value = data.footer_text || ADMIN_CONFIG.defaultFooter;
+        }
+      } catch (_) {}
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('open');
+    }
+
+    async function saveVinuSettings() {
+      const btn = document.getElementById('btnSaveSet');
+      const bot_number = document.getElementById('setBotNumber').value.trim();
+      const group_jid = document.getElementById('setGroupJid').value.trim();
+      const footer_text = document.getElementById('setFooterText').value.trim();
+
+      if (!bot_number) { showToast('⚠️ Bot WhatsApp Number is required!'); return; }
+      if (!group_jid) { showToast('⚠️ Group JID is required!'); return; }
+
+      btn.textContent = '⏳ Saving to Database...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/admin/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            admin_id: ADMIN_CONFIG.admin_id,
+            bot_number,
+            group_jid,
+            footer_text
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('✅ Vinu Settings Saved Successfully!');
+          closeSettingsModal();
+        } else {
+          showToast('❌ ' + (data.message || 'Error saving settings.'));
+        }
+      } catch (_) {
+        showToast('❌ Network error while saving.');
+      } finally {
+        btn.textContent = '💾 Save Settings to Database';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
