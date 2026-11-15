@@ -912,36 +912,76 @@ const PIRATELK_BASE = 'https://piratelk.com';
 
 async function searchPirateLK(query) {
     const searchUrl = `${PIRATELK_BASE}/?s=${encodeURIComponent(query)}`;
-    const res = await axios.get(searchUrl, { headers: HEADERS, timeout: 20000 });
-    const $ = cheerio.load(res.data);
     const searchResults = [];
+    const seenUrls = new Set();
 
-    $('article, .post, .result-item, .item, .entry').each((i, el) => {
-        let titleEl = $(el).find('h2.post-box-title a, h2.entry-title a, h2 a, h3 a, .entry-title a, .title a').first();
-        let title = titleEl.text().replace(/^DOWNLOAD\s+/i, '').trim();
-        let link = titleEl.attr('href');
-        let img = $(el).find('.post-thumbnail img, img').first().attr('data-src') || 
-                  $(el).find('.post-thumbnail img, img').first().attr('src') ||
-                  $(el).find('img').first().attr('data-lazy-src');
-        if (img && img.startsWith('data:')) img = null;
+    try {
+        const res = await axios.get(searchUrl, { headers: HEADERS, timeout: 8000 });
+        const $ = cheerio.load(res.data);
 
-        if (!title) {
-            $(el).find('a').each((_, aEl) => {
-                const txt = $(aEl).text().replace(/^DOWNLOAD\s+/i, '').trim();
-                const hr = $(aEl).attr('href');
-                if (txt && hr && hr.includes('piratelk.com') && !hr.includes('/category/') && !hr.includes('/tag/') && !title) {
-                    title = txt;
-                    link = hr;
-                }
-            });
-        }
+        $('article, .post, .result-item, .item, .entry').each((i, el) => {
+            let titleEl = $(el).find('h2.post-box-title a, h2.entry-title a, h2 a, h3 a, .entry-title a, .title a').first();
+            let title = titleEl.text().replace(/^DOWNLOAD\s+/i, '').trim();
+            let link = titleEl.attr('href');
+            let img = $(el).find('.post-thumbnail img, img').first().attr('data-src') || 
+                      $(el).find('.post-thumbnail img, img').first().attr('src') ||
+                      $(el).find('img').first().attr('data-lazy-src');
+            if (img && img.startsWith('data:')) img = null;
 
-        if (title && link && link.includes('piratelk.com') && !searchResults.some(r => r.url === link)) {
-            if (!link.includes('/category/') && !link.includes('/tag/') && !link.includes('/author/')) {
-                searchResults.push({ title, url: link, img, source: 'piratelk' });
+            if (!title) {
+                $(el).find('a').each((_, aEl) => {
+                    const txt = $(aEl).text().replace(/^DOWNLOAD\s+/i, '').trim();
+                    const hr = $(aEl).attr('href');
+                    if (txt && hr && hr.includes('piratelk.com') && !hr.includes('/category/') && !hr.includes('/tag/') && !title) {
+                        title = txt;
+                        link = hr;
+                    }
+                });
             }
+
+            if (title && link && link.includes('piratelk.com') && !seenUrls.has(link)) {
+                if (!link.includes('/category/') && !link.includes('/tag/') && !link.includes('/author/')) {
+                    seenUrls.add(link);
+                    searchResults.push({ title, url: link, img, source: 'piratelk' });
+                }
+            }
+        });
+    } catch (_) {}
+
+    // Fallback: Jina AI bypass for Cloudflare protection on piratelk.com
+    if (searchResults.length === 0) {
+        try {
+            const jinaRes = await axios.get(`https://r.jina.ai/${searchUrl}`, { timeout: 15000 });
+            const md = typeof jinaRes.data === 'string' ? jinaRes.data : '';
+            const lines = md.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith('## [')) {
+                    const m = line.match(/^##\s*\[(.*)\]\((https:\/\/piratelk\.com\/[^\s\)]+)/i);
+                    if (m) {
+                        const rawTitle = m[1];
+                        const url = m[2];
+                        if (url.includes('/wp-content/')) continue;
+                        if (!seenUrls.has(url) && !url.includes('/category/') && !url.includes('/tag/') && !url.includes('/author/')) {
+                            seenUrls.add(url);
+                            const title = rawTitle.replace(/^DOWNLOAD\s+/i, '').replace(/\|\s*.*$/i, '').trim();
+                            let img = '';
+                            for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+                                const imgM = lines[j].match(/\((https:\/\/piratelk\.com\/wp-content\/uploads\/[^\s\)]+)\)/i);
+                                if (imgM) {
+                                    img = imgM[1];
+                                    break;
+                                }
+                            }
+                            searchResults.push({ title, url, img, source: 'piratelk' });
+                        }
+                    }
+                }
+            }
+        } catch (jinaErr) {
+            console.error("[PIRATELK JINA SEARCH ERROR]:", jinaErr.message);
         }
-    });
+    }
 
     return searchResults;
 }
@@ -958,48 +998,109 @@ function extractGdriveFileId(url) {
 }
 
 async function getPirateLKDetails(pageUrl) {
-    const res = await axios.get(pageUrl, { headers: HEADERS, timeout: 20000 });
-    const $ = cheerio.load(res.data);
-
-    const title = $('h1.entry-title, h1.post-title, h1').first().text().replace(/^DOWNLOAD\s+/i, '').trim();
-    let poster = $('meta[property="og:image"]').attr('content') || $('meta[name="twitter:image"]').attr('content');
-    if (!poster || poster.startsWith('data:')) {
-        $('article img, .entry-content img, .post-thumbnail img').each((i, el) => {
-            if (poster && !poster.startsWith('data:')) return;
-            const candidate = $(el).attr('data-src') || $(el).attr('src');
-            if (candidate && !candidate.startsWith('data:') && !candidate.includes('logo')) poster = candidate;
-        });
-    }
-
+    let title = 'Movie';
+    let poster = '';
     const downloadLinks = [];
     const seenUrls = new Set();
 
-    $('a').each((i, el) => {
-        let href = $(el).attr('href') || '';
-        const linkText = $(el).text().trim();
-        const parentText = $(el).parent().text().trim();
-        const lowerHref = href.toLowerCase();
+    try {
+        const res = await axios.get(pageUrl, { headers: HEADERS, timeout: 8000 });
+        const $ = cheerio.load(res.data);
 
-        if (lowerHref.includes('usersdrive.com') || lowerHref.includes('racaty') || lowerHref.includes('uptobox')) return;
-
-        const isGdrive = lowerHref.includes('drive.google.com') || lowerHref.includes('drive.usercontent.google.com');
-        const isPixel = lowerHref.includes('pixeldrain.com');
-        const isDirectVid = (lowerHref.endsWith('.mp4') || lowerHref.endsWith('.mkv')) && lowerHref.startsWith('http');
-
-        if ((isGdrive || isPixel || isDirectVid) && !seenUrls.has(href)) {
-            seenUrls.add(href);
-            let qMatch = (linkText + ' ' + parentText).match(/(480p|720p|1080p|2160p|4k)/i);
-            let sMatch = (linkText + ' ' + parentText).match(/([0-9]+(?:\.[0-9]+)?\s*(?:MB|GB))/i);
-            let label = qMatch ? qMatch[1].toUpperCase() : 'Download';
-            if (sMatch) label += ` (${sMatch[1].toUpperCase()})`;
-
-            downloadLinks.push({
-                meta: label,
-                resolvedUrl: href,
-                direct: true
+        title = $('h1.entry-title, h1.post-title, h1').first().text().replace(/^DOWNLOAD\s+/i, '').trim();
+        poster = $('meta[property="og:image"]').attr('content') || $('meta[name="twitter:image"]').attr('content');
+        if (!poster || poster.startsWith('data:')) {
+            $('article img, .entry-content img, .post-thumbnail img').each((i, el) => {
+                if (poster && !poster.startsWith('data:')) return;
+                const candidate = $(el).attr('data-src') || $(el).attr('src');
+                if (candidate && !candidate.startsWith('data:') && !candidate.includes('logo')) poster = candidate;
             });
         }
-    });
+
+        $('a').each((i, el) => {
+            let href = $(el).attr('href') || '';
+            const linkText = $(el).text().trim();
+            const parentText = $(el).parent().text().trim();
+            const lowerHref = href.toLowerCase();
+
+            const isDlHost = lowerHref.includes('pixeldrain.com') || 
+                             lowerHref.includes('drive.google.com') || 
+                             lowerHref.includes('usersdrive.com') || 
+                             lowerHref.includes('racaty.net') || 
+                             lowerHref.includes('mega.nz') ||
+                             lowerHref.endsWith('.mp4') || lowerHref.endsWith('.mkv');
+
+            if (isDlHost && !seenUrls.has(href)) {
+                seenUrls.add(href);
+                let qMatch = (linkText + ' ' + parentText + ' ' + href).match(/(480p|720p|1080p|2160p|4k)/i);
+                let sMatch = (linkText + ' ' + parentText).match(/([0-9]+(?:\.[0-9]+)?\s*(?:MB|GB))/i);
+                let host = lowerHref.includes('pixeldrain') ? 'PixelDrain' :
+                           lowerHref.includes('usersdrive') ? 'UsersDrive' :
+                           lowerHref.includes('racaty') ? 'Racaty' :
+                           lowerHref.includes('drive.google') ? 'GDrive' : 'Download';
+                let label = qMatch ? qMatch[1].toUpperCase() : 'HD';
+                if (sMatch) label += ` (${sMatch[1].toUpperCase()})`;
+                label += ` [${host}]`;
+
+                downloadLinks.push({
+                    meta: label,
+                    resolvedUrl: href,
+                    direct: true
+                });
+            }
+        });
+    } catch (_) {}
+
+    // Fallback: Jina AI bypass for Cloudflare
+    if (downloadLinks.length === 0) {
+        try {
+            const jinaRes = await axios.get(`https://r.jina.ai/${pageUrl}`, { timeout: 15000 });
+            const md = typeof jinaRes.data === 'string' ? jinaRes.data : '';
+
+            const titleMatch = md.match(/Title:\s*(.+)/i) || md.match(/#\s*(.+)/);
+            if (titleMatch) title = titleMatch[1].replace(/\|\s*.*$/i, '').trim();
+
+            const posterMatch = md.match(/\((https:\/\/piratelk\.com\/wp-content\/uploads\/[^\s\)]+)\)/i);
+            if (posterMatch && !poster) poster = posterMatch[1];
+
+            const links = [...md.matchAll(/\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g)];
+            for (const l of links) {
+                let text = l[1].trim();
+                let href = l[2].trim();
+                const lowerHref = href.toLowerCase();
+
+                if (lowerHref.includes('#') || lowerHref.includes('/category/') || lowerHref.includes('/tag/') || lowerHref.includes('piratelk.com/download/')) continue;
+
+                const isDlHost = lowerHref.includes('pixeldrain.com') || 
+                                 lowerHref.includes('drive.google.com') || 
+                                 lowerHref.includes('usersdrive.com') || 
+                                 lowerHref.includes('racaty.net') || 
+                                 lowerHref.includes('mega.nz') ||
+                                 lowerHref.endsWith('.mp4') || lowerHref.endsWith('.mkv');
+
+                if (isDlHost && !seenUrls.has(href)) {
+                    seenUrls.add(href);
+                    let qMatch = (text + ' ' + href).match(/(480p|720p|1080p|2160p|4k)/i);
+                    let sMatch = text.match(/([0-9]+(?:\.[0-9]+)?\s*(?:MB|GB))/i);
+                    let host = lowerHref.includes('pixeldrain') ? 'PixelDrain' :
+                               lowerHref.includes('usersdrive') ? 'UsersDrive' :
+                               lowerHref.includes('racaty') ? 'Racaty' :
+                               lowerHref.includes('drive.google') ? 'GDrive' : 'Download';
+                    let label = qMatch ? qMatch[1].toUpperCase() : 'HD';
+                    if (sMatch) label += ` (${sMatch[1].toUpperCase()})`;
+                    label += ` [${host}]`;
+
+                    downloadLinks.push({
+                        meta: label,
+                        resolvedUrl: href,
+                        direct: true
+                    });
+                }
+            }
+        } catch (jErr) {
+            console.error("[PIRATELK JINA DETAILS ERROR]:", jErr.message);
+        }
+    }
 
     return { title, poster, downloads: downloadLinks };
 }
