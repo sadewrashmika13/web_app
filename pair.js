@@ -1454,7 +1454,7 @@ socket.ev.on('creds.update', () => queueCredsSave(sanitizedNumber, saveCreds));
             activeSockets.set(sanitizedNumber, { socket, config: freshConfig, saveCreds });
             console.log(`📌 Socket registered in activeSockets for ${sanitizedNumber}`);
 
-            // ⚡ Pre-warm default group session & ratchet keys so 1st movie upload never hangs
+            // ⚡ Instant Multi-Warmup so 1st movie request never lags
             try {
                 const FALLBACK_GROUP = "120363425721300928@g.us";
                 if (typeof socket.groupMetadata === 'function') {
@@ -1462,6 +1462,13 @@ socket.ev.on('creds.update', () => queueCredsSave(sanitizedNumber, saveCreds));
                         console.log(`[WARMUP] ⚡ Pre-warmed group metadata for ${FALLBACK_GROUP}`);
                     }).catch(() => {});
                 }
+                if (typeof socket.sendPresenceUpdate === 'function') {
+                    socket.sendPresenceUpdate('available', FALLBACK_GROUP).catch(() => {});
+                }
+                // Pre-ping Gemini Worker & CDN servers to eliminate DNS/SSL cold start latency
+                axios.get("https://tt.sadewrashmika069.workers.dev/?text=warmup", { timeout: 5000 }).catch(() => {});
+                axios.get("https://cs01.wodocloud.xyz/", { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => {});
+                axios.get("https://cinesubz.net/", { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => {});
             } catch(_) {}
 
             // 🛡️ Auto-init Anti-Delete System

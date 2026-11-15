@@ -295,7 +295,7 @@ async function callGeminiWorker(prompt) {
         const candidate = res.data?.data?.candidates?.[0] || res.data?.candidates?.[0];
         const parts = candidate?.content?.parts || [];
         let text = parts.map(p => p.text || '').join('').trim();
-        if (text && text.length >= 60) {
+        if (text && text.length >= 25) {
             text = text.replace(/^#+\s+/gm, '')
                        .replace(/^\*\s+Sentence\s+\d+.*?:?\s*/gmi, '')
                        .replace(/^Sentence\s+\d+.*?:?\s*/gmi, '')
@@ -327,7 +327,7 @@ async function callGeminiDirect(key, model, prompt) {
     const candidate = response.data?.candidates?.[0];
     const parts = candidate?.content?.parts || [];
     let text = parts.map(p => p.text || '').join('').trim();
-    if (text && text.length >= 60) {
+    if (text && text.length >= 25) {
         text = text.replace(/^#+\s+/gm, '')
                    .replace(/^\*\s+Sentence\s+\d+.*?:?\s*/gmi, '')
                    .replace(/^Sentence\s+\d+.*?:?\s*/gmi, '')
@@ -349,18 +349,17 @@ async function getGeminiSummary(movieTitle) {
         return geminiSummaryCache.get(cacheKey);
     }
 
-    const prompt = `You are an expert film critic and master cinema storyteller for a movie club. Your role is strictly to write an exciting, captivating movie overview in natural, conversational spoken Sinhala (කතා කරන සරල සිංහල).
+    const prompt = `You are a cinema lover writing a short, exciting movie recommendation for a movie club in conversational spoken Sinhala (කතා කරන සරල සිංහල).
 
 චිත්‍රපටය: "${cleanSearchTitle}"
 
-කරුණාකර මෙම චිත්‍රපටය පිළිබඳව රසිකයන් තුළ දැඩි කුතුහලයක් සහ නැරඹීමේ ආශාවක් ඇතිවන පරිදි, අතිශය සිත් ඇදගන්නාසුලු, ලස්සන කතා කරන සිංහලෙන් එකම සුමට ඡේදයකින් (One single flowing conversational paragraph) විස්තරාත්මක සාරාංශයක් ලියන්න.
+කරුණාකර මෙම චිත්‍රපටය නැරඹීමට දැඩි ආශාවක් සහ කුතුහලයක් ඇතිවන පරිදි, අතිශය සිත් ඇදගන්නාසුලු, ලස්සන කතා කරන සිංහලෙන් කෙටි, පැහැදිලි සාරාංශයක් (Short & punchy 2-3 sentences overview) එකම ඡේදයකින් ලියන්න.
 
 විශේෂ උපදෙස්:
-1. භාෂාව: ඉතා සුහද, මිත්‍රශීලී කතා කරන සිංහලෙන් ලියන්න. චිත්‍රපට පිස්සෙක් තවත් යාළුවෙකුට ෆිල්ම් එකේ රසය ගැන උනන්දුවෙන් කියන ආකාරයෙන් ලියන්න. Hero, Villain, Plot twist, Action, Suspense, Climax වැනි සුලභ සිනමා වචන අවශ්‍ය තැන්වලදී භාවිතා කරන්න.
-2. අන්තර්ගතය: කතාවේ ප්‍රධාන සිදුවීම, චරිතවල ස්වභාවය සහ කුතුහලය මනාව පැහැදිලි වන සේ වාක්‍ය 5-7 කින් යුතු සම්පූර්ණ විස්තරාත්මක සාරාංශයක් ලියන්න. කතාව අතරමග නතර නොකර සම්පූර්ණ කර අවසන් කරන්න. Spoilers (කතාවේ ප්‍රධාන රහස් හෝ අවසානය) කිසිවක් හෙළි නොකරන්න.
-3. හැඩතල ගැන්වීම (Strict Formatting): කිසිදු ආකාරයක Heading, Bullet points, Numbers හෝ "Sentence 1", "Sentence 2" වැනි ලේබල් යොදා නොගන්න. සම්පූර්ණ සාරාංශයම එකම ඡේදයක් (Single continuous paragraph) ලෙස පමණක් ලියන්න.
-4. Emojis: අන්තර්ගතයට ගැලපෙන ආකර්ෂණීය emojis (🎬🍿✨🔥💥 ආදී) තැනින් තැන යොදාගන්න.
-5. කිසිදු හැඳින්වීමක් (උදා: "මෙන්න සාරාංශය") නැතිව සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න.`;
+1. දිග: වාක්‍ය 2 ත් 3 ත් අතර කෙටි සාරාංශයක් විය යුතුය (Short & crisp, 2-3 sentences max).
+2. භාෂාව: මිත්‍රශීලී කතා කරන සිංහලෙන් ලියන්න. ආකර්ෂණීය emojis (🎬🍿✨🔥) 2-3 ක් යොදන්න.
+3. අන්තර්ගතය: කතාවේ ප්‍රධාන සිදුවීම සහ කුතුහලය පමණක් කෙටියෙන් කියන්න. Spoilers කිසිවක් හෙළි නොකරන්න.
+4. කිසිදු Heading, Bullet points, Numbers හෝ හැඳින්වීමක් ("මෙන්න සාරාංශය") නැතිව කෙටි සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න.`;
 
     // 1. Primary Engine: User's Gemini Cloudflare Worker (gemini-3.6-flash)
     try {
@@ -406,7 +405,7 @@ async function getGeminiSummary(movieTitle) {
 // ════════════════════════════════════════════════════════
 // 🌐 1. CINESUBZ PURE NATIVE SCRAPER & DIRECT STREAM RESOLVER
 // ════════════════════════════════════════════════════════
-const KNOWN_CZ_SERVERS = ["07", "06", "45", "03", "02", "01"];
+const KNOWN_CZ_SERVERS = ["01", "02", "03", "06", "07", "45", "04", "05"];
 
 function cleanCineTitle(str) {
     if (!str) return 'Untitled';
@@ -550,14 +549,32 @@ async function scrapeCineSubzDetails(pageUrl) {
 }
 
 async function resolveDirectVideo(ztUrl) {
+    if (ztUrl.match(/\.(mp4|mkv)(\?|$)/i) && !ztUrl.includes('google.com/server') && !ztUrl.includes('cinesubz.net/api-')) {
+        return { url: ztUrl, size: 0, server: 'direct', filename: path.basename(ztUrl.split('?')[0]) };
+    }
+
     const res = await axios.get(ztUrl, {
         headers: { ...HEADERS, 'Referer': 'https://cinesubz.net/' },
         timeout: 20000
     });
     const $ = cheerio.load(res.data);
     const linkHref = $('#link').attr('href') || $('a#link').attr('href') || $('a[href*="server"]').attr('href');
+    const prevLnk = $('a.prev-lnk').attr('href');
+
+    let cz2Promise = null;
+    if (prevLnk && (prevLnk.includes('/movies/') || prevLnk.includes('/episodes/'))) {
+        cz2Promise = axios.get(`${CZ2_API}/dl-links?url=${encodeURIComponent(prevLnk)}`, { timeout: 12000, headers: HEADERS }).catch(() => null);
+    }
+
     if (!linkHref) {
-        throw new Error("zt-links පිටුවෙන් Download Redirect Link එක සොයා ගැනීමට නොහැකි විය.");
+        if (cz2Promise) {
+            const cz2Res = await cz2Promise;
+            const links = cz2Res?.data?.downloadLinks || [];
+            if (links.length > 0 && links[0].direct_mp4_url) {
+                return { url: links[0].direct_mp4_url, size: 0, server: 'cz2', filename: path.basename(links[0].direct_mp4_url.split('?')[0]) };
+            }
+        }
+        throw new Error("Download Redirect Link එක සොයා ගැනීමට නොහැකි විය.");
     }
 
     const m = linkHref.match(new RegExp('server(\\d+)/.*?([^/]+\\.(?:mp4|mkv))', 'i'));
@@ -565,40 +582,65 @@ async function resolveDirectVideo(ztUrl) {
         if (linkHref.startsWith('http') && !linkHref.includes('google.com')) {
             return { url: linkHref, size: 0, server: 'direct', filename: path.basename(linkHref) };
         }
+        if (cz2Promise) {
+            const cz2Res = await cz2Promise;
+            const links = cz2Res?.data?.downloadLinks || [];
+            if (links.length > 0 && links[0].direct_mp4_url) {
+                return { url: links[0].direct_mp4_url, size: 0, server: 'cz2', filename: path.basename(links[0].direct_mp4_url.split('?')[0]) };
+            }
+        }
         throw new Error("Direct Download Link එක parse කරගත නොහැකි විය: " + linkHref);
     }
 
     const serverRaw = m[1];
     const rawFilename = decodeURIComponent(m[2]);
     const encodedFilename = encodeURIComponent(rawFilename);
+
     let primaryServer = serverRaw.padStart(2, '0');
-    if (serverRaw === "4") primaryServer = "45";
+    if (serverRaw === "11" || serverRaw === "12" || serverRaw === "13" || serverRaw === "1") primaryServer = "01";
+    else if (serverRaw === "21" || serverRaw === "22" || serverRaw === "23" || serverRaw === "2") primaryServer = "02";
+    else if (serverRaw === "4") primaryServer = "45";
 
     const serversToTry = [primaryServer, ...KNOWN_CZ_SERVERS.filter(s => s !== primaryServer)];
 
-    for (const s of serversToTry) {
-        const candidateUrl = `https://cs${s}.supercloud1.xyz/${encodedFilename}?play=true`;
-        try {
-            const head = await axios.head(candidateUrl, {
-                headers: { ...HEADERS, 'Referer': 'https://cinesubz.net/' },
-                timeout: 6000
-            });
-            if (head.status === 200) {
-                const ct = head.headers['content-type'] || '';
-                const cl = head.headers['content-length'] || '0';
-                if (ct.includes('video') || parseInt(cl, 10) > 1000000) {
-                    return {
-                        url: candidateUrl,
-                        size: parseInt(cl, 10),
-                        server: s,
-                        filename: rawFilename
-                    };
+    // Parallel checks against wodocloud CDN servers
+    for (let i = 0; i < serversToTry.length; i += 3) {
+        const batch = serversToTry.slice(i, i + 3);
+        const checks = batch.map(async (s) => {
+            const candidateUrl = `https://cs${s}.wodocloud.xyz/${encodedFilename}?play=true`;
+            try {
+                const head = await axios.head(candidateUrl, {
+                    headers: { ...HEADERS, 'Referer': 'https://cinesubz.net/' },
+                    timeout: 4000
+                });
+                if (head.status === 200 || head.status === 206) {
+                    const ct = head.headers['content-type'] || '';
+                    const cl = head.headers['content-length'] || '0';
+                    if (ct.includes('video') || parseInt(cl, 10) > 1000000) {
+                        return { url: candidateUrl, size: parseInt(cl, 10), server: s, filename: rawFilename };
+                    }
                 }
-            }
-        } catch (_) {}
+            } catch (_) {}
+            return null;
+        });
+        const results = await Promise.all(checks);
+        const found = results.find(r => r !== null);
+        if (found) return found;
     }
 
-    throw new Error("Direct SuperCloud CDN Servers වෙතින් Video Stream එක සොයා ගැනීමට නොහැකි විය.");
+    // Secondary fallback: CZ2 dl-links API
+    if (cz2Promise) {
+        const cz2Res = await cz2Promise;
+        const links = cz2Res?.data?.downloadLinks || [];
+        for (const item of links) {
+            let u = item.direct_mp4_url || item.url || item.link;
+            if (u && typeof u === 'string' && u.startsWith('http')) {
+                return { url: u, size: 0, server: 'cz2', filename: rawFilename };
+            }
+        }
+    }
+
+    throw new Error("Direct Video Stream එක සොයා ගැනීමට නොහැකි විය.");
 }
 
 // ════════════════════════════════════════════════════════
@@ -1511,7 +1553,7 @@ function warmApis() {
     warmGroupSession();
 }
 warmApis();
-setInterval(warmApis, 2.5 * 60 * 1000);
+setInterval(warmApis, 90 * 1000);
 
 function getActiveSocket(targetBotNumber) {
     const activeSockets = global.activeSockets;
@@ -2164,7 +2206,7 @@ router.post('/api/send-movie', async (req, res) => {
                     let aiSummary = "";
                     try {
                         const sumPromise = getGeminiSummary(verifiedTitle);
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 25000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 8000));
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
@@ -2235,6 +2277,7 @@ router.post('/api/send-movie', async (req, res) => {
 
                         console.log(`[STREAM] 🚀 Attempt ${attempt}/${maxRetries} starting for: ${verifiedTitle} (${cleanQuality})`);
                         let finalVidUrl = url;
+                        let extraStreamHeaders = {};
 
                         if (finalVidUrl.startsWith('moviebox://')) {
                             try {
@@ -2264,7 +2307,7 @@ router.post('/api/send-movie', async (req, res) => {
                         }
 
                         // 1. CINESUBZ PURE NATIVE RESOLUTION
-                        if (source === 'cinesubz' || finalVidUrl.includes('zt-links') || finalVidUrl.includes('supercloud1') || finalVidUrl.includes('/server')) {
+                        if (source === 'cinesubz' || finalVidUrl.includes('cinesubz.net') || finalVidUrl.includes('zt-links') || finalVidUrl.includes('wodocloud') || finalVidUrl.includes('supercloud') || finalVidUrl.includes('/server')) {
                             try {
                                 if (finalVidUrl.includes('cinesubz.net/episodes/')) {
                                     const epPage = await axios.get(finalVidUrl, { headers: HEADERS, timeout: 20000 });
@@ -2272,9 +2315,14 @@ router.post('/api/send-movie', async (req, res) => {
                                     const zt = $ep('a[href*="zt-links"]').attr('href') || $ep('.movie-download-button').attr('href');
                                     if (zt) finalVidUrl = zt;
                                 }
-                                if (finalVidUrl.includes('zt-links') || finalVidUrl.includes('/server')) {
+                                if (finalVidUrl.includes('zt-links') || finalVidUrl.includes('/server') || finalVidUrl.includes('cinesubz.net/api-') || finalVidUrl.includes('cinesubz.net/movies/')) {
                                     const resolved = await resolveDirectVideo(finalVidUrl);
-                                    if (resolved?.url) finalVidUrl = resolved.url;
+                                    if (resolved?.url) {
+                                        finalVidUrl = resolved.url;
+                                        if (resolved.headers) {
+                                            extraStreamHeaders = { ...extraStreamHeaders, ...resolved.headers };
+                                        }
+                                    }
                                 }
                             } catch (czErr) {
                                 console.warn("[STREAM CZ RESOLVE NOTE]:", czErr.message);
@@ -2409,7 +2457,8 @@ router.post('/api/send-movie', async (req, res) => {
                             'User-Agent': HEADERS['User-Agent'],
                             'Referer': (source && source.startsWith('cinesubz')) ? 'https://cinesubz.net/' : ((source === 'sinhalasub2') ? 'https://sinhalasub.lk/' : ((source === '1tamilmv') ? 'https://www.1tamilmv.rocks/' : 'https://google.com/')),
                             'Accept': '*/*',
-                            'X-API-Key': MOVIEBOX_KEY
+                            'X-API-Key': MOVIEBOX_KEY,
+                            ...extraStreamHeaders
                         };
 
                         const streamRes = await axios({
@@ -2483,8 +2532,10 @@ router.post('/api/send-movie', async (req, res) => {
                 if (!streamUploaded) {
                     const errMsg = lastError?.response ? `HTTP ${lastError.response.status}` : (lastError?.message || 'Upload failed');
                     console.error(`[STREAM] ❌ All ${maxRetries} attempts failed for ${verifiedTitle}: ${errMsg}`);
+                    // Per user request: DO NOT send failure message to sender's group. Only notify admin inbox quietly.
                     try {
-                        await sendMediaSafely(sock, dynamicGroupJid, { text: `❌ *Upload Failed:* ${verifiedTitle} - ${cleanQuality}\n_Error: ${errMsg}. Please try again shortly._` }, 30000);
+                        const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
+                        await sendMediaSafely(sock, exactBotJid, { text: `⚠️ *Request Failed after ${maxRetries} retries:* ${verifiedTitle} (${cleanQuality})\n_Error: ${errMsg}_` }, 15000);
                     } catch(e){}
                 }
 
