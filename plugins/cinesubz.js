@@ -1,42 +1,100 @@
+const os = require('os');
+const cheerio = require('cheerio');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
+const { pipeline } = require('stream/promises');
 
 // ════════════════════════════════════════════════════════
-// GLOBAL STORE
+// GLOBAL STORE FOR CINESUBZ (PURE NATIVE SCRAPER ENGINE)
 // ════════════════════════════════════════════════════════
 if (!global.czStore) global.czStore = {};
-function genId() { return crypto.randomBytes(4).toString('hex'); }
-function storeData(data, ttlMs = 15 * 60 * 1000) {
+if (!global.czAllLocks) global.czAllLocks = {};
+
+function genId() { 
+    return crypto.randomBytes(4).toString('hex'); 
+}
+
+function storeData(data, ttlMs = 2 * 60 * 60 * 1000) { 
     const id = genId();
     global.czStore[id] = data;
-    setTimeout(() => { delete global.czStore[id]; }, ttlMs);
+    const t = setTimeout(() => { delete global.czStore[id]; }, ttlMs);
+    if (t && typeof t.unref === 'function') t.unref();
     return id;
 }
 
-function parseCineSend(fullText) {
+function getTempDir() {
+    try {
+        const localTemp = path.join(process.cwd(), 'temp');
+        if (!fs.existsSync(localTemp)) fs.mkdirSync(localTemp, { recursive: true });
+        return localTemp;
+    } catch (_) {}
+    try {
+        const sysTemp = path.join(os.tmpdir(), 'bot_temp');
+        if (!fs.existsSync(sysTemp)) fs.mkdirSync(sysTemp, { recursive: true });
+        return sysTemp;
+    } catch (_) {}
+    return os.tmpdir();
+}
+
+// Ultra smart target parser (supports JID, Group JID, phone numbers with or without comma)
+function parseTarget(fullText) {
     if (!fullText) return { query: "", targetJid: null };
     let raw = fullText.trim();
     let targetJid = null;
     let query = raw;
-    const endMatch = raw.match(/(?:,|\s)*([0-9]+@g\.us|[0-9]+@s\.whatsapp\.net|\+?94[0-9]{9}|0[0-9]{9})$/i);
-    if (endMatch) {
-        let extracted = endMatch[1];
-        let matchStr = endMatch[0];
-        let matchIndex = raw.lastIndexOf(matchStr);
-        if (matchIndex !== -1) query = raw.substring(0, matchIndex).replace(/,$/, '').trim();
-        if (extracted.includes('@g.us') || extracted.includes('@s.whatsapp.net')) {
-            targetJid = extracted;
-        } else {
-            let num = extracted.replace(/[^0-9]/g, '');
-            if (num.startsWith('0') && num.length === 10) num = '94' + num.slice(1);
-            if (num.length >= 10) targetJid = num + '@s.whatsapp.net';
+
+    // 1. Explicit WhatsApp JID (@s.whatsapp.net, @g.us, @newsletter) anywhere with or without comma
+    const jidRegex = /\b([0-9a-zA-Z._-]+@(s\.whatsapp\.net|g\.us|newsletter))\b/i;
+    const jidMatch = raw.match(jidRegex);
+    if (jidMatch) {
+        targetJid = jidMatch[1];
+        query = raw.replace(jidMatch[0], ' ')
+                   .replace(/[,|]/g, ' ')
+                   .replace(/\s+/g, ' ')
+                   .trim();
+        return { query, targetJid };
+    }
+
+    // 2. Sri Lankan phone number at the end (with space or comma)
+    const endPhoneMatch = raw.match(/(?:,|\s+|\|)+(\+?94\s?7[0-9]{8}|07[0-9]{8}|94\s?7[0-9]{8})$/i);
+    if (endPhoneMatch) {
+        let extracted = endPhoneMatch[1].replace(/[^0-9]/g, '');
+        if (extracted.startsWith('0') && extracted.length === 10) {
+            extracted = '94' + extracted.slice(1);
+        }
+        if (extracted.length === 11 && extracted.startsWith('94')) {
+            targetJid = extracted + '@s.whatsapp.net';
+            const matchIndex = raw.lastIndexOf(endPhoneMatch[0]);
+            if (matchIndex !== -1) query = raw.substring(0, matchIndex).trim();
+            query = query.replace(/[,|]$/, '').trim();
+            return { query, targetJid };
         }
     }
-    if (!targetJid && raw.includes(',')) {
+
+    // 3. Sri Lankan phone number at the start (with space or comma)
+    const startPhoneMatch = raw.match(/^(\+?94\s?7[0-9]{8}|07[0-9]{8}|94\s?7[0-9]{8})(?:,|\s+|\|)+/i);
+    if (startPhoneMatch) {
+        let extracted = startPhoneMatch[1].replace(/[^0-9]/g, '');
+        if (extracted.startsWith('0') && extracted.length === 10) {
+            extracted = '94' + extracted.slice(1);
+        }
+        if (extracted.length === 11 && extracted.startsWith('94')) {
+            targetJid = extracted + '@s.whatsapp.net';
+            query = raw.substring(startPhoneMatch[0].length).trim();
+            query = query.replace(/^[,|]/, '').trim();
+            return { query, targetJid };
+        }
+    }
+
+    // 4. Comma separated target (e.g. "avatar, 0771234567")
+    if (raw.includes(',')) {
         let parts = raw.split(',');
         let lastPart = parts.pop().trim();
         let num = lastPart.replace(/[^0-9]/g, '');
-        if (num.length >= 10 && num.length <= 15) {
+        if (num.length >= 9 && num.length <= 15) {
+            if (num.startsWith('0') && num.length === 10) num = '94' + num.slice(1);
             targetJid = num + '@s.whatsapp.net';
             query = parts.join(',').trim();
         } else if (num.length > 15) {
@@ -44,242 +102,871 @@ function parseCineSend(fullText) {
             query = parts.join(',').trim();
         }
     }
+
+    // 5. Space separated raw 10-15 digit number at the end (e.g. "avatar 0771234567")
+    if (!targetJid) {
+        const tokens = raw.split(/\s+/);
+        if (tokens.length >= 2) {
+            const lastToken = tokens[tokens.length - 1].replace(/[^0-9]/g, '');
+            if ((lastToken.length === 10 && lastToken.startsWith('07')) ||
+                (lastToken.length === 11 && lastToken.startsWith('947')) ||
+                (lastToken.length >= 10 && lastToken.length <= 15 && !isNaN(tokens[tokens.length - 1]))) {
+                let num = lastToken;
+                if (num.startsWith('0') && num.length === 10) num = '94' + num.slice(1);
+                targetJid = num + '@s.whatsapp.net';
+                tokens.pop();
+                query = tokens.join(' ').trim();
+            } else if (tokens[0].replace(/[^0-9]/g, '').length === 10 && tokens[0].startsWith('07')) {
+                let num = tokens[0].replace(/[^0-9]/g, '');
+                num = '94' + num.slice(1);
+                targetJid = num + '@s.whatsapp.net';
+                tokens.shift();
+                query = tokens.join(' ').trim();
+            }
+        }
+    }
+
+    query = query.replace(/^[,|\s]+|[,|\s]+$/g, '').trim();
     return { query, targetJid };
+}
+
+function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return 'Unknown Size';
+    const mb = bytes / (1024 * 1024);
+    if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+    return `${mb.toFixed(1)} MB`;
+}
+
+function cleanTitle(str) {
+    if (!str) return 'Untitled';
+    return str
+        .replace(/Sinhala Subtitles\s*\|\s*සිංහල උපසිරැසි සමඟ/gi, '')
+        .replace(/\|\s*සිංහල උපසිරැසි සමඟ/gi, '')
+        .replace(/\|.*$/i, '')
+        .trim();
+}
+
+const KNOWN_SERVERS = ["07", "06", "45", "03", "02", "01"];
+
+// Direct resolution from zt-links to supercloud1 CDN high-speed stream
+async function resolveDirectVideo(ztUrl) {
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+    const res = await fetch(ztUrl, {
+        headers: { 'User-Agent': UA, 'Referer': 'https://cinesubz.net/' }
+    });
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    const linkHref = $('#link').attr('href') || $('a#link').attr('href') || $('a[href*="server"]').attr('href');
+    if (!linkHref) {
+        throw new Error("zt-links පිටුවෙන් Download Redirect Link එක සොයා ගැනීමට නොහැකි විය.");
+    }
+
+    const m = linkHref.match(new RegExp('server(\\d+)/.*?([^/]+\\.(?:mp4|mkv))', 'i'));
+    if (!m) {
+        if (linkHref.startsWith('http') && !linkHref.includes('google.com')) {
+            return { url: linkHref, size: 0, server: 'direct', filename: path.basename(linkHref) };
+        }
+        throw new Error("Direct Download Link එක parse කරගත නොහැකි විය: " + linkHref);
+    }
+
+    const serverRaw = m[1];
+    const rawFilename = decodeURIComponent(m[2]);
+    const encodedFilename = encodeURIComponent(rawFilename);
+    let primaryServer = serverRaw.padStart(2, '0');
+    if (serverRaw === "4") primaryServer = "45";
+
+    const serversToTry = [primaryServer, ...KNOWN_SERVERS.filter(s => s !== primaryServer)];
+
+    for (const s of serversToTry) {
+        const candidateUrl = `https://cs${s}.supercloud1.xyz/${encodedFilename}?play=true`;
+        try {
+            const head = await fetch(candidateUrl, {
+                method: 'HEAD',
+                headers: { 'User-Agent': UA, 'Referer': 'https://cinesubz.net/' }
+            });
+            if (head.status === 200) {
+                const ct = head.headers.get('content-type') || '';
+                const cl = head.headers.get('content-length') || '0';
+                if (ct.includes('video') || parseInt(cl, 10) > 1000000) {
+                    return {
+                        url: candidateUrl,
+                        size: parseInt(cl, 10),
+                        server: s,
+                        filename: rawFilename
+                    };
+                }
+            }
+        } catch (_) {}
+    }
+
+    throw new Error("Direct SuperCloud CDN Servers වෙතින් Video Stream එක සොයා ගැනීමට නොහැකි විය.");
+}
+
+// Scrape search directly from cinesubz.net
+async function scrapeSearchDirect(query) {
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+    const res = await axios.get(`https://cinesubz.net/?s=${encodeURIComponent(query)}`, {
+        headers: {
+            'User-Agent': UA,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        },
+        timeout: 25000
+    });
+    const $ = cheerio.load(res.data);
+    const results = [];
+    const seen = new Set();
+
+    $('.item-box').each((i, el) => {
+        const a = $(el).find('a').first();
+        const href = a.attr('href');
+        if (!href || seen.has(href)) return;
+        if (!href.includes('/movies/') && !href.includes('/tvshows/')) return;
+        seen.add(href);
+
+        let title = a.attr('title') || $(el).find('.title, h2, h3').text().trim() || '';
+        title = cleanTitle(title);
+
+        let img = $(el).find('img').attr('data-original') || 
+                  $(el).find('img').attr('data-src') || 
+                  $(el).find('img').attr('src') || '';
+        if (img && img.startsWith('//')) img = 'https:' + img;
+
+        const isTV = href.includes('/tvshows/') || (a.attr('data-ptype') === 'tvshows');
+        const imdb = $(el).find('.imdb, .imdb-score, .rating').text().trim() || 'N/A';
+
+        let year = 'N/A';
+        const yearMatch = title.match(/\b(19\d\d|20\d\d)\b/);
+        if (yearMatch) year = yearMatch[1];
+
+        results.push({
+            title,
+            url: href,
+            img,
+            year,
+            imdb,
+            isTV
+        });
+    });
+
+    return results;
+}
+
+// Scrape detail page (Movie download qualities or TV episodes)
+async function scrapeDetailPage(pageUrl) {
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+    const res = await axios.get(pageUrl, {
+        headers: { 'User-Agent': UA, 'Referer': 'https://cinesubz.net/' },
+        timeout: 25000
+    });
+    const $ = cheerio.load(res.data);
+
+    let title = $('meta[property="og:title"]').attr('content') || $('title').text() || '';
+    title = cleanTitle(title)
+        .replace(/Direct & Telegram Download Links/gi, '')
+        .replace(/CineSubz.*$/gi, '')
+        .trim();
+
+    let poster = $('meta[property="og:image"]').attr('content') || 
+                 $('img[class*="poster"]').attr('src') || 
+                 $('.sheader .poster img').attr('src') || '';
+    if (poster && poster.startsWith('//')) poster = 'https:' + poster;
+
+    let synopsis = '';
+    $('.entry-content p, .wp-content p, .sinopse p, .desc p').each((_, p) => {
+        if (!synopsis) {
+            const t = $(p).text().trim();
+            if (t.length > 40 && !t.includes('Direct & Telegram') && !t.includes('CineSubz')) {
+                synopsis = t;
+            }
+        }
+    });
+
+    // Check if TV series
+    const epLinks = [];
+    $('a[href*="/episodes/"]').each((i, el) => {
+        const href = $(el).attr('href');
+        if (href && !epLinks.some(e => e.href === href)) {
+            let epText = $(el).text().trim().replace(/\s+/g, ' ');
+            let numMatch = href.match(/(\d+)x(\d+)/i) || epText.match(/(\d+)\s+([A-Za-z0-9\s]+)/);
+            let epLabel = epText || `Episode ${i + 1}`;
+            if (numMatch && numMatch[1] && numMatch[2]) {
+                epLabel = `S${numMatch[1].padStart(2, '0')} E${numMatch[2].padStart(2, '0')} - ${epText.split(/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/)[0].trim()}`;
+            }
+            epLinks.push({
+                title: epLabel.trim(),
+                href: href
+            });
+        }
+    });
+
+    const isTV = epLinks.length > 0;
+
+    // Scrape quality download buttons
+    const downloadQualities = [];
+    $('.movie-download-button, a[href*="zt-links"], a[href*="/api-"]').each((i, el) => {
+        const href = $(el).attr('href');
+        if (!href) return;
+        const text = $(el).text().trim().replace(/\s+/g, ' ');
+
+        let quality = 'HD';
+        const qMatch = text.match(/(480p|720p|1080p|2160p|4k)/i);
+        if (qMatch) quality = qMatch[1].toUpperCase();
+
+        let size = 'Unknown';
+        const sMatch = text.match(/([0-9]+(?:\.[0-9]+)?\s*(?:MB|GB))/i);
+        if (sMatch) size = sMatch[1].toUpperCase();
+
+        let type = '';
+        const tMatch = text.match(/(BluRay|WEBRip|WEB-DL|HDTC|HDRip)/i);
+        if (tMatch) type = tMatch[1];
+
+        let label = `🎥 ${quality} (${size})`;
+        if (type) label = `🎥 ${quality} [${type}] (${size})`;
+
+        downloadQualities.push({
+            label,
+            quality,
+            size,
+            type,
+            ztUrl: href
+        });
+    });
+
+    return {
+        title,
+        poster,
+        synopsis,
+        isTV,
+        episodes: epLinks,
+        downloadQualities
+    };
 }
 
 module.exports = {
     name: "cinesubz-downloader",
-    category: 0,
-    description: "Search and download Sinhala Subbed movies from Cinesubz (Inbox/Groups)",
-    commands: ["cz", "cinesubz", "cinesend", "cs_sel", "cs_dl"],
+    category: 10,
+    description: "Search and download Sinhala Subbed movies/shows directly from Cinesubz (Pure Native Direct Scraper)",
+    commands: [
+        "cinesubz", "cz", "cinesend",
+        "cinesubz3", "cz3", "cinesend3",
+        "cz_sel", "cz3_sel",
+        "cz_ep", "cz3_ep",
+        "cz_dl", "cz3_dl",
+        "cz_all", "cz3_all"
+    ],
 
     handler: async ({ socket, msg, sender, command, args, reply }) => {
         const botName = "👑 SADEW-MINI 👑";
-        const CZ_API = "https://cz-dnuz.vercel.app";
-        
-        // 🔥 META AI FAKE QUOTE (SHONUX) 🔥
+
+        // Meta AI Quote
         const metaName = "Meta AI";
-        const shonux = {
-            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_FAKE_ID_TS" },
+        const metaQuote = {
+            key: { remoteJid: "status@broadcast", participant: "0@s.whatsapp.net", fromMe: false, id: "META_AI_CZ" },
             message: { contactMessage: { displayName: metaName, vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${metaName};;;;\nFN:${metaName}\nORG:Meta Platforms\nTEL;type=CELL;type=VOICE;waid=13135550002:+1 313 555 0002\nEND:VCARD` } }
         };
 
-        if (command === "cz" || command === "cinesubz" || command === "cinesend") {
+        // ════════════════════════════════════════════════════════
+        // 1. SEARCH COMMANDS (.cinesubz, .cz, .cinesend)
+        // ════════════════════════════════════════════════════════
+        if (command === "cinesubz" || command === "cz" || command === "cinesend" || 
+            command === "cinesubz3" || command === "cz3" || command === "cinesend3") {
             const fullText = args.join(" ").trim();
-            if (!fullText) return reply("🎬 *කරුණාකර Movie එකේ නම ලබා දෙන්න!*\n_උදා: .cz batman_");
-            const parsed = parseCineSend(fullText);
-            const query = parsed.query;
-            const targetJid = parsed.targetJid;
+            if (!fullText) {
+                return reply(
+                    `🎬 *කරුණාකර Movie හෝ Series එකේ නම ලබා දෙන්න!*\n\n` +
+                    `📌 *භාවිතය (Usage):*\n` +
+                    `• *.cinesubz avatar* - Avatar search කිරීමට\n` +
+                    `• *.cinesubz avatar 0771234567* - වෙනත් අංකයකට යැවීමට (කොමා නැතුව)\n` +
+                    `• *.cinesubz avatar 120363xxx@g.us* - Group එකකට යැවීමට\n` +
+                    `• *.cinesend avatar 0771234567* - සෘජුවම Send කිරීමට`
+                );
+            }
 
-            if (command === "cinesend" && !targetJid) return reply("❌ *කරුණාකර කොමාවකින් (,) වෙන් කර නිවැරදි Group JID එකක් හෝ Phone Number එකක් ලබාදෙන්න!*\n_උදා: .cinesend Harry Potter , 0771234567_");
-            if (!query) return reply("🎬 *කරුණාකර Movie එකේ නම ලබා දෙන්න!*");
+            let { query, targetJid } = parseTarget(fullText);
+
+            // If user only passed targetJid, check if replying to a movie/series message
+            if (!query && targetJid) {
+                const quotedMsg = msg.quoted || msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                if (quotedMsg) {
+                    const quotedText = quotedMsg.conversation || 
+                                       quotedMsg.extendedTextMessage?.text || 
+                                       quotedMsg.imageMessage?.caption || 
+                                       quotedMsg.videoMessage?.caption || 
+                                       '';
+                    const mTitle = quotedText.match(/(?:Title|Series|Movie|චිත්‍රපටය|නම):\s*([^\n\r]+)/i);
+                    if (mTitle) query = cleanTitle(mTitle[1]);
+                }
+            }
+
+            if ((command === "cinesend" || command === "cinesend3") && !targetJid) {
+                return reply("❌ *කරුණාකර අංකයක් හෝ Group JID එකක් ලබාදෙන්න!*\n_උදා: .cinesend avatar 0771234567_\n_හෝ: .cinesend avatar 120363xxx@g.us_");
+            }
+            if (!query) return reply("🎬 *කරුණාකර Movie හෝ Series එකේ නම ලබා දෙන්න!*");
 
             try {
                 await socket.sendMessage(sender, { react: { text: "🔍", key: msg.key } });
-                const res = await axios.get(`${CZ_API}/search?q=${encodeURIComponent(query)}`, { timeout: 20000 });
-                const data = res.data;
 
-                if (!data.success || !data.result || data.result.length === 0) {
+                const results = await scrapeSearchDirect(query);
+                if (!results || results.length === 0) {
                     await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                    return reply("❌ *සමාවෙන්න, Movies කිසිවක් හමුවූයේ නැත.*");
+                    return reply(`❌ *"${query}" සඳහා කිසිදු ප්‍රතිඵලයක් Cinesubz වෙතින් හමු නොවීය.*`);
                 }
 
-                const topResults = data.result.slice(0, 10);
-                let listText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝘀𝘂𝗯𝘇 𝗦𝗲𝗮𝗿𝗰𝗵 🎬] ¡! ❞*\n\n🔍 *සෙව්වේ:* ${query}\n📊 *Results:* ${topResults.length}\n`;
-                if (targetJid) listText += `🎯 *Target Send To:* \`${targetJid}\`\n\n`; else listText += `\n`;
+                // Show top 15 results with 15 buttons
+                const topResults = results.slice(0, 15);
+                let listText = `*↳ ❝ [🎬 𝗖𝗜𝗡𝗘𝗦𝗨𝗕𝗭 𝗦𝗘𝗔𝗥𝗖𝗛 🎬] ¡! ❞*\n\n`;
+                listText += `🔍 *Search:* ${query}\n`;
+                listText += `📊 *Results:* ${topResults.length} / ${results.length}\n`;
+                if (targetJid) listText += `🎯 *Send To:* \`${targetJid}\`\n`;
+                listText += `⚡ *Mode:* 100% Pure Native Direct Scraper\n\n`;
 
                 const buttons = [];
-                topResults.forEach((mv, i) => {
-                    listText += `*${i + 1}.* ${mv.title}\n   ⭐ ${mv.imdb || 'N/A'} | 📅 ${mv.date || 'N/A'} | ⏱ ${mv.runtime || 'N/A'}\n\n`;
-                    const id = storeData({ url: mv.url, title: mv.title, img: mv.img, date: mv.date, genres: mv.genres, imdb: mv.imdb, runtime: mv.runtime, id: mv.id, targetJid: targetJid });
-                    buttons.push({ buttonId: `.cs_sel ${id}`, buttonText: { displayText: `🎬 ${i + 1}. ${(mv.title || '').slice(0, 20)}` }, type: 1 });
+                topResults.forEach((item, index) => {
+                    const tag = item.isTV ? '📺 [TV Series]' : '🎬 [Movie]';
+                    listText += `*${index + 1}.* ${item.title}\n`;
+                    listText += `   ↳ 🏷️ ${tag} | ⭐ IMDb: ${item.imdb} | 📅 ${item.year}\n\n`;
+
+                    const storeId = storeData({
+                        url: item.url,
+                        title: item.title,
+                        isTV: item.isTV,
+                        img: item.img,
+                        targetJid: targetJid
+                    });
+
+                    let btnText = `${index + 1}. ${item.title}`;
+                    if (btnText.length > 20) btnText = btnText.slice(0, 18) + '..';
+
+                    buttons.push({
+                        buttonId: `.cz_sel ${storeId}`,
+                        buttonText: { displayText: `🎬 ${btnText}` },
+                        type: 1
+                    });
                 });
 
-                listText += `> *📩 පහලින් Movie එක තෝරන්න*\n> *𝗦𝗮𝗱𝗲𝘄-𝗠𝗶𝗻𝗶 𝗕𝘆 𝗦𝗮𝗱𝗲𝘄 𝗥𝗮𝘀𝗵𝗺𝗶𝗸𝗮 𝜗𝜚⋆*`;
+                listText += `───────────────────\n`;
+                listText += `> *📩 පහල Button එකකින් ඔබට අවශ්‍ය චිත්‍රපටය තෝරන්න.*\n`;
+                listText += `> *👑 SADEW-MINI BOT V3 👑*`;
 
-                // 🔥 RANDOM SEARCH BACKGROUND PHOTOS 🔥
-                const searchBgs = [
-                    "https://res.cloudinary.com/p6lu5bpe/image/upload/v1790344904/ChatGPT_Image_Sep_25_2026_07_28_02_PM_tk3oxd.png",
-                    "https://res.cloudinary.com/p6lu5bpe/image/upload/v1790345148/ChatGPT_Image_Sep_25_2026_07_32_04_PM_grtzqp.png",
-                    "https://res.cloudinary.com/p6lu5bpe/image/upload/v1790345308/ChatGPT_Image_Sep_25_2026_07_36_29_PM_t4htf2.png"
-                ];
-                const randomBg = searchBgs[Math.floor(Math.random() * searchBgs.length)];
+                const firstPoster = topResults[0]?.img || null;
+                const msgPayload = {
+                    footer: botName,
+                    buttons: buttons,
+                    headerType: firstPoster ? 4 : 1
+                };
 
-                await socket.sendMessage(sender, { 
-                    image: { url: randomBg },
-                    caption: listText, 
-                    footer: botName, 
-                    buttons: buttons, 
-                    headerType: 4 // Image header
-                }, { quoted: shonux });
-                
-                await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
-            } catch (e) {
-                await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                reply("❌ *සෙවීමේදී දෝෂයක් ඇතිවිය.*");
-            }
-        }
-
-        else if (command === "cs_sel") {
-            const id = args[0];
-            const movie = global.czStore[id];
-            if (!movie) return reply("❌ *Link expired. නැවත .cinesend search කරන්න.*");
-
-            try {
-                await socket.sendMessage(sender, { react: { text: "⏳", key: msg.key } });
-                await reply(`📥 *${movie.title}* සඳහා Download Links සකසමින්...`);
-
-                let downloads = [];
-                try {
-                    const movidlUrl = `${CZ_API}/movidl?url=${encodeURIComponent(movie.url)}`;
-                    const dlRes = await axios.get(movidlUrl, { timeout: 25000 });
-                    downloads = dlRes.data.result?.downloads || [];
-                } catch (dlErr) { console.log("[CZ] /movidl Error:", dlErr.message); }
-
-                if (!downloads || downloads.length === 0) {
-                    delete global.czStore[id];
-                    return reply("❌ *මෙම චිත්‍රපටය සඳහා Download Links හමු නොවිණි.*");
-                }
-
-                const buttons = [];
-                let capText = `*↳ ❝ [🎬 𝗦𝗮𝗱𝗲𝘄 𝗖𝗶𝗻𝗲𝗠𝗮𝘅 🎬] ¡! ❞*\n\n🎬 *Title:* ${movie.title}\n📅 *Year:* ${movie.date || 'N/A'}\n🎭 *Genres:* ${movie.genres || 'N/A'}\n⭐ *IMDB:* ${movie.imdb || 'N/A'}\n⏱ *Runtime:* ${movie.runtime || 'N/A'}\n`;
-                if (movie.targetJid) capText += `🎯 *Send Target:* \`${movie.targetJid}\`\n`;
-                capText += `\n> *ඔබට අවශ්‍ය Quality එක පහලින් තෝරන්න* ⬇️`;
-
-                downloads.forEach((dl) => {
-                    const resolvedUrl = dl.resolvedUrl || dl.url || '';
-                    if (!resolvedUrl) return;
-
-                    let label = dl.meta || dl.quality || 'HD';
-                    label = label.replace('WEBRip', '').replace('English', '').replace('•', '-').trim();
-                    if (label.length > 17) label = label.substring(0, 17).trim(); 
-
-                    const dlId = storeData({ title: movie.title, quality: label, url: resolvedUrl, targetJid: movie.targetJid, img: movie.img, date: movie.date, genres: movie.genres, imdb: movie.imdb, runtime: movie.runtime });
-                    buttons.push({ buttonId: `.cs_dl ${dlId}`, buttonText: { displayText: `🎥 ${label}` }, type: 1 });
-                });
-
-                const msgOpts = { footer: botName, buttons: buttons, headerType: movie.img ? 4 : 1 };
-                if (movie.img) {
-                    msgOpts.image = { url: movie.img };
-                    msgOpts.caption = capText;
+                if (firstPoster) {
+                    msgPayload.image = { url: firstPoster };
+                    msgPayload.caption = listText;
                 } else {
-                    msgOpts.text = capText;
+                    msgPayload.text = listText;
                 }
-                
-                await socket.sendMessage(sender, msgOpts, { quoted: shonux });
-                await socket.sendMessage(sender, { react: { text: "🎬", key: msg.key } });
-                delete global.czStore[id];
 
-            } catch (e) {
-                reply("❌ *Movie details ලබා ගැනීමේදී දෝෂයක්.*");
+                await socket.sendMessage(sender, msgPayload, { quoted: metaQuote });
+                await socket.sendMessage(sender, { react: { text: "🎬", key: msg.key } });
+
+            } catch (err) {
+                console.error("[CineSubz Search Error]:", err);
+                await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
+                reply(`❌ *Search කිරීමේදී දෝෂයක් ඇතිවිය:* ${err.message}`);
             }
         }
 
-        else if (command === "cs_dl") {
-            const id = args[0];
-            const dl = global.czStore[id];
-            if (!dl) return reply("❌ *Link expired. නැවත search කරන්න.*");
-
-            const destJid = dl.targetJid || sender;
+        // ════════════════════════════════════════════════════════
+        // 2. SELECTION COMMAND (.cz_sel <storeId>, .cz3_sel)
+        // ════════════════════════════════════════════════════════
+        else if (command === "cz_sel" || command === "cz3_sel") {
+            const storeId = args[0];
+            const cached = global.czStore[storeId];
+            if (!cached) {
+                return reply("❌ *Session expired. කරුණාකර නැවත search කරන්න.*");
+            }
 
             try {
-                await socket.sendMessage(sender, { react: { text: "⬇️", key: msg.key } });
-                if (dl.targetJid) await reply(`🚀 *[CineSend]* \`${dl.title}\` (${dl.quality}) ඩවුන්ලෝඩ් කර \`${dl.targetJid}\` වෙත යවමින් පවතී...`);
-                else await reply(`📥 *Downloading ${dl.title} (${dl.quality})...*\n_Link සකසමින්..._`);
+                await socket.sendMessage(sender, { react: { text: "🔍", key: msg.key } });
 
-                const captionBase = `🎬 *Movie Name:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📅 *Release Year:* ${dl.date || 'N/A'}`;
-                const targetCardText = `*↳ ❝ [🎬 𝗡𝗘𝗪 𝗠𝗢𝗩𝗜𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎬] ¡! ❞*\n\n🎬 *Title:* ${dl.title}\n📽 *Quality:* ${dl.quality}\n📅 *Year:* ${dl.date || 'N/A'}\n🎭 *Genres:* ${dl.genres || 'N/A'}\n⭐ *IMDb:* ${dl.imdb || 'N/A'}\n⏱ *Runtime:* ${dl.runtime || 'N/A'}\n\n🍿 *චිත්‍රපටය පහතින් ලබාගන්න.* \n\n> 👑 *SADEW-MINI* 👑`;
-                const fileName = `${(dl.title || 'Movie').substring(0, 30).replace(/[^a-zA-Z0-9 ]/g, '').trim()} - ${dl.quality}.mp4`;
-                
-                let finalVidUrl = dl.url.trim();
-                let apiBypassWorked = false;
+                const details = await scrapeDetailPage(cached.url);
+                const title = details.title || cached.title;
+                const poster = details.poster || cached.img;
 
-                if (finalVidUrl.includes('drive.csplayer') || finalVidUrl.includes('server')) {
-                    const tryDownloadUrl = async (urlToTry) => {
-                        try {
-                            const dlApiUrl = `${CZ_API}/download?url=${encodeURIComponent(urlToTry)}`;
-                            const dlRes = await axios.get(dlApiUrl, { timeout: 20000 });
-                            if (dlRes.data?.success && dlRes.data?.result?.downloadUrls) {
-                                const httpUrl = dlRes.data.result.downloadUrls.find(u => 
-                                    u.url && u.url.startsWith('http') && 
-                                    !u.url.includes('t.me') && 
-                                    !u.url.includes('telegram.me') && 
-                                    !u.url.includes('telegram.dog')
-                                );
-                                if (httpUrl) return httpUrl.url;
-                            }
-                        } catch (e) { return null; }
-                        return null;
+                // A. IF TV SERIES -> SHOW 3 DOWNLOAD ALL BUTTONS (480p, 720p, 1080p) + ALL EPISODES
+                if (details.isTV && details.episodes.length > 0) {
+                    let epText = `*↳ ❝ [📺 𝗖𝗜𝗡𝗘𝗦𝗨𝗕𝗭 𝗧𝗩 𝗦𝗘𝗥𝗜𝗘𝗦 📺] ¡! ❞*\n\n`;
+                    epText += `🎬 *Title:* ${title}\n`;
+                    epText += `📁 *Total Episodes:* ${details.episodes.length}\n`;
+                    if (cached.targetJid) epText += `🎯 *Send To:* \`${cached.targetJid}\`\n`;
+                    if (details.synopsis) epText += `\n📝 *Story:* _${details.synopsis}_\n`;
+                    epText += `\n> *👇 Download All Quality එකක් හෝ අවශ්‍ය Episode එක තෝරන්න:* ⬇️`;
+
+                    const buttons = [];
+
+                    // 1️⃣ TOP 3 BUTTONS: DOWNLOAD ALL (480p, 720p, 1080p)
+                    const allStoreId = storeData({
+                        title: title,
+                        poster: poster,
+                        synopsis: details.synopsis,
+                        episodes: details.episodes,
+                        targetJid: cached.targetJid
+                    });
+
+                    buttons.push({
+                        buttonId: `.cz_all ${allStoreId} 480p`,
+                        buttonText: { displayText: `📥 All 480p` },
+                        type: 1
+                    });
+                    buttons.push({
+                        buttonId: `.cz_all ${allStoreId} 720p`,
+                        buttonText: { displayText: `📥 All 720p` },
+                        type: 1
+                    });
+                    buttons.push({
+                        buttonId: `.cz_all ${allStoreId} 1080p`,
+                        buttonText: { displayText: `📥 All 1080p` },
+                        type: 1
+                    });
+
+                    // 2️⃣ ALL INDIVIDUAL EPISODES (NO BUTTON LIMIT)
+                    details.episodes.forEach((ep, i) => {
+                        const epStoreId = storeData({
+                            title: `${title} - ${ep.title}`,
+                            epUrl: ep.href,
+                            poster: poster,
+                            synopsis: details.synopsis,
+                            targetJid: cached.targetJid
+                        });
+
+                        let epBtnLabel = ep.title;
+                        if (epBtnLabel.length > 20) epBtnLabel = epBtnLabel.slice(0, 18) + '..';
+
+                        buttons.push({
+                            buttonId: `.cz_ep ${epStoreId}`,
+                            buttonText: { displayText: `▶️ ${epBtnLabel}` },
+                            type: 1
+                        });
+                    });
+
+                    const payload = {
+                        footer: botName,
+                        buttons: buttons,
+                        headerType: poster ? 4 : 1
                     };
+                    if (poster) {
+                        payload.image = { url: poster };
+                        payload.caption = epText;
+                    } else {
+                        payload.text = epText;
+                    }
 
-                    let resolvedStreamUrl = await tryDownloadUrl(finalVidUrl);
+                    await socket.sendMessage(sender, payload, { quoted: metaQuote });
+                    await socket.sendMessage(sender, { react: { text: "📺", key: msg.key } });
+                    return;
+                }
 
-                    if (!resolvedStreamUrl && finalVidUrl.includes('/server')) {
-                        console.log("[CZ] Original server failed. Trying alternate servers 1-20...");
-                        const altServers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20'];
-                        for (let s of altServers) {
-                            const altUrl = finalVidUrl.replace(/\/server\d+\//, `/server${s}/`);
-                            if (altUrl === finalVidUrl) continue; 
-                            resolvedStreamUrl = await tryDownloadUrl(altUrl);
-                            if (resolvedStreamUrl) {
-                                console.log(`[CZ] Successfully bypassed using server${s} !`);
-                                break;
+                // B. IF MOVIE -> SHOW QUALITY BUTTONS (480p, 720p, 1080p)
+                if (!details.downloadQualities || details.downloadQualities.length === 0) {
+                    await socket.sendMessage(sender, { react: { text: "⚠️", key: msg.key } });
+                    return reply(`⚠️ *මෙම චිත්‍රපටය සඳහා සෘජු Download Links හමු නොවිණි.*`);
+                }
+
+                let cardText = `*↳ ❝ [🎬 𝗖𝗜𝗡𝗘𝗦𝗨𝗕𝗭 𝗠𝗢𝗩𝗜𝗘 🎬] ¡! ❞*\n\n`;
+                cardText += `🎬 *Title:* ${title}\n`;
+                cardText += `🎞️ *Available Qualities:* ${details.downloadQualities.map(q => q.quality).join(', ')}\n`;
+                if (cached.targetJid) cardText += `🎯 *Send To:* \`${cached.targetJid}\`\n`;
+                if (details.synopsis) cardText += `\n📝 *Story:* _${details.synopsis}_\n`;
+                cardText += `\n> *👇 බාගත කිරීමට අවශ්‍ය Quality එක පහලින් තෝරන්න:* ⬇️`;
+
+                const buttons = [];
+                details.downloadQualities.forEach((dl) => {
+                    const dlId = storeData({
+                        title: title,
+                        quality: dl.quality,
+                        size: dl.size,
+                        type: dl.type,
+                        ztUrl: dl.ztUrl,
+                        poster: poster,
+                        synopsis: details.synopsis,
+                        targetJid: cached.targetJid
+                    });
+
+                    buttons.push({
+                        buttonId: `.cz_dl ${dlId}`,
+                        buttonText: { displayText: `${dl.label.slice(0, 20)}` },
+                        type: 1
+                    });
+                });
+
+                const payload = {
+                    footer: botName,
+                    buttons: buttons,
+                    headerType: poster ? 4 : 1
+                };
+                if (poster) {
+                    payload.image = { url: poster };
+                    payload.caption = cardText;
+                } else {
+                    payload.text = cardText;
+                }
+
+                await socket.sendMessage(sender, payload, { quoted: metaQuote });
+                await socket.sendMessage(sender, { react: { text: "🎬", key: msg.key } });
+
+            } catch (err) {
+                console.error("[CineSubz Details Error]:", err);
+                await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
+                reply(`❌ *විස්තර ලබා ගැනීමේදී දෝෂයක් ඇතිවිය:* ${err.message}`);
+            }
+        }
+
+        // ════════════════════════════════════════════════════════
+        // 3. EPISODE QUALITY SELECTION (.cz_ep <epStoreId>, .cz3_ep)
+        // ════════════════════════════════════════════════════════
+        else if (command === "cz_ep" || command === "cz3_ep") {
+            const epStoreId = args[0];
+            const cachedEp = global.czStore[epStoreId];
+            if (!cachedEp) {
+                return reply("❌ *Session expired. කරුණාකර නැවත search කරන්න.*");
+            }
+
+            try {
+                await socket.sendMessage(sender, { react: { text: "🔍", key: msg.key } });
+
+                const details = await scrapeDetailPage(cachedEp.epUrl);
+                if (!details.downloadQualities || details.downloadQualities.length === 0) {
+                    await socket.sendMessage(sender, { react: { text: "⚠️", key: msg.key } });
+                    return reply(`⚠️ *මෙම Episode එක සඳහා සෘජු Download Links හමු නොවිණි.*`);
+                }
+
+                let epCard = `*↳ ❝ [📺 𝗘𝗣𝗜𝗦𝗢𝗗𝗘 𝗤𝗨𝗔𝗟𝗜𝗧𝗜𝗘𝗦 📺] ¡! ❞*\n\n`;
+                epCard += `🎬 *Episode:* ${cachedEp.title}\n`;
+                epCard += `🎞️ *Qualities:* ${details.downloadQualities.map(q => q.quality).join(', ')}\n`;
+                if (cachedEp.targetJid) epCard += `🎯 *Send To:* \`${cachedEp.targetJid}\`\n`;
+                if (cachedEp.synopsis) epCard += `\n📝 *Story:* _${cachedEp.synopsis}_\n`;
+                epCard += `\n> *👇 බාගත කිරීමට අවශ්‍ය Quality එක තෝරන්න:* ⬇️`;
+
+                const buttons = [];
+                details.downloadQualities.forEach((dl) => {
+                    const dlId = storeData({
+                        title: cachedEp.title,
+                        quality: dl.quality,
+                        size: dl.size,
+                        type: dl.type,
+                        ztUrl: dl.ztUrl,
+                        poster: cachedEp.poster,
+                        synopsis: cachedEp.synopsis,
+                        targetJid: cachedEp.targetJid
+                    });
+
+                    buttons.push({
+                        buttonId: `.cz_dl ${dlId}`,
+                        buttonText: { displayText: `${dl.label.slice(0, 20)}` },
+                        type: 1
+                    });
+                });
+
+                const payload = {
+                    footer: botName,
+                    buttons: buttons,
+                    headerType: cachedEp.poster ? 4 : 1
+                };
+                if (cachedEp.poster) {
+                    payload.image = { url: cachedEp.poster };
+                    payload.caption = epCard;
+                } else {
+                    payload.text = epCard;
+                }
+
+                await socket.sendMessage(sender, payload, { quoted: metaQuote });
+                await socket.sendMessage(sender, { react: { text: "📥", key: msg.key } });
+
+            } catch (err) {
+                console.error("[CineSubz Ep Details Error]:", err);
+                await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
+                reply(`❌ *Episode විස්තර ලබා ගැනීමේදී දෝෂයක් ඇතිවිය:* ${err.message}`);
+            }
+        }
+
+        // ════════════════════════════════════════════════════════
+        // 4. DOWNLOAD ALL EPISODES BY QUALITY (.cz_all, .cz3_all)
+        // ════════════════════════════════════════════════════════
+        else if (command === "cz_all" || command === "cz3_all") {
+            const allStoreId = args[0];
+            const targetQuality = (args[1] || '720p').toLowerCase(); // '480p' | '720p' | '1080p'
+            const cachedSeries = global.czStore[allStoreId];
+            if (!cachedSeries) {
+                return reply("❌ *Session expired. කරුණාකර නැවත search කරන්න.*");
+            }
+
+            const destJid = cachedSeries.targetJid || sender;
+            const lockKey = `${sender}_cz_all`;
+
+            if (global.czAllLocks && global.czAllLocks[lockKey]) {
+                return reply("⚠️ *දැනටමත් ඔබගේ Download All Process එකක් ක්‍රියාත්මක වෙමින් පවතී. කරුණාකර එය අවසන් වනතුරු රැඳී සිටින්න.*");
+            }
+            if (!global.czAllLocks) global.czAllLocks = {};
+            global.czAllLocks[lockKey] = true;
+
+            const tempDir = getTempDir();
+            const episodes = cachedSeries.episodes || [];
+
+            try {
+                // MANDATORY JID DETAILS CARD: Forward rich details card with poster first!
+                if (destJid !== sender) {
+                    let fwdCard = `*↳ ❝ [📺 𝗖𝗜𝗡𝗘𝗦𝗨𝗕𝗭 𝗧𝗩 𝗦𝗘𝗥𝗜𝗘𝗦 𝗦𝗛𝗔𝗥𝗘 📺] ¡! ❞*\n\n` +
+                        `🎬 *Series:* ${cachedSeries.title}\n` +
+                        `📁 *Total Episodes:* ${episodes.length}\n` +
+                        `🎞️ *Selected Quality:* ${targetQuality.toUpperCase()}\n` +
+                        `👤 *Requested By:* @${sender.split('@')[0]}\n`;
+                    if (cachedSeries.synopsis) {
+                        fwdCard += `\n📝 *Story:* _${cachedSeries.synopsis}_\n`;
+                    }
+                    fwdCard += `\n⚡ *Status:* Episodes එකින් එක එවනු ලැබේ...\n\n` +
+                        `> 👑 *𝗦𝗔𝗗𝗘𝗪-𝗠𝗜𝗡𝗜 𝗪𝗛𝗔𝗧𝗦𝗔𝗣𝗣 𝗕𝗢𝗧* 👑`;
+                    try {
+                        if (cachedSeries.poster) {
+                            await socket.sendMessage(destJid, { image: { url: cachedSeries.poster }, caption: fwdCard, mentions: [sender] }, { quoted: metaQuote });
+                        } else {
+                            await socket.sendMessage(destJid, { text: fwdCard, mentions: [sender] }, { quoted: metaQuote });
+                        }
+                    } catch (_) {}
+                }
+
+                await socket.sendMessage(sender, { react: { text: "📥", key: msg.key } });
+                await reply(`⏳ *"${cachedSeries.title}" Series හි Episodes ${episodes.length} ම (${targetQuality.toUpperCase()}) බාගත කිරීම ආරම්භ විය!*\n🎯 *Destination:* \`${destJid}\`\n\n_File ප්‍රමාණය අනුව ක්‍රියාවලිය සම්පූර්ණ වීමට සුළු වේලාවක් ගතවනු ඇත._`);
+
+                for (let i = 0; i < episodes.length; i++) {
+                    const ep = episodes[i];
+                    let tempFilePath = null;
+
+                    try {
+                        // 1. Scrape episode page to find download qualities
+                        const epDetails = await scrapeDetailPage(ep.href);
+                        if (!epDetails.downloadQualities || epDetails.downloadQualities.length === 0) {
+                            await socket.sendMessage(destJid, {
+                                text: `⚠️ *${ep.title} සඳහා Download Links හමු නොවීය.*\n⏭️ *ඊළඟ Episode එක වෙත මාරු වේ...*`
+                            }, { quoted: metaQuote });
+                            continue;
+                        }
+
+                        // 2. Find target quality, or fallback to closest available
+                        let chosenDl = epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes(targetQuality));
+                        if (!chosenDl) {
+                            chosenDl = epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('720p')) ||
+                                       epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('480p')) ||
+                                       epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('1080p')) ||
+                                       epDetails.downloadQualities[0];
+                        }
+
+                        // 3. Resolve direct supercloud CDN stream
+                        const streamInfo = await resolveDirectVideo(chosenDl.ztUrl);
+                        if (!streamInfo || !streamInfo.url) {
+                            throw new Error(`${ep.title} සඳහා SuperCloud Direct Link එකක් ලබාගත නොහැකි විය.`);
+                        }
+
+                        const maxBytes = 2 * 1024 * 1024 * 1024; // 2GB
+                        if (streamInfo.size > maxBytes) {
+                            const formattedOverSize = formatBytes(streamInfo.size);
+                            const overLimitMsg = `⚠️ *${ep.title} (${chosenDl.quality}) 2GB සීමාව ඉක්මවයි (${formattedOverSize})!*\n\n` +
+                                `WhatsApp හරහා 2GB ට වැඩි files එවිය නොහැකි බැවින් මෙම Episode එක සෘජුව බාගත කිරීමට පහත Direct Link එක භාවිතා කරන්න:\n\n` +
+                                `🔗 *Direct Download Link:*\n${streamInfo.url}\n\n` +
+                                `⏭️ *ඊළඟ Episode එක වෙත මාරු වේ...*`;
+
+                            await socket.sendMessage(destJid, { text: overLimitMsg }, { quoted: metaQuote });
+                            if (destJid !== sender) {
+                                await socket.sendMessage(sender, { text: overLimitMsg }, { quoted: metaQuote });
                             }
+                            continue;
+                        }
+
+                        // 4. Stream directly to disk
+                        const cleanEpTitle = `${cachedSeries.title} - ${ep.title}`.replace(/[\\/:*?"<>|]/g, '').slice(0, 50).trim();
+                        const randId = crypto.randomBytes(4).toString('hex');
+                        const fileExt = streamInfo.filename.endsWith('.mkv') ? '.mkv' : '.mp4';
+                        const outputFileName = `${cleanEpTitle} (${chosenDl.quality}) SADEW MINI${fileExt}`;
+                        tempFilePath = path.join(tempDir, `cz_all_${randId}${fileExt}`);
+
+                        const response = await axios({
+                            method: 'GET',
+                            url: streamInfo.url,
+                            responseType: 'stream',
+                            timeout: 60000,
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                            }
+                        });
+
+                        const writer = fs.createWriteStream(tempFilePath);
+                        await pipeline(response.data, writer);
+
+                        if (!fs.existsSync(tempFilePath) || fs.statSync(tempFilePath).size === 0) {
+                            throw new Error(`${ep.title} බාගත කිරීම අසාර්ථක විය (Empty File).`);
+                        }
+
+                        const actualSizeBytes = fs.statSync(tempFilePath).size;
+                        const formattedSize = formatBytes(actualSizeBytes);
+
+                        const epCaption = `*↳ ❝ [📺 𝗖𝗜𝗡𝗘𝗦𝗨𝗕𝗭 𝗘𝗣𝗜𝗦𝗢𝗗𝗘 📺] ¡! ❞*\n\n` +
+                            `🎬 *Series:* ${cachedSeries.title}\n` +
+                            `▶️ *Episode:* ${ep.title}\n` +
+                            `🎞️ *Quality:* ${chosenDl.quality}\n` +
+                            `📦 *Size:* ${formattedSize}\n` +
+                            `⚡ *Node:* Server ${streamInfo.server} (SuperCloud CDN)\n\n` +
+                            `> 👑 *𝗦𝗔𝗗𝗘𝗪-𝗠𝗜𝗡𝗜 𝗪𝗛𝗔𝗧𝗦𝗔𝗣𝗣 𝗕𝗢𝗧* 👑`;
+
+                        // Send WhatsApp Document Stream
+                        await socket.sendMessage(destJid, {
+                            document: { stream: fs.createReadStream(tempFilePath) },
+                            mimetype: fileExt === '.mp4' ? 'video/mp4' : 'video/x-matroska',
+                            fileName: outputFileName,
+                            caption: epCaption
+                        }, { quoted: metaQuote });
+
+                        if (fs.existsSync(tempFilePath)) {
+                            fs.unlinkSync(tempFilePath);
+                            tempFilePath = null;
+                        }
+
+                        // Delay 3 seconds between episodes
+                        await new Promise(r => setTimeout(r, 3000));
+
+                    } catch (epErr) {
+                        console.error(`[CineSubz Ep Error]:`, epErr);
+                        await socket.sendMessage(destJid, {
+                            text: `⚠️ *${ep.title} බාගත කිරීමේදී දෝෂයක් ඇතිවිය:* ${epErr.message}\n⏭️ *ඊළඟ Episode එක වෙත මාරු වේ...*`
+                        }, { quoted: metaQuote });
+                    } finally {
+                        if (tempFilePath && fs.existsSync(tempFilePath)) {
+                            try { fs.unlinkSync(tempFilePath); } catch (_) {}
                         }
                     }
-
-                    if (resolvedStreamUrl) {
-                        finalVidUrl = resolvedStreamUrl;
-                        apiBypassWorked = true;
-                    }
-
-                    if (!apiBypassWorked) {
-                        await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                        return reply("❌ *DanuZz API Error:* මෙම චිත්‍රපටයේ ලින්ක් එක සර්වර් 20ම පරීක්ෂා කිරීමෙන් පසුවත් Bypass කිරීමට අසමත් විය.");
-                    }
                 }
 
-                if (dl.targetJid) {
-                    try {
-                        if (dl.img) await socket.sendMessage(destJid, { image: { url: dl.img }, caption: targetCardText }, { quoted: shonux });
-                        else await socket.sendMessage(destJid, { text: targetCardText }, { quoted: shonux });
-                    } catch (cardErr) {}
-                }
+                await socket.sendMessage(sender, {
+                    text: `✅ *"${cachedSeries.title}" (${targetQuality.toUpperCase()}) සියලුම Episodes සාර්ථකව බාගත කර යවා අවසන් විය!*`
+                }, { quoted: metaQuote });
+                await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
 
-                // FULL STREAM DOWNLOAD
-                try {
-                    console.log("[CZ] Streaming from:", finalVidUrl);
-                    const streamRes = await axios({
-                        method: 'GET', url: finalVidUrl, responseType: 'stream', timeout: 1800000,
-                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }, maxRedirects: 10
-                    });
-                    
-                    const ct = streamRes.headers['content-type'] || '';
-                    if (ct.includes('text/html')) { 
-                        streamRes.data.destroy(); 
-                        throw new Error("HTML page received instead of video"); 
-                    }
-
-                    const cl = parseInt(streamRes.headers['content-length'] || '0');
-                    const size = cl ? (cl / 1024 / 1024).toFixed(1) + ' MB' : 'Unknown';
-                    const finalCap = `${captionBase}\n📦 *Size:* ${size}\n\n> 👑 *SADEW-MINI* 👑`;
-                    
-                    await socket.sendMessage(destJid, { document: { stream: streamRes.data }, mimetype: "video/mp4", fileName, caption: finalCap }, { quoted: shonux });
-                    await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
-
-                    try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (err) {}
-                    setTimeout(() => { try { if (global.gc) global.gc(); } catch (e) {} }, 5000);
-
-                } catch (e2) {
-                    await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                    await reply(`❌ *Download Failed!* Error: ${e2.message}`);
-                }
-                
-                delete global.czStore[id];
-
-            } catch (e) {
+            } catch (err) {
+                console.error("[CineSubz Download All Error]:", err);
                 await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
-                reply("❌ *Download Error!*");
+                reply(`❌ *Download All ක්‍රියාවලියේදී දෝෂයක් ඇතිවිය:* ${err.message}`);
+            } finally {
+                delete global.czAllLocks[lockKey];
+            }
+        }
+
+        // ════════════════════════════════════════════════════════
+        // 5. DIRECT SINGLE DOWNLOAD & SEND (.cz_dl, .cz3_dl)
+        // ════════════════════════════════════════════════════════
+        else if (command === "cz_dl" || command === "cz3_dl") {
+            const dlId = args[0];
+            const cachedDl = global.czStore[dlId];
+            if (!cachedDl) {
+                return reply("❌ *Download link expired. කරුණාකර නැවත search කරන්න.*");
+            }
+
+            const destJid = cachedDl.targetJid || sender;
+            const tempDir = getTempDir();
+            let tempFilePath = null;
+
+            try {
+                // MANDATORY JID DETAILS CARD: Forward card with poster first!
+                if (destJid !== sender) {
+                    let fwdCard = `*↳ ❝ [🎬 𝗖𝗜𝗡𝗘𝗦𝗨𝗕𝗭 𝗠𝗢𝗩𝗜𝗘 𝗦𝗛𝗔𝗥𝗘 🎬] ¡! ❞*\n\n` +
+                        `🎬 *Title:* ${cachedDl.title}\n` +
+                        `🎞️ *Quality:* ${cachedDl.quality}\n` +
+                        `📦 *Size:* ${cachedDl.size}\n` +
+                        `👤 *Requested By:* @${sender.split('@')[0]}\n`;
+                    if (cachedDl.synopsis) {
+                        fwdCard += `\n📝 *Story:* _${cachedDl.synopsis}_\n`;
+                    }
+                    fwdCard += `\n> 👑 *𝗦𝗔𝗗𝗘𝗪-𝗠𝗜𝗡𝗜 𝗪𝗛𝗔𝗧𝗦𝗔𝗣𝗣 𝗕𝗢𝗧* 👑`;
+                    try {
+                        if (cachedDl.poster) {
+                            await socket.sendMessage(destJid, { image: { url: cachedDl.poster }, caption: fwdCard, mentions: [sender] }, { quoted: metaQuote });
+                        } else {
+                            await socket.sendMessage(destJid, { text: fwdCard, mentions: [sender] }, { quoted: metaQuote });
+                        }
+                    } catch (_) {}
+                }
+
+                await socket.sendMessage(sender, { react: { text: "📥", key: msg.key } });
+                await reply(`📥 *Direct Server එකෙන් Video Stream එක සොයමින් පවතී...*\n🎬 *${cachedDl.title}* (${cachedDl.quality})\n\n_File ප්‍රමාණය අනුව යැවීමට මිනිත්තු කිහිපයක් ගතවිය හැක._`);
+
+                // Resolve direct supercloud CDN stream
+                const streamInfo = await resolveDirectVideo(cachedDl.ztUrl);
+                if (!streamInfo || !streamInfo.url) {
+                    throw new Error("Direct Download Link එක ලබා ගැනීමට නොහැකි විය.");
+                }
+
+                const finalSize = streamInfo.size || 0;
+                if (finalSize > 2 * 1024 * 1024 * 1024) {
+                    await socket.sendMessage(sender, { react: { text: "⚠️", key: msg.key } });
+                    return reply(`⚠️ *මෙම File එක 2GB සීමාව ඉක්මවයි (${formatBytes(finalSize)})!*\nWhatsApp හරහා 2GB ට වැඩි files එවිය නොහැකි බැවින් පහත සෘජු Direct Link එකෙන් බාගත කරගන්න:\n\n🔗 *Direct Link:*\n${streamInfo.url}`);
+                }
+
+                const cleanTitle = cachedDl.title.replace(/[\\/:*?"<>|]/g, '').slice(0, 50).trim();
+                const randId = crypto.randomBytes(4).toString('hex');
+                const fileExt = streamInfo.filename.endsWith('.mkv') ? '.mkv' : '.mp4';
+                const outputFileName = `${cleanTitle} (${cachedDl.quality}) SADEW MINI${fileExt}`;
+                tempFilePath = path.join(tempDir, `cz_${randId}${fileExt}`);
+
+                console.log(`[CineSubz Stream] Downloading from node ${streamInfo.server}: ${streamInfo.url} to ${tempFilePath}`);
+
+                // Stream directly to disk
+                const response = await axios({
+                    method: 'GET',
+                    url: streamInfo.url,
+                    responseType: 'stream',
+                    timeout: 60000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                const writer = fs.createWriteStream(tempFilePath);
+                await pipeline(response.data, writer);
+
+                if (!fs.existsSync(tempFilePath) || fs.statSync(tempFilePath).size === 0) {
+                    throw new Error("බාගත කළ File එක හිස් (Empty) හෝ බාගත කිරීමට නොහැකි විය.");
+                }
+
+                const actualSizeBytes = fs.statSync(tempFilePath).size;
+                const formattedSize = formatBytes(actualSizeBytes);
+
+                const dlCaption = `*↳ ❝ [🎬 𝗖𝗜𝗡𝗘𝗦𝗨𝗕𝗭 𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗 🎬] ¡! ❞*\n\n` +
+                    `🎬 *Title:* ${cachedDl.title}\n` +
+                    `🎞️ *Quality:* ${cachedDl.quality}\n` +
+                    `📦 *Size:* ${formattedSize}\n` +
+                    `⚡ *Node:* Server ${streamInfo.server} (SuperCloud CDN)\n\n` +
+                    `> 👑 *𝗦𝗔𝗗𝗘𝗪-𝗠𝗜𝗡𝗜 𝗕𝗬 𝗦𝗔𝗗𝗘𝗪 𝗥𝗔𝗦𝗛𝗠𝗜𝗞𝗔 𝜗𝜚⋆*`;
+
+                console.log(`[CineSubz Stream] Sending document (${formattedSize}) to ${destJid}...`);
+
+                // Send WhatsApp Document Stream
+                await socket.sendMessage(destJid, {
+                    document: { stream: fs.createReadStream(tempFilePath) },
+                    mimetype: fileExt === '.mp4' ? 'video/mp4' : 'video/x-matroska',
+                    fileName: outputFileName,
+                    caption: dlCaption
+                }, { quoted: metaQuote });
+
+                if (destJid !== sender) {
+                    await reply(`✅ *"${cachedDl.title}" සාර්ථකව \`${destJid}\` වෙත යවන ලදී!*`);
+                }
+
+                await socket.sendMessage(sender, { react: { text: "✅", key: msg.key } });
+
+            } catch (err) {
+                console.error("[CineSubz Download Error]:", err);
+                await socket.sendMessage(sender, { react: { text: "❌", key: msg.key } });
+                reply(`❌ *Download කිරීමේදී දෝෂයක් ඇතිවිය:* ${err.message}`);
+            } finally {
+                if (tempFilePath && fs.existsSync(tempFilePath)) {
+                    try {
+                        fs.unlinkSync(tempFilePath);
+                        console.log(`[CineSubz Clean] Removed temp file: ${tempFilePath}`);
+                    } catch (_) {}
+                }
             }
         }
     }

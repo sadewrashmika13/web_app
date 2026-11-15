@@ -38,7 +38,7 @@ body{min-height:100vh;background:#000;color:var(--tx);font-family:'Space Grotesk
 .ub-info{display:flex;align-items:center;gap:14px}
 .ub-icon{width:24px;height:24px;color:#ff0000;animation:spin 1s linear infinite}
 .ub-text{display:flex;flex-direction:column;flex:1}
-.ub-title{font-weight:700;font-size:14px;color:#ffe5e5}.ub-sub{font-size:12px;color:var(--mute);margin-top:2px}
+.ub-title{font-weight:700;font-size:14px;color:#ffe5e5}.ub-sub{font-size:12px;color:#00d4ff;font-weight:600;margin-top:2px;text-shadow:0 0 10px rgba(0,212,255,0.45)}
 .ub-progress{width:100%;height:4px;background:rgba(0,120,255,.18);border-radius:4px;overflow:hidden;position:relative}
 .ub-bar{position:absolute;left:0;top:0;bottom:0;width:30%;background:linear-gradient(90deg,#0055ff,#00d4ff);border-radius:4px;animation:bsl 1.5s ease-in-out infinite alternate;box-shadow:0 0 12px #00aaff}
 @keyframes spin{100%{transform:rotate(360deg)}}@keyframes bsl{0%{left:0;width:30%}100%{left:70%;width:30%}}
@@ -63,6 +63,11 @@ h1 em{font-style:italic;color:#ff2200;text-shadow:0 1px 0 #aa0000,0 2px 0 #88000
 .src-btn[data-source="baiscopes"].active{background:var(--rdark);color:#fff;box-shadow:0 4px 15px rgba(229,9,20,.4);border-color:var(--rdark)}
 .src-btn[data-source="sublk"].active{background:var(--green);color:#fff;box-shadow:0 4px 15px rgba(0,168,89,.4);border-color:var(--green)}
 .src-btn[data-source="dinkamovies"].active{background:#F5A623;color:#000;box-shadow:0 4px 15px rgba(245,166,35,.4);border-color:#F5A623}
+.src-btn[data-source="moviebox"].active{background:#ff9900;color:#000;box-shadow:0 4px 15px rgba(255,153,0,.4);border-color:#ff9900}
+.src-btn[data-source="piratelk"].active{background:#00d4ff;color:#000;box-shadow:0 4px 15px rgba(0,212,255,.4);border-color:#00d4ff}
+.src-btn[data-source="helaflix"].active{background:#ff007f;color:#fff;box-shadow:0 4px 15px rgba(255,0,127,.4);border-color:#ff007f}
+.src-btn[data-source="animost"].active{background:#9d00ff;color:#fff;box-shadow:0 4px 15px rgba(157,0,255,.4);border-color:#9d00ff}
+
 .search-wrap{max-width:600px;margin:18px auto 0;padding:0 15px;display:flex;gap:10px;position:relative;z-index:5}
 .search-box{flex:1;padding:14px 20px;font-size:15px;font-family:'Space Grotesk',sans-serif;border-radius:14px;border:1px solid rgba(200,0,0,.22);background:rgba(0,0,0,.58);backdrop-filter:blur(12px);color:var(--tx);outline:none;transition:border .3s,box-shadow .3s}
 .search-box::placeholder{color:rgba(255,120,120,.30)}
@@ -167,15 +172,17 @@ h1 em{font-style:italic;color:#ff2200;text-shadow:0 1px 0 #aa0000,0 2px 0 #88000
     <div class="header-left">
       <h1 id="pageHeading">Search movie and upload group <em>and enjoy</em></h1>
       <div class="source-toggle" id="sourceToggle">
-        <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz',this)">CineSubz</button>
+        <button class="src-btn active" data-source="cinesubz" onclick="setSource('cinesubz',this)">🎬 CineSubz</button>
         <button class="src-btn" data-source="cinesubz2" onclick="setSource('cinesubz2',this)">🎬 CineSubz 2 (V2)</button>
         <button class="src-btn" data-source="moviebox" onclick="setSource('moviebox',this)">🎬 MovieBox Pro</button>
-        <button class="src-btn" data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">SinhalaSub</button>
-        <button class="src-btn" data-source="slcartoons" onclick="setSource('slcartoons',this)">SL Cartoons</button>
-        <button class="src-btn" data-source="moviesublk" onclick="setSource('moviesublk',this)">MovieSubLK</button>
-        <button class="src-btn" data-source="1tamilmv" onclick="setSource('1tamilmv',this)">1TamilMV</button>
+        <button class="src-btn" data-source="sinhalasub2" onclick="setSource('sinhalasub2',this)">🎬 SinhalaSub</button>
+        <button class="src-btn" data-source="piratelk" onclick="setSource('piratelk',this)">🏴‍☠️ PirateLK</button>
+        <button class="src-btn" data-source="helaflix" onclick="setSource('helaflix',this)">🎬 HelaFlix</button>
+        <button class="src-btn" data-source="slcartoons" onclick="setSource('slcartoons',this)">🧸 Cartoons</button>
+        <button class="src-btn" data-source="kdrama" onclick="setSource('kdrama',this)">🌸 KDrama</button>
+        <button class="src-btn" data-source="animost" onclick="setSource('animost',this)">⚡ AnimostLK</button>
+        <button class="src-btn" data-source="1tamilmv" onclick="setSource('1tamilmv',this)">🎥 1TamilMV</button>
         <button class="src-btn" data-source="animeheaven" onclick="setSource('animeheaven',this)">AnimeHaven</button>
-        <button class="src-btn" data-source="kdrama" onclick="setSource('kdrama',this)">KDrama</button>
         <button class="src-btn" data-source="baiscopes" onclick="setSource('baiscopes',this)">Baiscopes</button>
         <button class="src-btn" data-source="sublk" onclick="setSource('sublk',this)">Sub.lk</button>
         <button class="src-btn" data-source="dinkamovies" onclick="setSource('dinkamovies',this)">🎬 DinkaMovies</button>
