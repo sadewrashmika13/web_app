@@ -1498,6 +1498,229 @@ router.post('/api/search', async (req, res) => {
         }
 
         if (source === 'kdrama') {
+            const results = await searchThenkiri(query);
+            if (results.length > 0) {
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results: results.slice(0, 15) });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'animost') {
+            const results = await searchAnimost(query);
+            if (results.length > 0) {
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results: results.slice(0, 15) });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'piratelk') {
+            const results = await searchPirateLK(query);
+            if (results.length > 0) {
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results: results.slice(0, 15) });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'helaflix') {
+            const results = await getHelaflixPosts(query);
+            if (results.length > 0) {
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results: results.slice(0, 15) });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'slcartoons') {
+            const results = await searchSinhalaCartoons(query);
+            if (results.length > 0) {
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results: results.slice(0, 15) });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'cartoonslk') {
+            const results = await searchCartoonsLk(query);
+            if (results.length > 0) {
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results: results.slice(0, 15) });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === '1tamilmv') {
+            const searchUrl = `https://www.1tamilmv.rocks/index.php?/search/&q=${encodeURIComponent(query)}`;
+            const searchRes = await axios.get(searchUrl, { headers: HEADERS, timeout: 20000 });
+            const $ = cheerio.load(searchRes.data);
+            let results = [];
+            $('a').each((i, el) => {
+                let href = $(el).attr('href') || '';
+                const text = $(el).text().trim();
+                if (href.includes('forums/topic/') && text.length > 5 && !text.includes('Languages') && !href.includes('?do=findComment')) {
+                    href = href.split('&do=findComment')[0].split('?do=findComment')[0].split('#comment')[0];
+                    if (!results.find(r => r.url === href) && results.length < 8) results.push({ title: text, url: href, img: '', source: '1tamilmv' });
+                }
+            });
+            if(results.length > 0) {
+                await Promise.allSettled(results.slice(0, 5).map(async (r) => {
+                    try {
+                        const pageRes = await axios.get(r.url, { headers: { ...HEADERS, 'Referer': 'https://www.1tamilmv.rocks/' }, timeout: 4000 });
+                        const $p = cheerio.load(pageRes.data);
+                        let foundImg = null;
+                        $p('img.ipsImage, img.bbc_img, [data-role="commentContent"] img').each((_, el) => {
+                            let s = $p(el).attr('data-src') || $p(el).attr('src');
+                            if (s && s.startsWith('http') && !s.includes('data:image') && !foundImg) foundImg = s;
+                        });
+                        if (foundImg) r.img = foundImg;
+                    } catch(_) {}
+                }));
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results });
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'dinkamovies') {
+            const searchRes = await axios.get(`https://kavindu-download-web.vercel.app/api/dinkamovies/movie/search?q=${encodeURIComponent(query)}`);
+            if (searchRes.data?.status && searchRes.data.data?.length > 0) {
+                const results = searchRes.data.data.slice(0, 8).map(mv => ({
+                    title: mv.title || "Unknown",
+                    url: mv.link || mv.url,
+                    img: mv.poster || '', 
+                    source: 'dinkamovies'
+                }));
+                cacheVerifiedMovies(results);
+                return res.json({ success: true, results });
+            }
+            return res.json({ success: false });
+        }
+
+        // Default: CINESUBZ Pure Native Scraper
+        const results = await scrapeSearchDirect(query);
+        if (results.length > 0) {
+            cacheVerifiedMovies(results);
+            return res.json({ success: true, results: results.slice(0, 10) });
+        }
+        res.json({ success: false });
+
+    } catch (error) {
+        console.error("[SEARCH ERROR]:", error.message);
+        res.json({ success: false });
+    }
+});
+
+// ════════════════════════════════════════════════════════
+// 🔗 2. DOWNLOAD LINKS & EPISODES API ROUTE
+// ════════════════════════════════════════════════════════
+router.post('/api/links', async (req, res) => {
+    const { url, source = 'cinesubz' } = req.body;
+    try {
+        if (source === 'moviebox') {
+            try {
+                let detailUrl;
+                if (url.startsWith('http')) {
+                    detailUrl = url;
+                } else if (url.includes('/') || url.includes('-')) {
+                    detailUrl = `${MOVIEBOX_API_BASE}/detail/${url}?api_key=${MOVIEBOX_KEY}`;
+                } else {
+                    detailUrl = `${MOVIEBOX_API_BASE}/detail/${url}?api_key=${MOVIEBOX_KEY}`;
+                }
+
+                const dRes = await axios.get(detailUrl, {
+                    headers: { 'X-API-Key': MOVIEBOX_KEY, 'User-Agent': 'Mozilla/5.0' },
+                    timeout: 15000
+                });
+                const detail = dRes.data?.data || dRes.data?.detail || dRes.data || {};
+                const subjectId = detail.subject_id || detail.id || url;
+                const isSeries = detail.type === 'tv' || detail.type === 'tvshows' || (detail.episodes && detail.episodes.length > 0);
+
+                if (isSeries && Array.isArray(detail.episodes) && detail.episodes.length > 0) {
+                    const downloads = detail.episodes.map(ep => ({
+                        meta: `S${ep.season || 1} E${ep.episode || ep.episode_number}: ${ep.title || ''}`.trim(),
+                        resolvedUrl: `moviebox://${subjectId}/${ep.episode_id || ep.id || ep.episode}`,
+                        direct: false
+                    }));
+                    return res.json({ success: true, downloads, isSeries: true, thumbnail: detail.poster_url || detail.cover });
+                }
+
+                const qualities = ['1080p', '720p', '480p'];
+                const downloads = qualities.map(q => ({
+                    meta: `MovieBox ${q}`,
+                    resolvedUrl: `moviebox://${subjectId}?quality=${q}`,
+                    direct: false
+                }));
+                return res.json({ success: true, downloads, thumbnail: detail.poster_url || detail.cover });
+            } catch (err) {
+                console.error("[MOVIEBOX LINKS ERROR]:", err.message);
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'cinesubz2') {
+            try {
+                const dlRes = await axios.get(`${CZ2_API}/dl-links?url=${encodeURIComponent(url)}`, { timeout: 20000, headers: HEADERS });
+                const dlData = dlRes.data || {};
+
+                if (dlData.allEpisodes && Array.isArray(dlData.allEpisodes) && dlData.allEpisodes.length > 0) {
+                    const downloads = dlData.allEpisodes.map(ep => ({
+                        meta: `Episode ${ep.episode}: ${ep.title || ''}`.trim(),
+                        resolvedUrl: ep.url,
+                        direct: false
+                    }));
+                    return res.json({ success: true, downloads, isSeries: true });
+                }
+
+                const arr = dlData.downloadLinks || dlData.result || dlData.data || [];
+                let downloads = [];
+                arr.forEach(item => {
+                    let resolvedUrl = item.direct_mp4_url || item.url || item.link;
+                    if (resolvedUrl && typeof resolvedUrl === 'string' && resolvedUrl.startsWith('http')) {
+                        resolvedUrl = resolvedUrl.replace('avatarzone.online', 'terracloud2.site');
+                        let q = item.quality || item.resolution || item.name || '';
+                        if (!q) {
+                            if (resolvedUrl.includes('480p')) q = '480p';
+                            else if (resolvedUrl.includes('720p')) q = '720p';
+                            else if (resolvedUrl.includes('1080p')) q = '1080p';
+                            else q = 'HD';
+                        }
+                        const sizeStr = item.fileSize || item.size;
+                        const metaLabel = `${q} ${sizeStr && sizeStr !== 'Unknown' ? `(${sizeStr})` : ''}`.trim();
+                        downloads.push({ meta: metaLabel, resolvedUrl: resolvedUrl, direct: true });
+                    }
+                });
+                if (downloads.length > 0) {
+                    return res.json({ success: true, downloads });
+                }
+            } catch (cz2DlErr) {
+                console.error("[CZ2] Links API error:", cz2DlErr.message);
+            }
+            return res.json({ success: false });
+        }
+
+        if (source === 'sinhalasub2') {
+            if (url.includes('/tvshows/')) {
+                const tvData = await getSinhalasubTvEpisodes(url);
+                const downloads = tvData.episodes.map(ep => ({
+                    meta: ep.title,
+                    resolvedUrl: ep.url,
+                    direct: false
+                }));
+                return res.json({ success: downloads.length > 0, downloads, thumbnail: tvData.poster, isSeries: true });
+            } else {
+                const details = await getSinhalasubDetails(url);
+                const downloads = details.downloadOptions.map(opt => ({
+                    meta: `${opt.quality} (${opt.server} - ${opt.size})`,
+                    resolvedUrl: opt.linkPageUrl,
+                    direct: true
+                }));
+                return res.json({ success: downloads.length > 0, downloads, thumbnail: details.poster });
+            }
+        }
+
+        if (source === 'kdrama') {
             const data = await getThenkiriDetails(url);
             const isSeries = data.downloads.length > 1;
             return res.json({ success: data.downloads.length > 0, downloads: data.downloads, thumbnail: data.poster, isSeries });
@@ -1546,7 +1769,7 @@ router.post('/api/search', async (req, res) => {
             $('[data-role="commentContent"] *').each((i, el) => {
                 const text = $(el).text().trim();
                 if (el.tagName !== 'a' && el.tagName !== 'img' && text.length > 5) {
-                    if (text.match(/([0-9\.]+(MB|GB))|([0-9]{3,4}p)|(Episode [0-9]+)/i) && text.length < 150) {
+                    if (text.match(/([0-9.]+(MB|GB))|([0-9]{3,4}p)|(Episode [0-9]+)/i) && text.length < 150) {
                         currentTitle = text.split('\n')[0].replace(/www\.1TamilMV\.[a-z]+ - /, '').trim();
                         let sizeMatch = currentTitle.match(/([0-9\.]+)\s*(GB|MB)/i);
                         if (sizeMatch) currentSizeMB = (sizeMatch[2].toUpperCase() === 'GB') ? parseFloat(sizeMatch[1]) * 1024 : parseFloat(sizeMatch[1]);
@@ -1611,9 +1834,6 @@ router.post('/api/search', async (req, res) => {
     }
 });
 
-// ════════════════════════════════════════════════════════
-// 🚀 3. SEND TO GROUP (DIRECT STREAM + AI SUMMARY)
-// ════════════════════════════════════════════════════════
 router.post('/api/send-movie', async (req, res) => {
     let clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     if (typeof clientIp === 'string' && clientIp.includes(',')) {
