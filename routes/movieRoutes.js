@@ -126,6 +126,12 @@ const ALLOWED_IMAGE_HOSTS = [
     'pixeldrain.com'
 ];
 
+let Jimp = null;
+try {
+    const jPkg = require('jimp');
+    Jimp = jPkg.Jimp || jPkg;
+} catch(_) {}
+
 let ffmpegPath = null;
 try {
     ffmpegPath = require('ffmpeg-static');
@@ -246,12 +252,6 @@ function detectImageMime(buf) {
     if (buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
     return 'image/jpeg';
 }
-
-let Jimp;
-try {
-    const jPkg = require('jimp');
-    Jimp = jPkg.Jimp || jPkg;
-} catch(_) {}
 
 async function ensureJpegBuffer(imgBuffer) {
     if (!imgBuffer || !Buffer.isBuffer(imgBuffer) || imgBuffer.length < 20) return imgBuffer;
@@ -2971,18 +2971,75 @@ router.post('/api/anime-send', async (req, res) => {
                     aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                 } catch(e) {}
 
-                let cardText = `🎬 *${cleanVideoname}*\n\n`;
-                if (aiSummary) { cardText += `📖 *Summary:*\n${aiSummary}\n\n`; }
-                cardText += `👤 *Required By:* ${cleanReqName}${dynamicFooter ? `\n\n> *${dynamicFooter}*` : ''}`;
-
-                let animeThumbnail = null;
-                if (thumbnail && thumbnail.startsWith('http')) {
+                let posterBuffer = null;
+                let microThumb = null;
+                let thumbUrl = thumbnail;
+                if (!thumbUrl && id) {
                     try {
-                        const tRes = await axios.get(thumbnail, { responseType: 'arraybuffer', timeout: 8000, headers: HEADERS });
-                        if (tRes.data && tRes.data.length > 500) {
-                            animeThumbnail = await createDocumentThumbnail(Buffer.from(tRes.data));
-                        }
+                        const aRes = await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS, timeout: 8000 });
+                        const tMatch = aRes.data.match(/<div class=['"]infoimg['"]><img[^>]+src=['"]([^'"]+)['"]/i);
+                        if (tMatch) thumbUrl = tMatch[1].startsWith('http') ? tMatch[1] : ANIME_BASE + '/' + tMatch[1];
                     } catch (_) {}
+                }
+
+                if (thumbUrl && typeof thumbUrl === 'string' && thumbUrl.startsWith('http')) {
+                    try {
+                        const tRes = await axios.get(thumbUrl, {
+                            responseType: 'arraybuffer',
+                            timeout: 10000,
+                            headers: { ...HEADERS, 'Referer': ANIME_BASE }
+                        });
+                        if (tRes.data && tRes.data.length > 500) {
+                            const rawBuf = Buffer.from(tRes.data);
+                            posterBuffer = await ensureJpegBuffer(rawBuf);
+                            microThumb = await createDocumentThumbnail(posterBuffer || rawBuf);
+                        }
+                    } catch (tErr) {
+                        console.log("[ANIME] Thumbnail fetch note:", tErr.message);
+                    }
+                }
+
+                // Send Image Details Card with Anime Poster & Summary to WhatsApp Group
+                const isBatch = typeof batchIndex !== 'undefined';
+                const animeBaseKey = cleanVideoname.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+                const detailsKey = `anime_${animeBaseKey}_${dynamicGroupJid}`;
+                const shouldSendDetailsCard = isBatch 
+                    ? (batchIndex === 0 && !sentDetailsCardTracker.has(detailsKey)) 
+                    : !sentDetailsCardTracker.has(detailsKey);
+
+                if (shouldSendDetailsCard) {
+                    sentDetailsCardTracker.add(detailsKey);
+                    setTimeout(() => sentDetailsCardTracker.delete(detailsKey), 15 * 60 * 1000);
+
+                    let cap = `*↳ ❝ [🎌 𝗡𝗘𝗪 𝗔𝗡𝗜𝗠𝗘 𝗔𝗥𝗥𝗜𝗩𝗔𝗟 🎌] ¡! ❞*\n\n`;
+                    cap += `🎬 *Title:* ${cleanVideoname}\n`;
+                    if (aiSummary) cap += `\n📖 *සාරාංශය (Overview):*\n${aiSummary}\n`;
+                    if (dynamicFooter) {
+                        cap += `\n👤 *Required By:* ${cleanReqName}\n\n> *${dynamicFooter}*`;
+                    } else {
+                        cap += `\n👤 *Required By:* ${cleanReqName}`;
+                    }
+
+                    let cardSent = false;
+                    let attemptedImage = false;
+                    if (posterBuffer) {
+                        try {
+                            attemptedImage = true;
+                            await sendMediaSafely(sock, dynamicGroupJid, {
+                                image: posterBuffer,
+                                caption: cap,
+                                mimetype: 'image/jpeg'
+                            }, 50000);
+                            cardSent = true;
+                        } catch (imgErr) {
+                            console.log("[ANIME] Image card send note:", imgErr.message);
+                        }
+                    }
+                    if (!cardSent && !attemptedImage) {
+                        try {
+                            await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 20000);
+                        } catch (_) {}
+                    }
                 }
 
                 let streamUploaded = false;
@@ -3011,17 +3068,24 @@ router.post('/api/anime-send', async (req, res) => {
                         });
 
                         const stats = fs.statSync(tempAnimePath);
+                        if (stats.size < 500 * 1024) {
+                            throw new Error(`Downloaded file too small (${(stats.size / 1024).toFixed(1)} KB), skipping dummy teaser`);
+                        }
+
                         const fileSizeMB = (stats.size / 1024 / 1024).toFixed(1);
                         const fileName = `${cleanVideoname.replace(/[^a-zA-Z0-9 ]/g, '')} - Ep ${cleanEpNum}.mp4`;
+                        const smallCaption = isBatch && batchIndex > 0
+                            ? `🎬 *${cleanVideoname} - Ep ${cleanEpNum}*\n👤 *Required By:* ${cleanReqName}${dynamicFooter ? `\n> *${dynamicFooter}*` : ''}`
+                            : `🎬 *${cleanVideoname} - Ep ${cleanEpNum}*${dynamicFooter ? `\n> *${dynamicFooter}*` : ''}`;
 
                         const animeDocPayload = {
                             document: { url: tempAnimePath },
                             mimetype: 'video/mp4',
                             fileName,
-                            caption: cardText
+                            caption: smallCaption
                         };
-                        if (animeThumbnail && Buffer.isBuffer(animeThumbnail) && animeThumbnail.length > 50 && animeThumbnail.length <= 25000) {
-                            animeDocPayload.jpegThumbnail = animeThumbnail;
+                        if (microThumb && Buffer.isBuffer(microThumb) && microThumb.length > 50 && microThumb.length <= 25000) {
+                            animeDocPayload.jpegThumbnail = microThumb;
                         }
 
                         await sendMediaSafely(sock, dynamicGroupJid, animeDocPayload, 1800000);
@@ -3080,11 +3144,23 @@ async function getAnimeStreamUrl(id, ep, hash) {
         });
 
         const gateHtml = typeof gateRes.data === 'string' ? gateRes.data : '';
-        const sourceMatch = gateHtml.match(/<source[^>]+src=['"]([^'"]+)['"]/i) ||
-                            gateHtml.match(/<video[^>]+src=['"]([^'"]+)['"]/i) ||
-                            gateHtml.match(/https?:\/\/[^\s"'<>]+\.(?:mp4|m3u8)[^\s"'<>]*/i);
+        const allSources = [...gateHtml.matchAll(/<source[^>]+src=['"]([^'"]+)['"]/gi)].map(m => m[1]);
 
-        return sourceMatch ? (sourceMatch[1] || sourceMatch[0]) : null;
+        // 🚫 Strictly filter out ax.animeheaven.me / gif teaser dummy videos (which are only ~88KB!)
+        const realSources = allSources.filter(u => {
+            if (!u || typeof u !== 'string') return false;
+            if (u.includes('ax.animeheaven.me')) return false;
+            if (u.includes('gif')) return false;
+            if (u.includes('&error')) return false;
+            return u.includes('.mp4');
+        });
+
+        // Prefer the source that contains the exact episode hash, or the first valid real CDN source
+        const bestSource = realSources.find(u => u.includes(epHash)) || 
+                           realSources[0] || 
+                           allSources.find(u => !u.includes('ax.animeheaven.me') && !u.includes('gif'));
+
+        return bestSource || null;
     } catch (e) {
         console.error("[ANIME STREAM URL ERROR]:", e.message);
         return null;
