@@ -126,14 +126,50 @@ const ALLOWED_IMAGE_HOSTS = [
     'pixeldrain.com'
 ];
 
+let ffmpegStatic;
+try {
+    ffmpegStatic = require('ffmpeg-static');
+} catch (_) {}
+
+function convertWithFfmpeg(buffer) {
+    if (!ffmpegStatic) return null;
+    return new Promise((resolve) => {
+        const { spawn } = require('child_process');
+        const ff = spawn(ffmpegStatic, [
+            '-i', 'pipe:0',
+            '-vframes', '1',
+            '-q:v', '2',
+            '-f', 'image2',
+            '-c:v', 'mjpeg',
+            'pipe:1'
+        ]);
+        const chunks = [];
+        ff.stdout.on('data', c => chunks.push(c));
+        ff.on('close', code => {
+            if (code === 0 && chunks.length > 0) {
+                resolve(Buffer.concat(chunks));
+            } else {
+                resolve(null);
+            }
+        });
+        ff.on('error', () => resolve(null));
+        ff.stdin.write(buffer);
+        ff.stdin.end();
+    });
+}
+
 function isValidMovieImage(imgUrl) {
     if (!imgUrl || typeof imgUrl !== 'string') return false;
     try {
         const parsed = new URL(imgUrl);
+        const proto = parsed.protocol.toLowerCase();
+        if (proto !== 'http:' && proto !== 'https:') return false;
         const host = parsed.hostname.toLowerCase();
-        if (ALLOWED_IMAGE_HOSTS.some(allowed => host === allowed || host.endsWith('.' + allowed))) return true;
-        if (host.includes('google') || host.includes('tmdb') || host.includes('media-amazon') || host.includes('imdb') || host.includes('blogspot') || host.includes('wordpress')) return true;
-        return false;
+        // SSRF protection: reject private/loopback IP addresses
+        if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('172.16.') || host.startsWith('169.254.')) {
+            return false;
+        }
+        return true;
     } catch (_) {
         return false;
     }
@@ -158,6 +194,13 @@ async function ensureJpegBuffer(imgBuffer) {
     if (imgBuffer[0] === 0xFF && imgBuffer[1] === 0xD8 && imgBuffer[2] === 0xFF) {
         return imgBuffer;
     }
+    // 1. Try ffmpeg first (Universal, fast support for WebP, PNG, AVIF, GIF -> pristine JPEG)
+    try {
+        const ffJpg = await convertWithFfmpeg(imgBuffer);
+        if (ffJpg && ffJpg.length > 100) return ffJpg;
+    } catch (_) {}
+
+    // 2. Jimp fallback
     try {
         if (Jimp) {
             const readFn = Jimp.read || Jimp;
@@ -361,43 +404,37 @@ async function getGeminiSummary(movieTitle) {
 3. අන්තර්ගතය: කතාවේ ප්‍රධාන සිදුවීම සහ කුතුහලය පමණක් කෙටියෙන් කියන්න. Spoilers කිසිවක් හෙළි නොකරන්න.
 4. කිසිදු Heading, Bullet points, Numbers හෝ හැඳින්වීමක් ("මෙන්න සාරාංශය") නැතිව කෙටි සාරාංශය පමණක් කෙලින්ම ලබාදෙන්න.`;
 
-    // 1. Primary Engine: User's Gemini Cloudflare Worker (gemini-3.6-flash)
+    // Race Worker and Direct Gemini API keys in parallel for instant response
+    const candidatePromises = [];
+
+    // 1. Worker Promise
+    candidatePromises.push(
+        callGeminiWorker(prompt).then(res => {
+            if (res?.text && res.text.length >= 25) return res;
+            throw new Error("Worker empty/short text");
+        })
+    );
+
+    // 2. Direct API keys across multiple models
+    const effectiveKeys = GEMINI_KEYS.length > 0 ? GEMINI_KEYS : [];
+    for (const k of effectiveKeys) {
+        candidatePromises.push(callGeminiDirect(k, 'gemini-3.6-flash', prompt).catch(() => null));
+        candidatePromises.push(callGeminiDirect(k, 'gemini-2.0-flash', prompt).catch(() => null));
+        candidatePromises.push(callGeminiDirect(k, 'gemini-1.5-flash', prompt).catch(() => null));
+    }
+
     try {
-        const workerRes = await callGeminiWorker(prompt);
-        if (workerRes?.text && workerRes.text.length >= 60) {
-            console.log(`[GEMINI] ✅ AI Summary generated with ${workerRes.model}`);
-            geminiSummaryCache.set(cacheKey, workerRes.text);
-            return workerRes.text;
+        const validPromises = candidatePromises.map(p => p.then(res => {
+            if (res?.text && res.text.length >= 25) return res;
+            throw new Error("Short text");
+        }));
+        const fastest = await Promise.any(validPromises);
+        if (fastest?.text) {
+            console.log(`[GEMINI] ✅ AI Summary generated with ${fastest.model}`);
+            geminiSummaryCache.set(cacheKey, fastest.text);
+            return fastest.text;
         }
     } catch (_) {}
-
-    // 2. Fallback: Official Google API across GEMINI_KEYS (gemini-3.6-flash, 2.0-flash, 1.5-flash)
-    const effectiveKeys = GEMINI_KEYS.length > 0 ? GEMINI_KEYS : [];
-    if (effectiveKeys.length > 0) {
-        try {
-            const p36 = effectiveKeys.map(k => callGeminiDirect(k, 'gemini-3.6-flash', prompt));
-            const res36 = await Promise.any(p36);
-            if (res36?.text && res36.text.length >= 60) {
-                console.log(`[GEMINI] ✅ AI Summary generated with ${res36.model}`);
-                geminiSummaryCache.set(cacheKey, res36.text);
-                return res36.text;
-            }
-        } catch (_) {}
-
-        try {
-            const fallbacks = [];
-            for (const k of effectiveKeys) {
-                fallbacks.push(callGeminiDirect(k, 'gemini-2.0-flash', prompt));
-                fallbacks.push(callGeminiDirect(k, 'gemini-1.5-flash', prompt));
-            }
-            const resFb = await Promise.any(fallbacks);
-            if (resFb?.text && resFb.text.length >= 60) {
-                console.log(`[GEMINI] ✅ AI Summary generated with ${resFb.model}`);
-                geminiSummaryCache.set(cacheKey, resFb.text);
-                return resFb.text;
-            }
-        } catch (_) {}
-    }
 
     return "";
 }
@@ -417,48 +454,91 @@ function cleanCineTitle(str) {
 }
 
 async function scrapeSearchDirect(query) {
-    const res = await axios.get(`https://cinesubz.net/?s=${encodeURIComponent(query)}`, {
-        headers: HEADERS,
-        timeout: 25000
-    });
-    const $ = cheerio.load(res.data);
-    const results = [];
-    const seen = new Set();
+    if (!query || typeof query !== 'string') return [];
+    const cleanQ = query.split('|')[0]
+        .replace(/sinhala subtitles|සිංහල උපසිරැසි|sinhala sub|subtitles/gi, '')
+        .replace(/\b(19\d\d|20\d\d)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-    $('.item-box').each((i, el) => {
-        const a = $(el).find('a').first();
-        const href = a.attr('href');
-        if (!href || seen.has(href)) return;
-        if (!href.includes('/movies/') && !href.includes('/tvshows/')) return;
-        seen.add(href);
+    const queriesToTry = [query.trim()];
+    if (cleanQ && cleanQ !== query.trim()) queriesToTry.push(cleanQ);
 
-        let title = a.attr('title') || $(el).find('.title, h2, h3').text().trim() || '';
-        title = cleanCineTitle(title);
+    const domainsToTry = [
+        'https://cinesubz.net/?s=',
+        'https://cinesubz.co/?s=',
+        'https://cinesubz.lk/?s=',
+        'https://r.jina.ai/https://cinesubz.net/?s='
+    ];
 
-        let img = $(el).find('img').attr('data-original') || 
-                  $(el).find('img').attr('data-src') || 
-                  $(el).find('img').attr('src') || '';
-        if (img && img.startsWith('//')) img = 'https:' + img;
+    for (const q of queriesToTry) {
+        for (const base of domainsToTry) {
+            try {
+                const searchUrl = `${base}${encodeURIComponent(q)}`;
+                const res = await axios.get(searchUrl, {
+                    headers: HEADERS,
+                    timeout: 8000
+                });
+                const $ = cheerio.load(res.data);
+                const results = [];
+                const seen = new Set();
 
-        const isTV = href.includes('/tvshows/') || (a.attr('data-ptype') === 'tvshows');
-        const imdb = $(el).find('.imdb, .imdb-score, .rating').text().trim() || 'N/A';
+                $('.item-box').each((i, el) => {
+                    const a = $(el).find('a').first();
+                    const href = a.attr('href');
+                    if (!href || seen.has(href)) return;
+                    if (!href.includes('/movies/') && !href.includes('/tvshows/')) return;
+                    seen.add(href);
 
-        let year = 'N/A';
-        const yearMatch = title.match(/\b(19\d\d|20\d\d)\b/);
-        if (yearMatch) year = yearMatch[1];
+                    let title = a.attr('title') || $(el).find('.title, h2, h3').text().trim() || '';
+                    title = cleanCineTitle(title);
 
-        results.push({
-            title,
-            url: href,
-            img,
-            year,
-            imdb,
-            isTV,
-            source: 'cinesubz'
-        });
-    });
+                    let img = $(el).find('img').attr('data-original') || 
+                              $(el).find('img').attr('data-src') || 
+                              $(el).find('img').attr('src') || '';
+                    if (img && img.startsWith('//')) img = 'https:' + img;
 
-    return results;
+                    const isTV = href.includes('/tvshows/') || (a.attr('data-ptype') === 'tvshows');
+                    const imdb = $(el).find('.imdb, .imdb-score, .rating').text().trim() || 'N/A';
+
+                    let year = 'N/A';
+                    const yearMatch = title.match(/\b(19\d\d|20\d\d)\b/);
+                    if (yearMatch) year = yearMatch[1];
+
+                    results.push({
+                        title,
+                        url: href,
+                        img,
+                        year,
+                        imdb,
+                        isTV,
+                        source: 'cinesubz'
+                    });
+                });
+
+                if (results.length > 0) return results;
+            } catch (_) {}
+        }
+    }
+
+    // Secondary Fallback: CZ2 API
+    try {
+        const cz2Res = await axios.get(`${CZ2_API}/search?q=${encodeURIComponent(cleanQ || query)}`, { timeout: 8000, headers: HEADERS });
+        const list = cz2Res.data?.data || cz2Res.data?.result || [];
+        if (list.length > 0) {
+            return list.slice(0, 15).map(mv => ({
+                title: cleanCineTitle(mv.title || mv.name || 'Movie'),
+                url: mv.url || mv.link,
+                img: mv.img || mv.image || '',
+                year: mv.year || mv.date || 'N/A',
+                imdb: mv.imdb || 'N/A',
+                isTV: Boolean(mv.isTV || (mv.url && mv.url.includes('/tvshows/'))),
+                source: 'cinesubz'
+            }));
+        }
+    } catch (_) {}
+
+    return [];
 }
 
 async function scrapeCineSubzDetails(pageUrl) {
@@ -603,24 +683,30 @@ async function resolveDirectVideo(ztUrl) {
 
     const serversToTry = [primaryServer, ...KNOWN_CZ_SERVERS.filter(s => s !== primaryServer)];
 
-    // Parallel checks against wodocloud CDN servers
+    // Parallel checks against wodocloud CDN servers with Range GET to eliminate cold start drops
     for (let i = 0; i < serversToTry.length; i += 3) {
         const batch = serversToTry.slice(i, i + 3);
         const checks = batch.map(async (s) => {
-            const candidateUrl = `https://cs${s}.wodocloud.xyz/${encodedFilename}?play=true`;
-            try {
-                const head = await axios.head(candidateUrl, {
-                    headers: { ...HEADERS, 'Referer': 'https://cinesubz.net/' },
-                    timeout: 4000
-                });
-                if (head.status === 200 || head.status === 206) {
-                    const ct = head.headers['content-type'] || '';
-                    const cl = head.headers['content-length'] || '0';
-                    if (ct.includes('video') || parseInt(cl, 10) > 1000000) {
-                        return { url: candidateUrl, size: parseInt(cl, 10), server: s, filename: rawFilename };
+            const urlsToTry = [
+                `https://cs${s}.wodocloud.xyz/${encodedFilename}?play=true`,
+                `https://cs${s}.wodocloud.xyz/${encodeURI(rawFilename)}?play=true`
+            ];
+            for (const candidateUrl of urlsToTry) {
+                try {
+                    const probe = await axios.get(candidateUrl, {
+                        headers: { ...HEADERS, 'Referer': 'https://cinesubz.net/', 'Range': 'bytes=0-100' },
+                        timeout: 8000
+                    });
+                    if (probe.status === 200 || probe.status === 206) {
+                        const ct = probe.headers['content-type'] || '';
+                        const cr = probe.headers['content-range'] || '';
+                        const cl = probe.headers['content-length'] || '0';
+                        if (ct.includes('video') || cr.includes('/') || parseInt(cl, 10) > 1000000) {
+                            return { url: candidateUrl, size: parseInt(cl, 10), server: s, filename: rawFilename };
+                        }
                     }
-                }
-            } catch (_) {}
+                } catch (_) {}
+            }
             return null;
         });
         const results = await Promise.all(checks);
@@ -2184,7 +2270,6 @@ router.post('/api/send-movie', async (req, res) => {
 
             try {
                 const isBatch = typeof batchIndex !== 'undefined';
-                const isFirstInBatch = isBatch ? batchIndex === 0 : true;
                 const baseMovieKey = cleanTitle
                     .toLowerCase()
                     .replace(/sinhala subtitles|සිංහල උපසිරැසි|sinhala sub|subtitles|\(\d{4}\)|\d{4}/gi, '')
@@ -2192,21 +2277,26 @@ router.post('/api/send-movie', async (req, res) => {
                     .trim();
                 const detailsKey = `${baseMovieKey || normKey}_${dynamicGroupJid}`;
 
-                // 1. Send details card once (guaranteed NEVER duplicated on retries)
-                if (isFirstInBatch && !sentDetailsCardTracker.has(detailsKey)) {
-                    sentDetailsCardTracker.add(detailsKey);
-                    setTimeout(() => sentDetailsCardTracker.delete(detailsKey), 2 * 60 * 60 * 1000);
+                let cachedPosterThumbnail = null;
+
+                // 1. Send details card (guaranteed for every user movie request; for batches, only send once for episode 0)
+                const shouldSendDetailsCard = isBatch ? (batchIndex === 0 && !sentDetailsCardTracker.has(detailsKey)) : true;
+                if (shouldSendDetailsCard) {
+                    if (isBatch) {
+                        sentDetailsCardTracker.add(detailsKey);
+                        setTimeout(() => sentDetailsCardTracker.delete(detailsKey), 10 * 60 * 1000);
+                    }
 
                     const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}`;
                     
                     sendMediaSafely(sock, exactBotJid, { text: adminInboxText }, 5000).catch(() => {});
 
-                    // Generate complete AI summary with 25s max race
+                    // Generate complete AI summary with 15s max race
                     let aiSummary = "";
                     try {
                         const sumPromise = getGeminiSummary(verifiedTitle);
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 8000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(""), 15000));
                         aiSummary = await Promise.race([sumPromise, timeoutPromise]);
                     } catch(e) {}
 
@@ -2227,7 +2317,6 @@ router.post('/api/send-movie', async (req, res) => {
                     let cardSent = false;
                     if (finalPoster) {
                         let posterBuffer = null;
-                        let posterMime = 'image/jpeg';
                         try {
                             const pHeaders = { ...HEADERS };
                             if (finalPoster.includes('tamilmv') || source === '1tamilmv') {
@@ -2239,7 +2328,7 @@ router.post('/api/send-movie', async (req, res) => {
                             if (imgRes.data && imgRes.data.length > 500) {
                                 const rawBuf = Buffer.from(imgRes.data);
                                 posterBuffer = await ensureJpegBuffer(rawBuf);
-                                posterMime = detectImageMime(posterBuffer);
+                                cachedPosterThumbnail = posterBuffer;
                             }
                         } catch (fetchErr) {
                             console.log("[SEND] Poster image buffer fetch note:", fetchErr.message);
@@ -2247,7 +2336,7 @@ router.post('/api/send-movie', async (req, res) => {
 
                         try {
                             const imgPayload = posterBuffer 
-                                ? { image: posterBuffer, caption: cap, mimetype: posterMime } 
+                                ? { image: posterBuffer, caption: cap, mimetype: 'image/jpeg' } 
                                 : { image: { url: finalPoster }, caption: cap, mimetype: 'image/jpeg' };
                             await sendMediaSafely(sock, dynamicGroupJid, imgPayload, 50000);
                             cardSent = true;
@@ -2307,15 +2396,36 @@ router.post('/api/send-movie', async (req, res) => {
                         }
 
                         // 1. CINESUBZ PURE NATIVE RESOLUTION
-                        if (source === 'cinesubz' || finalVidUrl.includes('cinesubz.net') || finalVidUrl.includes('zt-links') || finalVidUrl.includes('wodocloud') || finalVidUrl.includes('supercloud') || finalVidUrl.includes('/server')) {
+                        if (source === 'cinesubz' || finalVidUrl.includes('cinesubz.net') || finalVidUrl.includes('zt-links') || finalVidUrl.includes('wodocloud') || finalVidUrl.includes('supercloud') || finalVidUrl.includes('/server') || finalVidUrl.includes('/api-')) {
                             try {
                                 if (finalVidUrl.includes('cinesubz.net/episodes/')) {
-                                    const epPage = await axios.get(finalVidUrl, { headers: HEADERS, timeout: 20000 });
-                                    const $ep = cheerio.load(epPage.data);
-                                    const zt = $ep('a[href*="zt-links"]').attr('href') || $ep('.movie-download-button').attr('href');
-                                    if (zt) finalVidUrl = zt;
+                                    console.log(`[STREAM CZ] Scraping episode detail page: ${finalVidUrl}`);
+                                    try {
+                                        const epDetails = await scrapeCineSubzDetails(finalVidUrl);
+                                        if (epDetails.downloadQualities && epDetails.downloadQualities.length > 0) {
+                                            const qClean = cleanQuality.toLowerCase();
+                                            const chosenDl = epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes(qClean)) ||
+                                                             epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('720p')) ||
+                                                             epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('480p')) ||
+                                                             epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('1080p')) ||
+                                                             epDetails.downloadQualities[0];
+                                            if (chosenDl?.ztUrl) {
+                                                finalVidUrl = chosenDl.ztUrl;
+                                                console.log(`[STREAM CZ] Selected episode quality link: ${chosenDl.label} -> ${finalVidUrl}`);
+                                            }
+                                        }
+                                    } catch (epScrapeErr) {
+                                        console.warn("[STREAM CZ] Episode scrape note:", epScrapeErr.message);
+                                    }
+                                    // Fallback: direct page element search for download button / api link
+                                    if (finalVidUrl.includes('cinesubz.net/episodes/')) {
+                                        const epPage = await axios.get(finalVidUrl, { headers: HEADERS, timeout: 20000 });
+                                        const $ep = cheerio.load(epPage.data);
+                                        const zt = $ep('a[href*="/api-"]').attr('href') || $ep('.movie-download-button').attr('href') || $ep('a[href*="zt-links"]').attr('href') || $ep('a[href*="/download/"]').attr('href');
+                                        if (zt) finalVidUrl = zt;
+                                    }
                                 }
-                                if (finalVidUrl.includes('zt-links') || finalVidUrl.includes('/server') || finalVidUrl.includes('cinesubz.net/api-') || finalVidUrl.includes('cinesubz.net/movies/')) {
+                                if (finalVidUrl.includes('zt-links') || finalVidUrl.includes('/server') || finalVidUrl.includes('cinesubz.net/api-') || finalVidUrl.includes('cinesubz.net/movies/') || finalVidUrl.includes('/download/')) {
                                     const resolved = await resolveDirectVideo(finalVidUrl);
                                     if (resolved?.url) {
                                         finalVidUrl = resolved.url;
@@ -2323,6 +2433,21 @@ router.post('/api/send-movie', async (req, res) => {
                                             extraStreamHeaders = { ...extraStreamHeaders, ...resolved.headers };
                                         }
                                     }
+                                }
+                                // Fallback: If still an HTML URL or resolve failed, try CZ2 dl-links API
+                                if (finalVidUrl.includes('cinesubz.net') && !finalVidUrl.match(/\.(mp4|mkv)(\?|$)/i)) {
+                                    try {
+                                        console.log(`[CZ STREAM FALLBACK] Attempting CZ2 resolution for: ${finalVidUrl}`);
+                                        const epRes = await axios.get(`${CZ2_API}/dl-links?url=${encodeURIComponent(finalVidUrl)}`, { timeout: 20000, headers: HEADERS });
+                                        const arr = epRes.data?.downloadLinks || epRes.data?.result || epRes.data?.data || [];
+                                        for (let item of arr) {
+                                            let u = item.direct_mp4_url || item.url || item.link;
+                                            if (u && typeof u === 'string' && u.startsWith('http')) {
+                                                finalVidUrl = u;
+                                                break;
+                                            }
+                                        }
+                                    } catch (_) {}
                                 }
                             } catch (czErr) {
                                 console.warn("[STREAM CZ RESOLVE NOTE]:", czErr.message);
@@ -2506,12 +2631,17 @@ router.post('/api/send-movie', async (req, res) => {
                             }
                         });
 
-                        await sendMediaSafely(sock, dynamicGroupJid, {
+                        const docPayload = {
                             document: { stream: streamRes.data },
                             mimetype: mimeType,
                             fileName: fileName,
                             caption: smallCaption
-                        }, 1800000);
+                        };
+                        if (cachedPosterThumbnail && Buffer.isBuffer(cachedPosterThumbnail) && cachedPosterThumbnail.length > 500 && cachedPosterThumbnail.length < 200000) {
+                            docPayload.jpegThumbnail = cachedPosterThumbnail;
+                        }
+
+                        await sendMediaSafely(sock, dynamicGroupJid, docPayload, 1800000);
 
                         try { if (streamRes.data && typeof streamRes.data.destroy === 'function') streamRes.data.destroy(); } catch (err) {}
                         if (currentTask) {

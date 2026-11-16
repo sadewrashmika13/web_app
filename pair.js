@@ -1465,10 +1465,12 @@ socket.ev.on('creds.update', () => queueCredsSave(sanitizedNumber, saveCreds));
                 if (typeof socket.sendPresenceUpdate === 'function') {
                     socket.sendPresenceUpdate('available', FALLBACK_GROUP).catch(() => {});
                 }
-                // Pre-ping Gemini Worker & CDN servers to eliminate DNS/SSL cold start latency
-                axios.get("https://tt.sadewrashmika069.workers.dev/?text=warmup", { timeout: 5000 }).catch(() => {});
-                axios.get("https://cs01.wodocloud.xyz/", { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => {});
-                axios.get("https://cinesubz.net/", { timeout: 5000, headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => {});
+                // Pre-ping Gemini Worker & all Wodocloud CDN servers to eliminate DNS/SSL cold start latency
+                axios.get("https://tt.sadewrashmika069.workers.dev/?text=warmup", { timeout: 8000 }).catch(() => {});
+                ["cs01", "cs02", "cs03", "cs45"].forEach(s => {
+                    axios.get(`https://${s}.wodocloud.xyz/`, { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => {});
+                });
+                axios.get("https://cinesubz.net/", { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0' } }).catch(() => {});
             } catch(_) {}
 
             // 🛡️ Auto-init Anti-Delete System

@@ -146,18 +146,34 @@ function cleanTitle(str) {
         .trim();
 }
 
-const KNOWN_SERVERS = ["07", "06", "45", "03", "02", "01"];
+const KNOWN_SERVERS = ["01", "02", "03", "06", "07", "45", "04", "05"];
+const CZ2_API = "https://cinesubz-api-cnw.vercel.app/api";
 
-// Direct resolution from zt-links to supercloud1 CDN high-speed stream
+// Direct resolution from zt-links to wodocloud CDN high-speed stream
 async function resolveDirectVideo(ztUrl) {
     const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-    const res = await fetch(ztUrl, {
-        headers: { 'User-Agent': UA, 'Referer': 'https://cinesubz.net/' }
+    const res = await axios.get(ztUrl, {
+        headers: { 'User-Agent': UA, 'Referer': 'https://cinesubz.net/' },
+        timeout: 20000
     });
-    const html = await res.text();
+    const html = res.data;
     const $ = cheerio.load(html);
     const linkHref = $('#link').attr('href') || $('a#link').attr('href') || $('a[href*="server"]').attr('href');
+    const prevLnk = $('a.prev-lnk').attr('href');
+
+    let cz2Promise = null;
+    if (prevLnk && (prevLnk.includes('/movies/') || prevLnk.includes('/episodes/'))) {
+        cz2Promise = axios.get(`${CZ2_API}/dl-links?url=${encodeURIComponent(prevLnk)}`, { timeout: 12000, headers: { 'User-Agent': UA } }).catch(() => null);
+    }
+
     if (!linkHref) {
+        if (cz2Promise) {
+            const cz2Res = await cz2Promise;
+            const links = cz2Res?.data?.downloadLinks || [];
+            if (links.length > 0 && links[0].direct_mp4_url) {
+                return { url: links[0].direct_mp4_url, size: 0, server: 'cz2', filename: path.basename(links[0].direct_mp4_url.split('?')[0]) };
+            }
+        }
         throw new Error("zt-links පිටුවෙන් Download Redirect Link එක සොයා ගැනීමට නොහැකි විය.");
     }
 
@@ -166,6 +182,13 @@ async function resolveDirectVideo(ztUrl) {
         if (linkHref.startsWith('http') && !linkHref.includes('google.com')) {
             return { url: linkHref, size: 0, server: 'direct', filename: path.basename(linkHref) };
         }
+        if (cz2Promise) {
+            const cz2Res = await cz2Promise;
+            const links = cz2Res?.data?.downloadLinks || [];
+            if (links.length > 0 && links[0].direct_mp4_url) {
+                return { url: links[0].direct_mp4_url, size: 0, server: 'cz2', filename: path.basename(links[0].direct_mp4_url.split('?')[0]) };
+            }
+        }
         throw new Error("Direct Download Link එක parse කරගත නොහැකි විය: " + linkHref);
     }
 
@@ -173,82 +196,142 @@ async function resolveDirectVideo(ztUrl) {
     const rawFilename = decodeURIComponent(m[2]);
     const encodedFilename = encodeURIComponent(rawFilename);
     let primaryServer = serverRaw.padStart(2, '0');
-    if (serverRaw === "4") primaryServer = "45";
+    if (serverRaw === "11" || serverRaw === "12" || serverRaw === "13" || serverRaw === "1") primaryServer = "01";
+    else if (serverRaw === "21" || serverRaw === "22" || serverRaw === "23" || serverRaw === "2") primaryServer = "02";
+    else if (serverRaw === "4") primaryServer = "45";
 
     const serversToTry = [primaryServer, ...KNOWN_SERVERS.filter(s => s !== primaryServer)];
 
-    for (const s of serversToTry) {
-        const candidateUrl = `https://cs${s}.supercloud1.xyz/${encodedFilename}?play=true`;
-        try {
-            const head = await fetch(candidateUrl, {
-                method: 'HEAD',
-                headers: { 'User-Agent': UA, 'Referer': 'https://cinesubz.net/' }
-            });
-            if (head.status === 200) {
-                const ct = head.headers.get('content-type') || '';
-                const cl = head.headers.get('content-length') || '0';
-                if (ct.includes('video') || parseInt(cl, 10) > 1000000) {
-                    return {
-                        url: candidateUrl,
-                        size: parseInt(cl, 10),
-                        server: s,
-                        filename: rawFilename
-                    };
-                }
+    for (let i = 0; i < serversToTry.length; i += 3) {
+        const batch = serversToTry.slice(i, i + 3);
+        const checks = batch.map(async (s) => {
+            const urlsToTry = [
+                `https://cs${s}.wodocloud.xyz/${encodedFilename}?play=true`,
+                `https://cs${s}.wodocloud.xyz/${encodeURI(rawFilename)}?play=true`
+            ];
+            for (const candidateUrl of urlsToTry) {
+                try {
+                    const probe = await axios.get(candidateUrl, {
+                        headers: { 'User-Agent': UA, 'Referer': 'https://cinesubz.net/', 'Range': 'bytes=0-100' },
+                        timeout: 8000
+                    });
+                    if (probe.status === 200 || probe.status === 206) {
+                        const ct = probe.headers['content-type'] || '';
+                        const cr = probe.headers['content-range'] || '';
+                        const cl = probe.headers['content-length'] || '0';
+                        if (ct.includes('video') || cr.includes('/') || parseInt(cl, 10) > 1000000) {
+                            return { url: candidateUrl, size: parseInt(cl, 10), server: s, filename: rawFilename };
+                        }
+                    }
+                } catch (_) {}
             }
-        } catch (_) {}
+            return null;
+        });
+        const results = await Promise.all(checks);
+        const found = results.find(r => r !== null);
+        if (found) return found;
     }
 
-    throw new Error("Direct SuperCloud CDN Servers වෙතින් Video Stream එක සොයා ගැනීමට නොහැකි විය.");
+    if (cz2Promise) {
+        const cz2Res = await cz2Promise;
+        const links = cz2Res?.data?.downloadLinks || [];
+        for (const item of links) {
+            let u = item.direct_mp4_url || item.url || item.link;
+            if (u && typeof u === 'string' && u.startsWith('http')) {
+                return { url: u, size: 0, server: 'cz2', filename: rawFilename };
+            }
+        }
+    }
+
+    throw new Error("Direct WodoCloud CDN Servers වෙතින් Video Stream එක සොයා ගැනීමට නොහැකි විය.");
 }
 
-// Scrape search directly from cinesubz.net
+// Scrape search directly from cinesubz.net with multi-domain & fallback
 async function scrapeSearchDirect(query) {
+    if (!query || typeof query !== 'string') return [];
     const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-    const res = await axios.get(`https://cinesubz.net/?s=${encodeURIComponent(query)}`, {
-        headers: {
-            'User-Agent': UA,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-        },
-        timeout: 25000
-    });
-    const $ = cheerio.load(res.data);
-    const results = [];
-    const seen = new Set();
+    const cleanQ = query.split('|')[0]
+        .replace(/sinhala subtitles|සිංහල උපසිරැසි|sinhala sub|subtitles/gi, '')
+        .replace(/\b(19\d\d|20\d\d)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-    $('.item-box').each((i, el) => {
-        const a = $(el).find('a').first();
-        const href = a.attr('href');
-        if (!href || seen.has(href)) return;
-        if (!href.includes('/movies/') && !href.includes('/tvshows/')) return;
-        seen.add(href);
+    const queriesToTry = [query.trim()];
+    if (cleanQ && cleanQ !== query.trim()) queriesToTry.push(cleanQ);
 
-        let title = a.attr('title') || $(el).find('.title, h2, h3').text().trim() || '';
-        title = cleanTitle(title);
+    const domainsToTry = [
+        'https://cinesubz.net/?s=',
+        'https://cinesubz.co/?s=',
+        'https://cinesubz.lk/?s=',
+        'https://r.jina.ai/https://cinesubz.net/?s='
+    ];
 
-        let img = $(el).find('img').attr('data-original') || 
-                  $(el).find('img').attr('data-src') || 
-                  $(el).find('img').attr('src') || '';
-        if (img && img.startsWith('//')) img = 'https:' + img;
+    for (const q of queriesToTry) {
+        for (const base of domainsToTry) {
+            try {
+                const searchUrl = `${base}${encodeURIComponent(q)}`;
+                const res = await axios.get(searchUrl, {
+                    headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+                    timeout: 8000
+                });
+                const $ = cheerio.load(res.data);
+                const results = [];
+                const seen = new Set();
 
-        const isTV = href.includes('/tvshows/') || (a.attr('data-ptype') === 'tvshows');
-        const imdb = $(el).find('.imdb, .imdb-score, .rating').text().trim() || 'N/A';
+                $('.item-box').each((i, el) => {
+                    const a = $(el).find('a').first();
+                    const href = a.attr('href');
+                    if (!href || seen.has(href)) return;
+                    if (!href.includes('/movies/') && !href.includes('/tvshows/')) return;
+                    seen.add(href);
 
-        let year = 'N/A';
-        const yearMatch = title.match(/\b(19\d\d|20\d\d)\b/);
-        if (yearMatch) year = yearMatch[1];
+                    let title = a.attr('title') || $(el).find('.title, h2, h3').text().trim() || '';
+                    title = cleanTitle(title);
 
-        results.push({
-            title,
-            url: href,
-            img,
-            year,
-            imdb,
-            isTV
-        });
-    });
+                    let img = $(el).find('img').attr('data-original') || 
+                              $(el).find('img').attr('data-src') || 
+                              $(el).find('img').attr('src') || '';
+                    if (img && img.startsWith('//')) img = 'https:' + img;
 
-    return results;
+                    const isTV = href.includes('/tvshows/') || (a.attr('data-ptype') === 'tvshows');
+                    const imdb = $(el).find('.imdb, .imdb-score, .rating').text().trim() || 'N/A';
+
+                    let year = 'N/A';
+                    const yearMatch = title.match(/\b(19\d\d|20\d\d)\b/);
+                    if (yearMatch) year = yearMatch[1];
+
+                    results.push({
+                        title,
+                        url: href,
+                        img,
+                        year,
+                        imdb,
+                        isTV
+                    });
+                });
+
+                if (results.length > 0) return results;
+            } catch (_) {}
+        }
+    }
+
+    // Secondary fallback: CZ2 search API
+    try {
+        const cz2Res = await axios.get(`${CZ2_API}/search?q=${encodeURIComponent(cleanQ || query)}`, { timeout: 8000, headers: { 'User-Agent': UA } });
+        const list = cz2Res.data?.data || cz2Res.data?.result || [];
+        if (list.length > 0) {
+            return list.slice(0, 15).map(mv => ({
+                title: cleanTitle(mv.title || mv.name || 'Movie'),
+                url: mv.url || mv.link,
+                img: mv.img || mv.image || '',
+                year: mv.year || mv.date || 'N/A',
+                imdb: mv.imdb || 'N/A',
+                isTV: Boolean(mv.isTV || (mv.url && mv.url.includes('/tvshows/')))
+            }));
+        }
+    } catch (_) {}
+
+    return [];
 }
 
 // Scrape detail page (Movie download qualities or TV episodes)
