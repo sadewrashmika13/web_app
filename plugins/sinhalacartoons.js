@@ -268,12 +268,26 @@ async function getCartoonDetails(postUrl) {
         }
 
         let streamUrl = '';
-        const videoSrc = $('#mainPlayer source').attr('src') || $('#mainPlayer').attr('src');
+        const videoSrc = $('#mainPlayer source').attr('src') || $('#mainPlayer').attr('src') || $('video source').attr('src') || $('video').attr('src');
         if (videoSrc) {
             streamUrl = videoSrc;
         } else {
-            const iframeSrc = $('iframe#mainPlayer').attr('src');
+            const iframeSrc = $('iframe#mainPlayer').attr('src') || $('iframe').attr('src');
             if (iframeSrc) streamUrl = iframeSrc;
+        }
+
+        if (!directDownload) {
+            $('a').each((i, el) => {
+                if (directDownload) return;
+                const h = $(el).attr('href') || '';
+                const lower = h.toLowerCase();
+                if (lower.includes('pixeldrain.com') || lower.includes('drive.google.com') || lower.includes('mega.nz') || lower.includes('workers.dev') || lower.endsWith('.mp4') || lower.endsWith('.mkv')) {
+                    directDownload = h;
+                }
+            });
+            if (!directDownload && streamUrl && streamUrl.startsWith('http')) {
+                directDownload = streamUrl;
+            }
         }
 
         return {

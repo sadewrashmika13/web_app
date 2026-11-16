@@ -146,7 +146,7 @@ function cleanTitle(str) {
         .trim();
 }
 
-const KNOWN_SERVERS = ["01", "02", "03", "06", "07", "45", "04", "05"];
+const KNOWN_SERVERS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "45"];
 const CZ2_API = "https://cinesubz-api-cnw.vercel.app/api";
 
 // Direct resolution from zt-links to wodocloud CDN high-speed stream

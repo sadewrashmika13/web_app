@@ -442,7 +442,7 @@ async function getGeminiSummary(movieTitle) {
 // ════════════════════════════════════════════════════════
 // 🌐 1. CINESUBZ PURE NATIVE SCRAPER & DIRECT STREAM RESOLVER
 // ════════════════════════════════════════════════════════
-const KNOWN_CZ_SERVERS = ["01", "02", "03", "06", "07", "45", "04", "05"];
+const KNOWN_CZ_SERVERS = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "45"];
 
 function cleanCineTitle(str) {
     if (!str) return 'Untitled';
@@ -1151,9 +1151,11 @@ async function getPirateLKDetails(pageUrl) {
             const parentText = $(el).parent().text().trim();
             const lowerHref = href.toLowerCase();
 
+            // 🚫 Strictly exclude UsersDrive per user request
+            if (lowerHref.includes('usersdrive') || lowerHref.includes('userdrive') || linkText.toLowerCase().includes('usersdrive') || parentText.toLowerCase().includes('usersdrive')) return;
+
             const isDlHost = lowerHref.includes('pixeldrain.com') || 
                              lowerHref.includes('drive.google.com') || 
-                             lowerHref.includes('usersdrive.com') || 
                              lowerHref.includes('racaty.net') || 
                              lowerHref.includes('mega.nz') ||
                              lowerHref.endsWith('.mp4') || lowerHref.endsWith('.mkv');
@@ -1163,7 +1165,6 @@ async function getPirateLKDetails(pageUrl) {
                 let qMatch = (linkText + ' ' + parentText + ' ' + href).match(/(480p|720p|1080p|2160p|4k)/i);
                 let sMatch = (linkText + ' ' + parentText).match(/([0-9]+(?:\.[0-9]+)?\s*(?:MB|GB))/i);
                 let host = lowerHref.includes('pixeldrain') ? 'PixelDrain' :
-                           lowerHref.includes('usersdrive') ? 'UsersDrive' :
                            lowerHref.includes('racaty') ? 'Racaty' :
                            lowerHref.includes('drive.google') ? 'GDrive' : 'Download';
                 let label = qMatch ? qMatch[1].toUpperCase() : 'HD';
@@ -1198,10 +1199,11 @@ async function getPirateLKDetails(pageUrl) {
                 const lowerHref = href.toLowerCase();
 
                 if (lowerHref.includes('#') || lowerHref.includes('/category/') || lowerHref.includes('/tag/') || lowerHref.includes('piratelk.com/download/')) continue;
+                // 🚫 Strictly exclude UsersDrive
+                if (lowerHref.includes('usersdrive') || lowerHref.includes('userdrive') || text.toLowerCase().includes('usersdrive')) continue;
 
                 const isDlHost = lowerHref.includes('pixeldrain.com') || 
                                  lowerHref.includes('drive.google.com') || 
-                                 lowerHref.includes('usersdrive.com') || 
                                  lowerHref.includes('racaty.net') || 
                                  lowerHref.includes('mega.nz') ||
                                  lowerHref.endsWith('.mp4') || lowerHref.endsWith('.mkv');
@@ -1211,7 +1213,6 @@ async function getPirateLKDetails(pageUrl) {
                     let qMatch = (text + ' ' + href).match(/(480p|720p|1080p|2160p|4k)/i);
                     let sMatch = text.match(/([0-9]+(?:\.[0-9]+)?\s*(?:MB|GB))/i);
                     let host = lowerHref.includes('pixeldrain') ? 'PixelDrain' :
-                               lowerHref.includes('usersdrive') ? 'UsersDrive' :
                                lowerHref.includes('racaty') ? 'Racaty' :
                                lowerHref.includes('drive.google') ? 'GDrive' : 'Download';
                     let label = qMatch ? qMatch[1].toUpperCase() : 'HD';
@@ -1383,25 +1384,97 @@ async function getSinhalaCartoonsDetails(postUrl) {
             }
         });
     } else {
+        const seenUrls = new Set();
+        // 1. Direct sc_data button or regex in HTML
         const scBtn = $('.sc-download-links-btn').attr('href') || '';
-        const scMatch = (scBtn + html).match(/sc_data=([^"'\s&]+)/);
+        const scMatch = (scBtn + ' ' + html).match(/sc_data=([^"'\s&]+)/);
         if (scMatch) {
             const parsed = decodeScData(scMatch[1]);
-            if (parsed && parsed.direct) {
+            if (parsed && parsed.direct && !seenUrls.has(parsed.direct)) {
+                seenUrls.add(parsed.direct);
                 downloads.push({
-                    meta: 'Direct HD Download',
+                    meta: parsed.title || 'Direct HD Download',
                     resolvedUrl: parsed.direct,
                     direct: true
                 });
             }
         }
-        if (downloads.length === 0) {
-            $('a[href*=".mp4"], a[href*=".mkv"], a[href*="download"]').each((i, el) => {
-                const href = $(el).attr('href');
-                if (href && (href.startsWith('http') || href.endsWith('.mp4'))) {
-                    downloads.push({ meta: $(el).text().trim() || `Download HD`, resolvedUrl: href, direct: true });
+
+        // 2. Video player sources & iframes
+        const playerSources = [
+            $('#mainPlayer source').attr('src'),
+            $('#mainPlayer').attr('src'),
+            $('video source').attr('src'),
+            $('video').attr('src'),
+            $('iframe#mainPlayer').attr('src'),
+            $('.video-container iframe').attr('src'),
+            $('.player-container iframe').attr('src')
+        ];
+        for (const pSrc of playerSources) {
+            if (pSrc && pSrc.startsWith('http') && !seenUrls.has(pSrc)) {
+                seenUrls.add(pSrc);
+                downloads.push({
+                    meta: 'Direct Player Stream HD',
+                    resolvedUrl: pSrc,
+                    direct: true
+                });
+            }
+        }
+
+        // 3. Direct download buttons and links
+        $('a').each((i, el) => {
+            const href = $(el).attr('href') || '';
+            const text = $(el).text().trim() || 'Download HD';
+            const lowerHref = href.toLowerCase();
+            if (!href.startsWith('http')) return;
+
+            const isDlLink = lowerHref.includes('pixeldrain.com') ||
+                             lowerHref.includes('drive.google.com') ||
+                             lowerHref.includes('mega.nz') ||
+                             lowerHref.includes('cloud.sinhalachr.workers.dev') ||
+                             lowerHref.includes('animostlk.sinhalachr.workers.dev') ||
+                             lowerHref.endsWith('.mp4') || lowerHref.endsWith('.mkv') ||
+                             lowerHref.includes('sc_data=');
+
+            if (isDlLink && !seenUrls.has(href)) {
+                seenUrls.add(href);
+                let finalHref = href;
+                if (href.includes('sc_data=')) {
+                    const scM = href.match(/sc_data=([^"'\s&]+)/);
+                    if (scM) {
+                        const parsed = decodeScData(scM[1]);
+                        if (parsed?.direct) finalHref = parsed.direct;
+                    }
                 }
-            });
+                let label = text;
+                if (!label || label.length > 50) {
+                    if (lowerHref.includes('pixeldrain')) label = 'PixelDrain HD';
+                    else if (lowerHref.includes('drive.google')) label = 'GDrive HD';
+                    else if (lowerHref.includes('mega')) label = 'Mega HD';
+                    else label = 'Direct HD Download';
+                }
+                downloads.push({
+                    meta: label,
+                    resolvedUrl: finalHref,
+                    direct: true
+                });
+            }
+        });
+
+        // 4. Script matches for video streams
+        if (downloads.length === 0) {
+            const scriptMatches = [...html.matchAll(/(?:file|source|src)\s*:\s*["'](https?:\/\/[^"']+\.(?:mp4|mkv)[^"']*)["']/gi)];
+            for (const sm of scriptMatches) {
+                const sUrl = sm[1];
+                if (sUrl && !seenUrls.has(sUrl)) {
+                    seenUrls.add(sUrl);
+                    downloads.push({
+                        meta: 'HD Direct Stream',
+                        resolvedUrl: sUrl,
+                        direct: true
+                    });
+                }
+            }
         }
     }
 
@@ -1602,14 +1675,21 @@ async function resolveCartoonsLkStream({ pageUrl, postId, nonce, type, episodeIn
     // Follow 302 redirect to Cloudflare worker or final download link
     try {
         const headRes = await axios.get(dlUrl, {
-            headers: HEADERS,
+            headers: { ...HEADERS, 'Referer': pageUrl || 'https://cartoons.lk/' },
             maxRedirects: 0,
             validateStatus: () => true,
             timeout: 15000
         });
         const redirLoc = headRes.headers.location || (headRes.headers.get ? headRes.headers.get('location') : null);
-        return redirLoc || dlUrl;
+        let finalResolved = redirLoc || dlUrl;
+        if (finalResolved && finalResolved.includes('pixeldrain.com/u/')) {
+            finalResolved = finalResolved.replace('pixeldrain.com/u/', 'pixeldrain.com/api/file/');
+        }
+        return finalResolved;
     } catch (_) {
+        if (dlUrl && dlUrl.includes('pixeldrain.com/u/')) {
+            dlUrl = dlUrl.replace('pixeldrain.com/u/', 'pixeldrain.com/api/file/');
+        }
         return dlUrl;
     }
 }
@@ -2279,13 +2359,14 @@ router.post('/api/send-movie', async (req, res) => {
 
                 let cachedPosterThumbnail = null;
 
-                // 1. Send details card (guaranteed for every user movie request; for batches, only send once for episode 0)
-                const shouldSendDetailsCard = isBatch ? (batchIndex === 0 && !sentDetailsCardTracker.has(detailsKey)) : true;
+                // 1. Send details card (tracked for ALL requests with 15min TTL to eliminate duplicate card deliveries)
+                const shouldSendDetailsCard = isBatch 
+                    ? (batchIndex === 0 && !sentDetailsCardTracker.has(detailsKey)) 
+                    : !sentDetailsCardTracker.has(detailsKey);
+
                 if (shouldSendDetailsCard) {
-                    if (isBatch) {
-                        sentDetailsCardTracker.add(detailsKey);
-                        setTimeout(() => sentDetailsCardTracker.delete(detailsKey), 10 * 60 * 1000);
-                    }
+                    sentDetailsCardTracker.add(detailsKey);
+                    setTimeout(() => sentDetailsCardTracker.delete(detailsKey), 15 * 60 * 1000);
 
                     const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
                     const adminInboxText = `📌 *New Request Started!*\n🎬 *Title:* ${verifiedTitle}\n✨ *Quality:* ${cleanQuality}\n👤 *By:* ${cleanReqName}\n📞 *Number:* ${cleanReqNum}\n🌐 *IP:* ${clientIp}`;
@@ -2315,6 +2396,7 @@ router.post('/api/send-movie', async (req, res) => {
                     }
 
                     let cardSent = false;
+                    let attemptedImageSend = false;
                     if (finalPoster) {
                         let posterBuffer = null;
                         try {
@@ -2335,6 +2417,7 @@ router.post('/api/send-movie', async (req, res) => {
                         }
 
                         try {
+                            attemptedImageSend = true;
                             const imgPayload = posterBuffer 
                                 ? { image: posterBuffer, caption: cap, mimetype: 'image/jpeg' } 
                                 : { image: { url: finalPoster }, caption: cap, mimetype: 'image/jpeg' };
@@ -2344,7 +2427,8 @@ router.post('/api/send-movie', async (req, res) => {
                             console.log("[SEND] Poster image send note:", sendErr.message);
                         }
                     }
-                    if (!cardSent) {
+                    // Only send text card if there was NO poster available to send
+                    if (!cardSent && !attemptedImageSend) {
                         try {
                             await sendMediaSafely(sock, dynamicGroupJid, { text: cap }, 20000);
                             cardSent = true;
@@ -2637,9 +2721,6 @@ router.post('/api/send-movie', async (req, res) => {
                             fileName: fileName,
                             caption: smallCaption
                         };
-                        if (cachedPosterThumbnail && Buffer.isBuffer(cachedPosterThumbnail) && cachedPosterThumbnail.length > 500 && cachedPosterThumbnail.length < 200000) {
-                            docPayload.jpegThumbnail = cachedPosterThumbnail;
-                        }
 
                         await sendMediaSafely(sock, dynamicGroupJid, docPayload, 1800000);
 
@@ -2709,7 +2790,7 @@ router.post('/api/anime-episodes', async (req, res) => {
         let epMatch;
         while ((epMatch = epRegex.exec(html)) !== null) episodes.push({ hash: epMatch[1], num: parseInt(epMatch[2]) });
         episodes.sort((a, b) => a.num - b.num);
-        res.json({ success: true, videoname, thumbnail, episodes: episodes.slice(0, 30) });
+        res.json({ success: true, videoname, thumbnail, episodes: episodes.slice(0, 1000) });
     } catch (e) { res.json({ success: false }); }
 });
 
@@ -2861,8 +2942,11 @@ router.post('/api/anime-send', async (req, res) => {
 
                 if (!streamUploaded) {
                     const errMsg = lastError?.message || 'Upload failed';
+                    console.error(`[ANIME QUEUE] ❌ Failed for ${cleanVideoname} - Ep ${cleanEpNum}: ${errMsg}`);
+                    // Per user request: DO NOT spam failure message to sender's group. Only notify admin inbox quietly.
                     try {
-                        await sendMediaSafely(sock, dynamicGroupJid, { text: `❌ *Failed:* ${cleanVideoname} - Ep ${cleanEpNum}\n_Error: ${errMsg}._` }, 30000);
+                        const exactBotJid = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : (dynamicBotNumber + '@s.whatsapp.net');
+                        await sendMediaSafely(sock, exactBotJid, { text: `⚠️ *Anime Ep Failed:* ${cleanVideoname} - Ep ${cleanEpNum}\n_Error: ${errMsg}_` }, 15000);
                     } catch(e){}
                 }
 
@@ -2876,14 +2960,36 @@ router.post('/api/anime-send', async (req, res) => {
 
 async function getAnimeStreamUrl(id, ep, hash) {
     try {
-        const epPage = (await axios.get(`${ANIME_BASE}/episode.php?${id}&e=${ep}`, { headers: HEADERS })).data;
-        const gateMatch = epPage.match(/gatea\(\s*['"]([^'"]+)['"]\s*\)/i);
-        const epHash = hash || (gateMatch ? gateMatch[1] : null);
+        let epHash = hash;
+        if (!epHash && id) {
+            const animeHtml = (await axios.get(`${ANIME_BASE}/anime.php?${id}`, { headers: HEADERS, timeout: 15000 })).data;
+            const epRegex = new RegExp(`gatea\\(\\s*['"]([^'"]+)['"]\\s*\\)[\\s\\S]*?<div\\s+class=\\s*['"]\\s*watch2 bc\\s*['"]\\s*>${ep}<\\/div>`, 'i');
+            const m = animeHtml.match(epRegex);
+            if (m) epHash = m[1];
+            if (!epHash) {
+                const anyMatch = animeHtml.match(/gatea\(\s*['"]([^'"]+)['"]\s*\)/i);
+                if (anyMatch) epHash = anyMatch[1];
+            }
+        }
         if (!epHash) return null;
-        const gateHtml = (await axios.get(`${ANIME_BASE}/gatea.php?${epHash}`, { headers: HEADERS })).data;
-        const streamUrlMatch = gateHtml.match(/https?:\/\/[^\s"']+\.mp4[^\s"']*/i);
-        return streamUrlMatch ? streamUrlMatch[0] : null;
+
+        const gateRes = await axios.get(`${ANIME_BASE}/gate.php`, {
+            headers: {
+                ...HEADERS,
+                'Referer': `${ANIME_BASE}/anime.php?${id || ''}`,
+                'Cookie': `key=${epHash}`
+            },
+            timeout: 15000
+        });
+
+        const gateHtml = typeof gateRes.data === 'string' ? gateRes.data : '';
+        const sourceMatch = gateHtml.match(/<source[^>]+src=['"]([^'"]+)['"]/i) ||
+                            gateHtml.match(/<video[^>]+src=['"]([^'"]+)['"]/i) ||
+                            gateHtml.match(/https?:\/\/[^\s"'<>]+\.(?:mp4|m3u8)[^\s"'<>]*/i);
+
+        return sourceMatch ? (sourceMatch[1] || sourceMatch[0]) : null;
     } catch (e) {
+        console.error("[ANIME STREAM URL ERROR]:", e.message);
         return null;
     }
 }
