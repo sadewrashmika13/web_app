@@ -126,16 +126,22 @@ const ALLOWED_IMAGE_HOSTS = [
     'pixeldrain.com'
 ];
 
-let ffmpegStatic;
+let ffmpegPath = null;
 try {
-    ffmpegStatic = require('ffmpeg-static');
+    ffmpegPath = require('ffmpeg-static');
 } catch (_) {}
+if (!ffmpegPath) {
+    try {
+        ffmpegPath = require('@ffmpeg-installer/ffmpeg')?.path;
+    } catch (_) {}
+}
+if (!ffmpegPath) ffmpegPath = 'ffmpeg';
 
 function convertWithFfmpeg(buffer) {
-    if (!ffmpegStatic) return null;
+    if (!ffmpegPath) return null;
     return new Promise((resolve) => {
         const { spawn } = require('child_process');
-        const ff = spawn(ffmpegStatic, [
+        const ff = spawn(ffmpegPath, [
             '-i', 'pipe:0',
             '-vframes', '1',
             '-q:v', '2',
@@ -156,6 +162,64 @@ function convertWithFfmpeg(buffer) {
         ff.stdin.write(buffer);
         ff.stdin.end();
     });
+}
+
+// 🖼️ High-speed, micro-thumbnail generator for WhatsApp documents (< 15KB to prevent socket stall)
+async function createDocumentThumbnail(buffer) {
+    if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 20) return null;
+
+    // 1. Try ffmpeg (scale to width 120, low quality 7 -> ~3KB-6KB lightweight JPEG)
+    if (ffmpegPath) {
+        try {
+            const thumb = await new Promise((resolve) => {
+                const { spawn } = require('child_process');
+                const ff = spawn(ffmpegPath, [
+                    '-i', 'pipe:0',
+                    '-vf', 'scale=120:-1',
+                    '-vframes', '1',
+                    '-q:v', '7',
+                    '-f', 'image2',
+                    '-c:v', 'mjpeg',
+                    'pipe:1'
+                ]);
+                const chunks = [];
+                ff.stdout.on('data', c => chunks.push(c));
+                ff.on('close', code => {
+                    if (code === 0 && chunks.length > 0) resolve(Buffer.concat(chunks));
+                    else resolve(null);
+                });
+                ff.on('error', () => resolve(null));
+                ff.stdin.write(buffer);
+                ff.stdin.end();
+            });
+            if (thumb && thumb.length > 100 && thumb.length <= 20000) return thumb;
+        } catch (_) {}
+    }
+
+    // 2. Jimp fallback (resize to 120, quality 50 -> <10KB)
+    try {
+        if (Jimp) {
+            const readFn = Jimp.read || Jimp;
+            if (typeof readFn === 'function') {
+                const img = await readFn(buffer);
+                if (img) {
+                    if (typeof img.resize === 'function') {
+                        try { img.resize({ w: 120 }); } catch (e) { try { img.resize(120, -1); } catch (_) {} }
+                    }
+                    if (typeof img.quality === 'function') img.quality(50);
+                    let b = null;
+                    if (typeof img.getBuffer === 'function') b = await img.getBuffer('image/jpeg');
+                    else if (typeof img.getBufferAsync === 'function') b = await img.getBufferAsync(Jimp.MIME_JPEG || 'image/jpeg');
+                    if (b && b.length > 100 && b.length <= 20000) return b;
+                }
+            }
+        }
+    } catch (_) {}
+
+    // 3. Fallback: only if original buffer is already under 20KB
+    if (buffer.length <= 20000) return buffer;
+
+    return null;
 }
 
 function isValidMovieImage(imgUrl) {
@@ -2410,7 +2474,7 @@ router.post('/api/send-movie', async (req, res) => {
                             if (imgRes.data && imgRes.data.length > 500) {
                                 const rawBuf = Buffer.from(imgRes.data);
                                 posterBuffer = await ensureJpegBuffer(rawBuf);
-                                cachedPosterThumbnail = posterBuffer;
+                                cachedPosterThumbnail = await createDocumentThumbnail(posterBuffer);
                             }
                         } catch (fetchErr) {
                             console.log("[SEND] Poster image buffer fetch note:", fetchErr.message);
@@ -2715,12 +2779,30 @@ router.post('/api/send-movie', async (req, res) => {
                             }
                         });
 
+                        if (!cachedPosterThumbnail && finalPoster) {
+                            try {
+                                const pHeaders = { ...HEADERS };
+                                if (finalPoster.includes('tamilmv') || source === '1tamilmv') {
+                                    pHeaders['Referer'] = 'https://www.1tamilmv.rocks/';
+                                } else if (finalPoster.includes('cinesubz')) {
+                                    pHeaders['Referer'] = 'https://cinesubz.net/';
+                                }
+                                const imgRes = await axios.get(finalPoster, { responseType: 'arraybuffer', timeout: 5000, headers: pHeaders });
+                                if (imgRes.data && imgRes.data.length > 500) {
+                                    cachedPosterThumbnail = await createDocumentThumbnail(Buffer.from(imgRes.data));
+                                }
+                            } catch (_) {}
+                        }
+
                         const docPayload = {
                             document: { stream: streamRes.data },
                             mimetype: mimeType,
                             fileName: fileName,
                             caption: smallCaption
                         };
+                        if (cachedPosterThumbnail && Buffer.isBuffer(cachedPosterThumbnail) && cachedPosterThumbnail.length > 50 && cachedPosterThumbnail.length <= 25000) {
+                            docPayload.jpegThumbnail = cachedPosterThumbnail;
+                        }
 
                         await sendMediaSafely(sock, dynamicGroupJid, docPayload, 1800000);
 
@@ -2893,6 +2975,16 @@ router.post('/api/anime-send', async (req, res) => {
                 if (aiSummary) { cardText += `📖 *Summary:*\n${aiSummary}\n\n`; }
                 cardText += `👤 *Required By:* ${cleanReqName}${dynamicFooter ? `\n\n> *${dynamicFooter}*` : ''}`;
 
+                let animeThumbnail = null;
+                if (thumbnail && thumbnail.startsWith('http')) {
+                    try {
+                        const tRes = await axios.get(thumbnail, { responseType: 'arraybuffer', timeout: 8000, headers: HEADERS });
+                        if (tRes.data && tRes.data.length > 500) {
+                            animeThumbnail = await createDocumentThumbnail(Buffer.from(tRes.data));
+                        }
+                    } catch (_) {}
+                }
+
                 let streamUploaded = false;
                 let lastError = null;
                 const maxRetries = 3;
@@ -2922,12 +3014,17 @@ router.post('/api/anime-send', async (req, res) => {
                         const fileSizeMB = (stats.size / 1024 / 1024).toFixed(1);
                         const fileName = `${cleanVideoname.replace(/[^a-zA-Z0-9 ]/g, '')} - Ep ${cleanEpNum}.mp4`;
 
-                        await sendMediaSafely(sock, dynamicGroupJid, {
+                        const animeDocPayload = {
                             document: { url: tempAnimePath },
                             mimetype: 'video/mp4',
                             fileName,
                             caption: cardText
-                        }, 1800000);
+                        };
+                        if (animeThumbnail && Buffer.isBuffer(animeThumbnail) && animeThumbnail.length > 50 && animeThumbnail.length <= 25000) {
+                            animeDocPayload.jpegThumbnail = animeThumbnail;
+                        }
+
+                        await sendMediaSafely(sock, dynamicGroupJid, animeDocPayload, 1800000);
 
                         streamUploaded = true;
                         break;
