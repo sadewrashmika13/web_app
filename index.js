@@ -312,22 +312,22 @@ app.use('/', movieRoutes);
 app.use('/code', code); // Pairing API එක
 
 // 1. Movie Search Page 
-app.use('/movie', async (req, res) => { 
+app.use(['/movies', '/movie'], async (req, res) => { 
     res.sendFile(path.join(__path, 'movie.html')); 
 });
 
 // 2. Login Portal 
-app.use('/portal', async (req, res) => { 
+app.use(['/portal', '/protal'], async (req, res) => { 
     res.sendFile(path.join(__path, 'main.html')); 
 });
 
 // 3. Sub Admin Panel 
-app.use('/sub_admin.html', async (req, res) => { 
+app.use(['/sub_admin', '/sub_admin.html'], async (req, res) => { 
     res.sendFile(path.join(__path, 'sub_admin.html')); 
 });
 
 // 4. Central Panel 
-app.use('/central_panel.html', async (req, res) => { 
+app.use(['/central', '/central_panel', '/central_panel.html'], async (req, res) => { 
     res.sendFile(path.join(__path, 'central_panel.html')); 
 });
 
@@ -344,8 +344,12 @@ app.use('/vinu-admin', async (req, res) => {
    res.redirect('/sub_admin.html?admin=vinu');
 });
 
-// 6. Pairing Page (Base URL - මේක අනිවාර්යයෙන්ම අන්තිමටම තියෙන්න ඕනේ!)
+// 6. Pairing Page (Base URL - mv domain එකෙන් ආවොත් movie.html, නැත්නම් pair.html)
 app.use('/', async (req, res) => { 
+    const host = (req.headers.host || req.hostname || '').toLowerCase();
+    if (host.startsWith('mv.') || host.includes('movie')) {
+        return res.sendFile(path.join(__path, 'movie.html'));
+    }
     res.sendFile(path.join(__path, 'pair.html')); 
 });
 
