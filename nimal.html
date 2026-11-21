@@ -351,7 +351,7 @@ async function openModal(title,img,refId,imdb,year,genres,runtime){
       if(finalImg&&(!img||img.includes('placeholder'))){const mi=document.getElementById('modalImg');if(mi)mi.src=finalImg;}
       currentMovieMeta={title,img:finalImg,imdb:imdb||data.imdb,refId,year:year||data.year,genres:genres||data.genres,runtime:runtime||data.runtime};
       const arr=isA?data.episodes:data.downloads;currentDownloads=arr;
-      const isS = arr.length > 1 && (isA || data.isSeries === true || (arr[0].meta && /ep|episode|season|part|^s\d+/i.test(arr[0].meta)) || (arr[1] && arr[1].meta && /ep|episode|season|part|^s\d+/i.test(arr[1].meta)));
+      const isS = arr.length > 1 && (isA || data.isSeries === true || (arr[0].meta && /\b(ep|episode|season)\b|^s\d+/i.test(arr[0].meta)));
       if(isS){
         const ba=document.createElement('button');ba.className='qbtn all-btn';ba.innerHTML=`🚀 Queue ALL Episodes (${arr.length})`;
         ba.onclick=()=>isA?sendAllAnime(data):sendAllMovie(arr);

@@ -2414,6 +2414,7 @@ router.post('/api/send-movie', async (req, res) => {
 
             try {
                 const isBatch = typeof batchIndex !== 'undefined';
+                const isFirstInBatch = !isBatch || Number(batchIndex) === 0;
                 const baseMovieKey = cleanTitle
                     .toLowerCase()
                     .replace(/sinhala subtitles|සිංහල උපසිරැසි|sinhala sub|subtitles|\(\d{4}\)|\d{4}/gi, '')
@@ -2552,7 +2553,13 @@ router.post('/api/send-movie', async (req, res) => {
                                         const epDetails = await scrapeCineSubzDetails(finalVidUrl);
                                         if (epDetails.downloadQualities && epDetails.downloadQualities.length > 0) {
                                             const qClean = cleanQuality.toLowerCase();
-                                            const chosenDl = epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes(qClean)) ||
+                                            let prefQ = '';
+                                            if (qClean.includes('480p')) prefQ = '480p';
+                                            else if (qClean.includes('1080p')) prefQ = '1080p';
+                                            else if (qClean.includes('720p')) prefQ = '720p';
+
+                                            const chosenDl = (prefQ ? epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes(prefQ)) : null) ||
+                                                             epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes(qClean)) ||
                                                              epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('720p')) ||
                                                              epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('480p')) ||
                                                              epDetails.downloadQualities.find(q => q.quality.toLowerCase().includes('1080p')) ||
