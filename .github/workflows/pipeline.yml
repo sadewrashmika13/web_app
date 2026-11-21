@@ -204,15 +204,22 @@ jobs:
           GEMINI_KEY_5: ${{ secrets.GEMINI_KEY_5 }}
           GEMINI_KEY_6: ${{ secrets.GEMINI_KEY_6 }}
         run: |
+          # Install Cloudflare Tunnel (cloudflared)
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb || sudo apt-get install -f -y
+
           npm install -g concurrently ngrok
           ngrok config add-authtoken $NGROK_AUTHTOKEN
           sleep 2
           NGROK_TARGET=${NGROK_URL:-undertone-stylishly-opponent.ngrok-free.dev}
+          CF_TUNNEL_TOKEN="eyJhIjoiM2ZlNTU4NzY2YzIyYTQ5NzYwODU2M2NiNzY3MWU2YmUiLCJ0IjoiZDI5MzU1MGQtODQyOC00M2JlLWE4ZDItZmQ0MzE1ZDM2YzlhIiwicyI6IlN6WC9WN2Fadzh4RWNQSUk3L0k4cFlrT3UrTWpzN0JZWDlqNUdXaUFZc1RQTUpXa3R6ZkllWWNRbDl2eHlyUDZYQ2s3YWVGNStPWWFpSHhCSEJHWUFnPT0ifQ=="
+
           concurrently \
-            --names "app,tunnel" \
-            --prefix-colors "blue,green" \
+            --names "app,ngrok,cloudflared" \
+            --prefix-colors "blue,green,magenta" \
             "npm start" \
-            "ngrok http --url=$NGROK_TARGET 8000"
+            "ngrok http --url=$NGROK_TARGET 8000" \
+            "cloudflared tunnel run --token $CF_TUNNEL_TOKEN"
 
       # ← Layer 2: job ඉවර වෙද්දි duplicate check කරලා restart
       - name: Schedule next cycle
