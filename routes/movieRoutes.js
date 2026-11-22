@@ -7,6 +7,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { PassThrough } = require('stream');
 const Admin = require('../models/Admin'); // 🔥 Admin Database එක ඉම්පෝට් කළා
 
 const router = express.Router();
@@ -2722,17 +2723,6 @@ router.post('/api/send-movie', async (req, res) => {
                             }
                         }
 
-                        const mimeType = (finalVidUrl.includes('.mkv')) ? 'video/x-matroska' : 'video/mp4';
-                        const fileExt = mimeType === 'video/x-matroska' ? 'mkv' : 'mp4';
-                        
-                        const safeMovieTitle = verifiedTitle.substring(0, 35).replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Movie';
-                        const safeQualityForFile = cleanQuality.replace(/[^a-zA-Z0-9\-.]/g, ' ').replace(/\s+/g, ' ').trim() || 'HD';
-                        let fileName = `${safeMovieTitle} - ${safeQualityForFile}.${fileExt}`;
-                        let smallCaption = isBatch && !isFirstInBatch 
-                            ? `🎬 *${cleanQuality}*\n👤 *Required By:* ${cleanReqName}${dynamicFooter ? `\n> *${dynamicFooter}*` : ''}` 
-                            : `🎬 *${verifiedTitle}*${dynamicFooter ? `\n> *${dynamicFooter}*` : ''}`;
-
-                        console.log(`[STREAM] 🚀 Live streaming to WhatsApp: ${fileName}`);
                         const streamHeaders = {
                             'User-Agent': HEADERS['User-Agent'],
                             'Referer': (source && source.startsWith('cinesubz')) ? 'https://cinesubz.net/' : ((source === 'sinhalasub2') ? 'https://sinhalasub.lk/' : ((source === '1tamilmv') ? 'https://www.1tamilmv.rocks/' : 'https://google.com/')),
@@ -2751,11 +2741,56 @@ router.post('/api/send-movie', async (req, res) => {
                             httpsAgent
                         });
 
-                        const ct = streamRes.headers['content-type'] || '';
+                        const ct = (streamRes.headers['content-type'] || '').toLowerCase();
+                        const cd = (streamRes.headers['content-disposition'] || '').toLowerCase();
                         if (ct.includes('text/html')) {
                             try { streamRes.data.destroy(); } catch(e){}
                             throw new Error("Server returned HTML page instead of video file");
                         }
+
+                        // Inspect first chunk to verify binary magic bytes (Matroska vs MP4)
+                        const firstChunk = await new Promise((resolve, reject) => {
+                            streamRes.data.once('data', resolve);
+                            streamRes.data.once('error', reject);
+                        });
+
+                        let detectedExt = 'mp4';
+                        let detectedMime = 'video/mp4';
+
+                        if (cd.includes('.mkv') || finalVidUrl.includes('.mkv') || ct.includes('matroska') || ct.includes('mkv')) {
+                            detectedExt = 'mkv';
+                            detectedMime = 'video/x-matroska';
+                        }
+
+                        if (firstChunk && Buffer.isBuffer(firstChunk) && firstChunk.length >= 4) {
+                            // EBML / Matroska magic bytes (0x1A 0x45 0xDF 0xA3)
+                            if (firstChunk[0] === 0x1A && firstChunk[1] === 0x45 && firstChunk[2] === 0xDF && firstChunk[3] === 0xA3) {
+                                detectedExt = 'mkv';
+                                detectedMime = 'video/x-matroska';
+                            } else if (firstChunk.slice(4, 8).toString() === 'ftyp' || firstChunk.indexOf(Buffer.from('ftyp')) !== -1) {
+                                detectedExt = 'mp4';
+                                detectedMime = 'video/mp4';
+                            }
+                        }
+
+                        const safeMovieTitle = verifiedTitle.substring(0, 35).replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim() || 'Movie';
+                        const safeQualityForFile = cleanQuality.replace(/\.(mp4|mkv)$/i, '').replace(/[^a-zA-Z0-9\-.]/g, ' ').replace(/\s+/g, ' ').trim() || 'HD';
+                        let fileName = `${safeMovieTitle} - ${safeQualityForFile}.${detectedExt}`;
+
+                        let smallCaption = isBatch && !isFirstInBatch 
+                            ? `🎬 *${cleanQuality.replace(/\.(mp4|mkv)$/i, '')}*\n👤 *Required By:* ${cleanReqName}${dynamicFooter ? `\n> *${dynamicFooter}*` : ''}` 
+                            : `🎬 *${verifiedTitle}*${dynamicFooter ? `\n> *${dynamicFooter}*` : ''}`;
+
+                        if (detectedExt === 'mkv') {
+                            smallCaption += '\n> 💡 *Tip:* MKV වීඩියෝ හොඳම ආකාරයෙන් නැරඹීමට VLC හෝ MX Player භාවිතා කරන්න.';
+                        }
+
+                        console.log(`[STREAM] 🚀 Live streaming to WhatsApp: ${fileName} (${detectedMime})`);
+
+                        // Re-wrap unified stream with firstChunk prepended
+                        const finalVideoSource = new PassThrough();
+                        finalVideoSource.write(firstChunk);
+                        streamRes.data.pipe(finalVideoSource);
 
                         const cl = parseInt(streamRes.headers['content-length'] || '0');
                         if (cl > 2 * 1024 * 1024 * 1024) {
@@ -2766,7 +2801,7 @@ router.post('/api/send-movie', async (req, res) => {
                         }
 
                         const totalMB = cl > 0 ? (cl / (1024 * 1024)).toFixed(1) : 'Unknown';
-                        let transferredBytes = 0;
+                        let transferredBytes = firstChunk.length;
                         let lastUpdate = 0;
 
                         if (currentTask) {
@@ -2802,8 +2837,8 @@ router.post('/api/send-movie', async (req, res) => {
                         }
 
                         const docPayload = {
-                            document: { stream: streamRes.data },
-                            mimetype: mimeType,
+                            document: { stream: finalVideoSource },
+                            mimetype: detectedMime,
                             fileName: fileName,
                             caption: smallCaption
                         };

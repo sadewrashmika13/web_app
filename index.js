@@ -311,6 +311,30 @@ app.use('/', movieRoutes);
 
 app.use('/code', code); // Pairing API එක
 
+// 0. Movie Bot Pair Page
+app.use(['/pair', '/pair.html'], async (req, res) => { 
+    res.sendFile(path.join(__path, 'pair.html')); 
+});
+
+// 0.1 SEO Robots & Sitemap for Google Search Console
+app.get('/robots.txt', (req, res) => {
+    res.type('text/plain');
+    res.send("User-agent: *\nAllow: /\nSitemap: https://mv.sadew.cfd/sitemap.xml\n");
+});
+
+app.get('/sitemap.xml', (req, res) => {
+    res.type('application/xml');
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://mv.sadew.cfd/</loc><priority>1.0</priority></url>
+  <url><loc>https://mv.sadew.cfd/movies</loc><priority>0.9</priority></url>
+  <url><loc>https://mv.sadew.cfd/pair</loc><priority>0.8</priority></url>
+  <url><loc>https://mv.sadew.cfd/vinu</loc><priority>0.7</priority></url>
+  <url><loc>https://mv.sadew.cfd/deshan</loc><priority>0.7</priority></url>
+  <url><loc>https://mv.sadew.cfd/portal</loc><priority>0.6</priority></url>
+</urlset>`);
+});
+
 // 1. Movie Search Page 
 app.use(['/movies', '/movie'], async (req, res) => { 
     res.sendFile(path.join(__path, 'movie.html')); 
